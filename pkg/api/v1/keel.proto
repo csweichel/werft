@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package v1;
+
+service KeelService {
+
+    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
+
+    rpc Listen(ListenRequest) returns (stream ListenResponse) {};
+
+}
+
+message ListJobsRequest {
+    repeated AnnotationFilter filter = 1;
+    bool running_only = 2;
+    int32 start = 3;
+    int32 limit = 4;
+}
+
+message AnnotationFilter {
+    repeated AnnotationFilterTerm terms = 1;
+}
+
+message AnnotationFilterTerm {
+    string annotation = 1;
+    string value = 2;
+    AnnotationFilterOp operation = 3;
+}
+
+enum AnnotationFilterOp {
+    OP_EQUALS = 0;
+    OP_STARTS_WITH = 1;
+    OP_ENDS_WITH = 2;
+    OP_CONTAINS = 3;
+    OP_HAS_KEY = 4;
+}
+
+message ListJobsResponse {
+    int32 total = 1;
+    repeated JobStatus result = 2;
+}
+
+message ListenRequest {
+    string name = 1;
+    bool updates = 2;
+    bool logs = 3;
+}
+
+message ListenResponse {
+    oneof content {
+        JobStatus update = 1;
+        LogSliceEvent slice = 2;
+    };
+}
+
+message JobStatus {
+    string name = 1;
+    JobMetadata metadata = 2;
+    JobPhase phase = 3;
+    JobConditions conditions = 4;
+}
+
+message JobMetadata {
+    repeated Annotation annotations = 1;
+}
+
+message Annotation {
+    string key = 1;
+    string value = 2;
+}
+
+enum JobPhase {
+    // Unknown means we don't know what state the job is in
+    PHASE_UNKNOWN = 0;
+
+    // Preparing means the job hasn't started yet and isn't consuming resources in the system
+    PHASE_PREPARING = 1;
+
+    // Starting means the job has been scheduled and is waiting to run. Things that might prevent it
+	// from running already are pod scheduling, image pull or container startup.
+    PHASE_STARTING = 2;
+
+    // Running means the job is actually running and doing work.
+    PHASE_RUNNING = 3;
+
+    // Done means the job has run and is finished
+    PHASE_DONE = 4;
+}
+
+message JobConditions {
+    bool success = 1;
+}
+
+message LogSliceEvent {
+    string name = 1;
+    LogSlicePhase phase = 2;
+    string payload = 3;
+}
+
+enum LogSlicePhase {
+    SLICE_ABANDONED = 0;
+    SLICE_CHECKPOINT = 1;
+    SLICE_START = 2;
+    SLICE_CONTENT = 3;
+    SLICE_END = 4;
+}
