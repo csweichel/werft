@@ -1,9 +1,12 @@
 containers:
 - name: build
-  image: alpine:latest
-  command: ["sh", "-c"]
-  args: 
+  image: golang:1.13-alpine
+  workingDir: /workspace
+  imagePullPolicy: IfNotPresent
+  command:
+    - sh 
+    - -c
     - |
+      cd /workspace
       go get -v ./...
       go build
-  imagePullPolicy: IfNotPresent

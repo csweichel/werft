@@ -30,10 +30,12 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	}
 
 	var (
-		anyFailed  bool
-		maxRestart int32
+		statuses      = append(obj.Status.InitContainerStatuses, obj.Status.ContainerStatuses...)
+		anyFailed     bool
+		maxRestart    int32
+		allTerminated = len(statuses) != 0
 	)
-	for _, cs := range append(obj.Status.InitContainerStatuses, obj.Status.ContainerStatuses...) {
+	for _, cs := range statuses {
 		if w := cs.State.Waiting; w != nil && w.Reason == "ErrImagePull" {
 			status.Phase = v1.JobPhase_PHASE_DONE
 			status.Conditions.Success = false
@@ -45,6 +47,8 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 			if cs.State.Terminated.ExitCode != 0 {
 				anyFailed = true
 			}
+		} else {
+			allTerminated = false
 		}
 
 		if cs.RestartCount >= maxRestart {
@@ -59,6 +63,10 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		return
 	}
 	if maxRestart > getFailureLimit(obj) {
+		status.Phase = v1.JobPhase_PHASE_DONE
+		return
+	}
+	if allTerminated {
 		status.Phase = v1.JobPhase_PHASE_DONE
 		return
 	}

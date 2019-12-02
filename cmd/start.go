@@ -95,6 +95,13 @@ var startCmd = &cobra.Command{
 			return err
 		}
 
+		go func() {
+			logs := executor.Logs(name)
+			for l := range logs {
+				fmt.Println(l)
+			}
+		}()
+
 	recv:
 		for {
 			select {
@@ -104,7 +111,7 @@ var startCmd = &cobra.Command{
 				}
 
 				up, _ := json.Marshal(update)
-				log.WithField("uodate", string(up)).Info("job update")
+				log.WithField("update", string(up)).Info("job update")
 				if update.Phase == v1.JobPhase_PHASE_CLEANUP {
 					break recv
 				}

@@ -167,6 +167,13 @@ func (srv *Service) RunJob(ctx context.Context, jc JobContext, cp ContentProvide
 		MountPath: "/workspace",
 	})
 	podspec.InitContainers = append(podspec.InitContainers, cpinit)
+	for i, c := range podspec.Containers {
+		podspec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      "keel-workspace",
+			ReadOnly:  false,
+			MountPath: "/workspace",
+		})
+	}
 
 	// schedule/start job
 	name, err = srv.Executor.Start(podspec, executor.WithAnnotations(map[string]string{

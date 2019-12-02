@@ -250,9 +250,8 @@ func (js *Executor) writeEventTraceLog(status *v1.JobStatus, obj *corev1.Pod) {
 }
 
 // Logs provides the log output of a running job. If the job is unknown, nil is returned.
-func (js *Executor) Logs(id string) <-chan string {
-	// provide log chan
-	return nil
+func (js *Executor) Logs(name string) <-chan string {
+	return listenToLogs(js.client, name, js.config.Namespace)
 }
 
 func (js *Executor) doHousekeeping() {
