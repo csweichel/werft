@@ -1,11 +1,12 @@
 package executor
 
 import (
+	"strconv"
 	"strings"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
 	"golang.org/x/xerrors"
-	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -14,26 +15,81 @@ const (
 )
 
 // extracts the phase from the job object
-func getStatus(obj *batchv1.Job) (*v1.JobStatus, error) {
+func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	name, hasName := getJobName(obj)
 	if !hasName {
 		return nil, xerrors.Errorf("job has no name: %v", obj.Name)
 	}
 
-	// TODO: implement me
-
-	return &v1.JobStatus{
+	status = &v1.JobStatus{
 		Name:  name,
 		Phase: v1.JobPhase_PHASE_UNKNOWN,
-	}, nil
+		Conditions: &v1.JobConditions{
+			Success: true,
+		},
+	}
+
+	var (
+		anyFailed  bool
+		maxRestart int32
+	)
+	for _, cs := range append(obj.Status.InitContainerStatuses, obj.Status.ContainerStatuses...) {
+		if w := cs.State.Waiting; w != nil && w.Reason == "ErrImagePull" {
+			status.Phase = v1.JobPhase_PHASE_DONE
+			status.Conditions.Success = false
+			status.Details = w.Message
+			return
+		}
+
+		if cs.State.Terminated != nil {
+			if cs.State.Terminated.ExitCode != 0 {
+				anyFailed = true
+			}
+		}
+
+		if cs.RestartCount >= maxRestart {
+			maxRestart = cs.RestartCount
+		}
+	}
+	status.Conditions.FailureCount = maxRestart
+	status.Conditions.Success = !(anyFailed || maxRestart > getFailureLimit(obj))
+
+	if obj.DeletionTimestamp != nil {
+		status.Phase = v1.JobPhase_PHASE_CLEANUP
+		return
+	}
+	if maxRestart > getFailureLimit(obj) {
+		status.Phase = v1.JobPhase_PHASE_DONE
+		return
+	}
+
+	switch obj.Status.Phase {
+	case corev1.PodPending:
+		status.Phase = v1.JobPhase_PHASE_PREPARING
+		return
+	case corev1.PodRunning:
+		status.Phase = v1.JobPhase_PHASE_RUNNING
+	}
+
+	return
 }
 
-func getJobName(obj *batchv1.Job) (id string, ok bool) {
+func getFailureLimit(obj *corev1.Pod) int32 {
+	val := obj.Annotations[AnnotationFailureLimit]
+	if val == "" {
+		val = "0"
+	}
+
+	res, _ := strconv.ParseInt(val, 10, 32)
+	return int32(res)
+}
+
+func getJobName(obj *corev1.Pod) (id string, ok bool) {
 	id, ok = obj.Labels[LabelJobName]
 	return
 }
 
-func getUserData(obj *batchv1.Job) map[string]string {
+func getUserData(obj *corev1.Pod) map[string]string {
 	res := make(map[string]string)
 	for key, val := range obj.Annotations {
 		if strings.HasPrefix(key, UserDataAnnotationPrefix) {

@@ -24,13 +24,22 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
+
+var verbose bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "keel",
 	Short: "keel is a very simple GitHub triggered and Kubernetes powered CI system",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if verbose {
+			log.SetLevel(log.DebugLevel)
+			log.Debug("verbose logging enabled")
+		}
+	},
 
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -44,4 +53,8 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func init() {
+	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "en/disable verbose logging")
 }

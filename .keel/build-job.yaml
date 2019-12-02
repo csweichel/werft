@@ -1,0 +1,9 @@
+containers:
+- name: build
+  image: alpine:latest
+  command: ["sh", "-c"]
+  args: 
+    - |
+      go get -v ./...
+      go build
+  imagePullPolicy: IfNotPresent

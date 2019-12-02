@@ -1,13 +1,13 @@
 package keel
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"net/http"
-	"sync"
+	"path/filepath"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
 	"github.com/32leaves/keel/pkg/executor"
@@ -17,6 +17,7 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/olebedev/emitter"
 	log "github.com/sirupsen/logrus"
+	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +33,8 @@ type Service struct {
 	Cutter   logcutter.Cutter
 	GitHub   GitHubSetup
 
-	OnError func(err error)
+	OnError                 func(err error)
+	WorkspaceNodePathPrefix string
 
 	events emitter.Emitter
 }
@@ -98,21 +100,18 @@ func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// FileProvider provides access to a job related file
-type FileProvider func(path string) (io.ReadCloser, error)
-
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, jc JobContext, trigger JobTrigger, fp FileProvider) (name string, err error) {
+func (srv *Service) RunJob(ctx context.Context, jc JobContext, cp ContentProvider) (name string, err error) {
 	// download keel config from branch
-	keelYAML, err := fp(".keep.yaml")
+	keelYAML, err := cp.Download(ctx, ".keel/config.yaml")
 	if err != nil {
 		// TODO handle repos without keel config more gracefully
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
 	var repoCfg RepoConfig
 	err = yaml.NewDecoder(keelYAML).Decode(&repoCfg)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
 
 	// check if we need to build/do anything
@@ -122,54 +121,66 @@ func (srv *Service) RunJob(ctx context.Context, jc JobContext, trigger JobTrigge
 
 	// compile job podspec from template
 	tplpth := repoCfg.TemplatePath(JobTriggerPush)
-	jobTplYAML, err := fp(tplpth)
+	jobTplYAML, err := cp.Download(ctx, tplpth)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
 	jobTplRaw, err := ioutil.ReadAll(jobTplYAML)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
 	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobTplRaw))
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
 
-	pr, pw := io.Pipe()
-	var (
-		podspec corev1.PodSpec
-		wg      sync.WaitGroup
-	)
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-
-		terr := yaml.NewDecoder(pr).Decode(&podspec)
-		if terr != nil {
-			err = terr
-		}
-	}()
-	go func() {
-		defer wg.Done()
-
-		terr := jobTpl.Execute(pw, jc)
-		if err != nil {
-			err = terr
-		}
-	}()
-	wg.Wait()
+	buf := bytes.NewBuffer(nil)
+	err = jobTpl.Execute(buf, jc)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
 	}
+
+	var podspec corev1.PodSpec
+	err = yaml.Unmarshal(buf.Bytes(), &podspec)
+	if err != nil {
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+	}
+
+	name = fmt.Sprintf("keel-%s", moniker.New().NameSep("-"))
+	nodePath := filepath.Join(srv.WorkspaceNodePathPrefix, name)
+	httype := corev1.HostPathDirectoryOrCreate
+	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
+		Name: "keel-workspace",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: nodePath,
+				Type: &httype,
+			},
+		},
+	})
+	cpinit := cp.InitContainer()
+	cpinit.Name = "keel-checkout"
+	cpinit.ImagePullPolicy = corev1.PullIfNotPresent
+	cpinit.VolumeMounts = append(cpinit.VolumeMounts, corev1.VolumeMount{
+		Name:      "keel-workspace",
+		ReadOnly:  false,
+		MountPath: "/workspace",
+	})
+	podspec.InitContainers = append(podspec.InitContainers, cpinit)
 
 	// schedule/start job
 	name, err = srv.Executor.Start(podspec, executor.WithAnnotations(map[string]string{
 		"owner": jc.Owner,
 		"repo":  jc.Repo,
 		"rev":   jc.Revision,
-	}))
+	}), executor.WithName(name))
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle push to %s: %w", jc.String(), err)
+		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+	}
+
+	err = cp.Serve(name)
+	if err != nil {
+		return "", err
 	}
 
 	return name, nil
@@ -181,15 +192,15 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 		Owner:    *event.Repo.Owner.Name,
 		Repo:     *event.Repo.Name,
 		Revision: *event.Ref,
+		Trigger:  JobTriggerPush,
 	}
 
-	fp := func(path string) (io.ReadCloser, error) {
-		return srv.GitHub.Client.Repositories.DownloadContents(ctx, jc.Owner, jc.Repo, path, &github.RepositoryContentGetOptions{
-			Ref: jc.Revision,
-		})
+	content := &GitHubContentProvider{
+		Owner:    jc.Owner,
+		Repo:     jc.Repo,
+		Revision: jc.Revision,
 	}
-
-	_, err := srv.RunJob(ctx, jc, JobTriggerPush, fp)
+	_, err := srv.RunJob(ctx, jc, content)
 	if err != nil {
 		srv.OnError(err)
 	}

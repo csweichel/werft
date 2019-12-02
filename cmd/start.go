@@ -22,14 +22,17 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
+	v1 "github.com/32leaves/keel/pkg/api/v1"
 	"github.com/32leaves/keel/pkg/executor"
 	"github.com/32leaves/keel/pkg/keel"
 	"github.com/32leaves/keel/pkg/store"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -53,35 +56,81 @@ var startCmd = &cobra.Command{
 			return err
 		}
 
+		ns, _ := cmd.Flags().GetString("namespace")
 		wd, _ := cmd.Flags().GetString("cwd")
-		jc, err := getLocalJobContext(wd)
+		trigger, _ := cmd.Flags().GetString("trigger")
+		jc, err := getLocalJobContext(wd, keel.JobTrigger(trigger))
 		if err != nil {
 			return err
 		}
 
-		fp := func(path string) (io.ReadCloser, error) {
-			return os.OpenFile(path, os.O_RDONLY, 0644)
+		content := &keel.LocalContentProvider{
+			BasePath:   wd,
+			Namespace:  ns,
+			Kubeconfig: res,
+			Clientset:  kubeClient,
 		}
 
-		ns, _ := cmd.Flags().GetString("namespace")
+		executor := executor.NewExecutor(executor.Config{
+			Namespace:     ns,
+			EventTraceLog: "/tmp/evts.json",
+		}, kubeClient)
+		upchan, errchan := make(chan *v1.JobStatus), make(chan error)
+		executor.OnUpdate = func(update *v1.JobStatus) {
+			upchan <- update
+		}
+		executor.OnError = func(err error) {
+			errchan <- err
+		}
+		executor.Run()
+
 		srv := keel.Service{
-			Logs: store.NewInMemoryLogStore(),
-			Jobs: store.NewInMemoryJobStore(),
-			Executor: executor.NewExecutor(executor.Config{
-				Namespace: ns,
-			}, kubeClient),
+			Logs:     store.NewInMemoryLogStore(),
+			Jobs:     store.NewInMemoryJobStore(),
+			Executor: executor,
 		}
 
-		trigger, _ := cmd.Flags().GetString("trigger")
-		srv.RunJob(context.Background(), *jc, keel.JobTrigger(trigger), fp)
+		name, err := srv.RunJob(context.Background(), *jc, content)
+		if err != nil {
+			return err
+		}
+
+	recv:
+		for {
+			select {
+			case update := <-upchan:
+				if name != update.Name {
+					continue
+				}
+
+				up, _ := json.Marshal(update)
+				log.WithField("uodate", string(up)).Info("job update")
+				if update.Phase == v1.JobPhase_PHASE_CLEANUP {
+					break recv
+				}
+			case err := <-errchan:
+				return err
+			}
+		}
 
 		return nil
 	},
 }
 
-func getLocalJobContext(wd string) (*keel.JobContext, error) {
+func getLocalJobContext(wd string, trigger keel.JobTrigger) (*keel.JobContext, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = wd
+	rev, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	return &keel.JobContext{
+		Owner:    "local",
+		Repo:     filepath.Base(wd),
+		Revision: string(rev),
+		Trigger:  trigger,
+	}, nil
 }
 
 func init() {

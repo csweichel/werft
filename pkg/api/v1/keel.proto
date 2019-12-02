@@ -58,6 +58,7 @@ message JobStatus {
     JobMetadata metadata = 2;
     JobPhase phase = 3;
     JobConditions conditions = 4;
+    string details = 5;
 }
 
 message JobMetadata {
@@ -85,10 +86,14 @@ enum JobPhase {
 
     // Done means the job has run and is finished
     PHASE_DONE = 4;
+
+    // Cleaning means the job is in post-run cleanup
+    PHASE_CLEANUP = 5;
 }
 
 message JobConditions {
     bool success = 1;
+    int32 failure_count = 2;
 }
 
 message LogSliceEvent {

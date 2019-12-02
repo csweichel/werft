@@ -1,15 +1,22 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	log "github.com/sirupsen/logrus"
+	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 const (
@@ -18,12 +25,16 @@ const (
 	LabelKeelMarker = "keel.sh/job"
 
 	// UserDataAnnotationPrefix is prepended to all user annotations added to jobs
-	UserDataAnnotationPrefix = "keel.sh/userdata"
+	UserDataAnnotationPrefix = "userdata.keel.sh"
+
+	// AnnotationFailureLimit is the annotation denoting the max times a job may fail
+	AnnotationFailureLimit = "keel.sh/failureLimit"
 )
 
 // Config configures the executor
 type Config struct {
-	Namespace string
+	Namespace     string `json:"namespace"`
+	EventTraceLog string `json:"eventTraceLog,omitempty"`
 }
 
 // ActiveJob is a currently running job
@@ -51,8 +62,9 @@ type Executor struct {
 	// Beware: this function can be called several times with the same status.
 	OnUpdate func(status *v1.JobStatus)
 
-	config Config
-	client kubernetes.Interface
+	config     Config
+	client     kubernetes.Interface
+	KubeConfig *rest.Config
 }
 
 // Run starts the executor and returns immediately
@@ -63,7 +75,7 @@ func (js *Executor) Run() {
 
 type startOptions struct {
 	JobName     string
-	Modifier    []func(*batchv1.Job)
+	Modifier    []func(*corev1.Pod)
 	Annotations map[string]string
 }
 
@@ -73,9 +85,8 @@ type StartOpt func(*startOptions)
 // WithBackoff configures the backoff behaviour of a job
 func WithBackoff(limit int) StartOpt {
 	return func(opts *startOptions) {
-		opts.Modifier = append(opts.Modifier, func(j *batchv1.Job) {
-			val := int32(limit)
-			j.Spec.BackoffLimit = &val
+		opts.Modifier = append(opts.Modifier, func(j *corev1.Pod) {
+			j.Annotations[AnnotationFailureLimit] = fmt.Sprintf("%d", limit)
 		})
 	}
 }
@@ -97,10 +108,17 @@ func WithAnnotations(annotations map[string]string) StartOpt {
 	}
 }
 
+// WithName sets the name of the job
+func WithName(name string) StartOpt {
+	return func(opts *startOptions) {
+		opts.JobName = name
+	}
+}
+
 // Start starts a new job
 func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id string, err error) {
 	opts := startOptions{
-		JobName: "generate-random-name",
+		JobName: fmt.Sprintf("keel-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
 	}
 	for _, opt := range options {
 		opt(&opts)
@@ -113,6 +131,10 @@ func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id strin
 		annotations[fmt.Sprintf("%s/%s", UserDataAnnotationPrefix, key)] = val
 	}
 
+	if podspec.RestartPolicy != corev1.RestartPolicyNever && podspec.RestartPolicy != corev1.RestartPolicyOnFailure {
+		podspec.RestartPolicy = corev1.RestartPolicyOnFailure
+	}
+
 	meta := metav1.ObjectMeta{
 		Name: opts.JobName,
 		Labels: map[string]string{
@@ -121,20 +143,20 @@ func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id strin
 		},
 		Annotations: annotations,
 	}
-	jobdesc := batchv1.Job{
+	poddesc := corev1.Pod{
 		ObjectMeta: meta,
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: meta,
-				Spec:       podspec,
-			},
-		},
+		Spec:       podspec,
 	}
 	for _, opt := range opts.Modifier {
-		opt(&jobdesc)
+		opt(&poddesc)
 	}
 
-	job, err := js.client.BatchV1().Jobs(js.config.Namespace).Create(&jobdesc)
+	if log.GetLevel() == log.DebugLevel {
+		dbg, _ := json.MarshalIndent(poddesc, "", "  ")
+		log.Debugf("scheduling job\n%s", dbg)
+	}
+
+	job, err := js.client.CoreV1().Pods(js.config.Namespace).Create(&poddesc)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +165,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id strin
 }
 
 func (js *Executor) monitorJobs() {
-	incoming, err := js.client.BatchV1().Jobs(js.config.Namespace).Watch(metav1.ListOptions{
+	incoming, err := js.client.CoreV1().Pods(js.config.Namespace).Watch(metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=true", LabelKeelMarker),
 	})
 	if err != nil {
@@ -151,7 +173,7 @@ func (js *Executor) monitorJobs() {
 	}
 
 	for evt := range incoming.ResultChan() {
-		obj := evt.Object.(*batchv1.Job)
+		obj := evt.Object.(*corev1.Pod)
 		js.handleJobEvent(evt.Type, obj)
 	}
 
@@ -159,14 +181,72 @@ func (js *Executor) monitorJobs() {
 	// TODO: handle graceful shutdown
 }
 
-func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *batchv1.Job) {
+func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 	status, err := getStatus(obj)
+	js.writeEventTraceLog(status, obj)
 	if err != nil {
-		js.OnError(xerrors.Errorf("cannot compute job status: %w", err))
+		js.OnError(err)
 		return
 	}
 
 	js.OnUpdate(status)
+	err = js.actOnUpdate(status, obj)
+	if err != nil {
+		js.OnError(err)
+		return
+	}
+}
+
+func (js *Executor) actOnUpdate(status *v1.JobStatus, obj *corev1.Pod) error {
+	if status.Phase == v1.JobPhase_PHASE_DONE {
+		gracePeriod := int64(30)
+		policy := metav1.DeletePropagationForeground
+
+		err := js.client.CoreV1().Pods(js.config.Namespace).Delete(obj.Name, &metav1.DeleteOptions{
+			GracePeriodSeconds: &gracePeriod,
+			PropagationPolicy:  &policy,
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+func (js *Executor) writeEventTraceLog(status *v1.JobStatus, obj *corev1.Pod) {
+	// make sure we recover from a panic in this function - not that we expect this to ever happen
+	//nolint:errcheck
+	defer recover()
+
+	if js.config.EventTraceLog == "" {
+		return
+	}
+
+	var out io.Writer
+	if js.config.EventTraceLog == "-" {
+		out = os.Stdout
+	} else {
+		f, err := os.OpenFile(js.config.EventTraceLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return
+		}
+		defer f.Close()
+
+		out = f
+	}
+
+	type eventTraceEntry struct {
+		Time   string        `json:"time"`
+		Status *v1.JobStatus `json:"status"`
+		Job    *corev1.Pod   `json:"job"`
+	}
+	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
+	// In fact we don't even want to react to it, hence the nolint.
+	//nolint:errcheck
+	json.NewEncoder(out).Encode(eventTraceEntry{Time: time.Now().Format(time.RFC3339), Status: status, Job: obj})
 }
 
 // Logs provides the log output of a running job. If the job is unknown, nil is returned.
