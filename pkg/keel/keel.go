@@ -13,12 +13,15 @@ import (
 	"github.com/32leaves/keel/pkg/executor"
 	"github.com/32leaves/keel/pkg/logcutter"
 	"github.com/32leaves/keel/pkg/store"
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/Masterminds/sprig"
 	"github.com/google/go-github/github"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/olebedev/emitter"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v2"
@@ -58,15 +61,45 @@ func (srv *Service) Start(addr string) {
 		<-srv.events.Emit(fmt.Sprintf("job.%s", s.Name), s)
 	}
 
+	webuiServer := http.FileServer(rice.MustFindBox("../webui/build").HTTPBox())
+
+	grpcServer := grpc.NewServer()
+	v1.RegisterKeelServiceServer(grpcServer, srv)
+	grpcWebServer := grpcweb.WrapServer(grpcServer)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/github/app", srv.handleGithubWebhook)
-	// mux.HandleFunc("/api/v1", srv.handleAPI)
+	mux.Handle("/", hstsHandler(
+		grpcTrafficSplitter(
+			webuiServer,
+			grpcWebServer,
+		),
+	))
 
 	log.WithField("addr", addr).Info("serving keel service")
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
 		srv.OnError(err)
 	}
+}
+
+// hstsHandler wraps an http.HandlerFunc such that it sets the HSTS header.
+func hstsHandler(fn http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+		fn(w, r)
+	})
+}
+
+func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpcServer) http.HandlerFunc {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if wrappedGrpc.IsGrpcWebRequest(req) || wrappedGrpc.IsAcceptableGrpcCorsRequest(req) {
+			wrappedGrpc.ServeHTTP(resp, req)
+		} else {
+			// Fall back to other servers.
+			fallback.ServeHTTP(resp, req)
+		}
+	})
 }
 
 func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) {
