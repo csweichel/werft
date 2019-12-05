@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/32leaves/keel/pkg/store"
+	"github.com/32leaves/werft/pkg/store"
 )
 
 func TestContinuousWriteReading(t *testing.T) {

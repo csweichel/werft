@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/xerrors"
@@ -13,7 +13,7 @@ import (
 
 const (
 	// LabelJobName adds the ID of the job to the k8s object
-	LabelJobName = "keel.sh/jobName"
+	LabelJobName = "werft.sh/jobName"
 )
 
 // extracts the phase from the job object

@@ -1,14 +1,14 @@
 import * as React from 'react';
 import { DataTable, DataTableProps, Text, Box, Grommet } from 'grommet';
 import { Validate, StatusCritical } from 'grommet-icons';
-import { KeelServiceClient } from './api/keel_pb_service';
-import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest } from './api/keel_pb';
+import { WerftServiceClient } from './api/werft_pb_service';
+import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import { theme } from './theme';
 import { AppBar } from './components/AppBar';
 
 interface JobListProps {
-    client: KeelServiceClient;
+    client: WerftServiceClient;
 }
 
 type JobIndex = { [key: string]: JobStatus.AsObject };

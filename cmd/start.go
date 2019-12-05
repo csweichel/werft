@@ -30,10 +30,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
-	"github.com/32leaves/keel/pkg/executor"
-	"github.com/32leaves/keel/pkg/keel"
-	"github.com/32leaves/keel/pkg/store"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/executor"
+	"github.com/32leaves/werft/pkg/werft"
+	"github.com/32leaves/werft/pkg/store"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -44,7 +44,7 @@ import (
 // startCmd represents the start command
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start runs a keel job in the working directory",
+	Short: "Start runs a werft job in the working directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		kubeconfigPath, _ := cmd.Flags().GetString("kubeconfig")
 		if kubeconfigPath == "" {
@@ -88,7 +88,7 @@ var startCmd = &cobra.Command{
 			return err
 		}
 
-		content := &keel.LocalContentProvider{
+		content := &werft.LocalContentProvider{
 			FileProvider: func(p string) (io.ReadCloser, error) { return os.OpenFile(filepath.Join(wd, p), os.O_RDONLY, 0644) },
 			TarStream:    tarStream,
 			Namespace:    ns,
@@ -112,7 +112,7 @@ var startCmd = &cobra.Command{
 		}
 		executor.Run()
 
-		srv := keel.Service{
+		srv := werft.Service{
 			Logs:     store.NewInMemoryLogStore(),
 			Jobs:     store.NewInMemoryJobStore(),
 			Executor: executor,

@@ -8,29 +8,29 @@ import (
 	"strings"
 	"sync"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 )
 
 // NewInMemoryLogStore provides a new log store which stores its logs in memory
 func NewInMemoryLogStore() Logs {
 	return &inMemoryLogStore{
-		logs: make(map[string]*log),
+		logs: make(map[string]*logSession),
 	}
 }
 
 // inMemoryLogStore implements a log store in memory
 type inMemoryLogStore struct {
-	logs map[string]*log
+	logs map[string]*logSession
 	mu   sync.RWMutex
 }
 
-type log struct {
+type logSession struct {
 	Data   *bytes.Buffer
 	Reader map[chan []byte]struct{}
 	Mu     sync.RWMutex
 }
 
-func (l *log) Write(p []byte) (n int, err error) {
+func (l *logSession) Write(p []byte) (n int, err error) {
 	l.Mu.Lock()
 	defer l.Mu.Unlock()
 
@@ -47,19 +47,19 @@ func (l *log) Write(p []byte) (n int, err error) {
 	return
 }
 
-func (l *log) Close() error {
+func (l *logSession) Close() error {
 	return nil
 }
 
-type logReader struct {
-	Log       *log
+type logSessionReader struct {
+	Log       *logSession
 	Pos       int
 	R         chan []byte
 	remainder []byte
 	closed    bool
 }
 
-func (lr *logReader) Read(p []byte) (n int, err error) {
+func (lr *logSessionReader) Read(p []byte) (n int, err error) {
 	if lr.closed {
 		return 0, io.ErrClosedPipe
 	}
@@ -89,7 +89,7 @@ func (lr *logReader) Read(p []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (lr *logReader) Close() error {
+func (lr *logSessionReader) Close() error {
 	lr.Log.Mu.Lock()
 	defer lr.Log.Mu.Unlock()
 
@@ -107,7 +107,7 @@ func (s *inMemoryLogStore) Place(ctx context.Context, id string) (io.WriteCloser
 		return nil, ErrAlreadyExists
 	}
 
-	lg := &log{
+	lg := &logSession{
 		Data:   bytes.NewBuffer(nil),
 		Reader: make(map[chan []byte]struct{}),
 	}
@@ -132,7 +132,7 @@ func (s *inMemoryLogStore) Read(ctx context.Context, id string) (io.ReadCloser, 
 	l.Mu.Lock()
 	l.Reader[ch] = struct{}{}
 	l.Mu.Unlock()
-	return ioutil.NopCloser(&logReader{
+	return ioutil.NopCloser(&logSessionReader{
 		Log: l,
 		R:   ch,
 	}), nil

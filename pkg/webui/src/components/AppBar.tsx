@@ -21,7 +21,7 @@ export class AppBar extends React.Component<AppBarProps> {
 
             { this.props.backLink && <a href={this.props.backLink}><Previous /></a> }
             {this.props.children}
-            <Heading level='4' margin='none'>keel</Heading>
+            <Heading level='4' margin='none'>werft</Heading>
         </Box>
     }
 

@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/32leaves/keel/cmd"
+import "github.com/32leaves/werft/cmd"
 
 func main() {
 	cmd.Execute()

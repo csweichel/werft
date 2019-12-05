@@ -7,7 +7,8 @@
         "kubeconfig": "/Users/csweichel/.kube/config"
     },
     "storage": {
-        "logs": "/tmp/logs"
+        "logsPath": "/tmp/logs",
+        "jobsConnectionString": "dbname=werft user=postgres connect_timeout=5 sslmode=disable"
     },
     "github": {
         "webhookSecret": "foobar",

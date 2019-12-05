@@ -1,4 +1,4 @@
-package keel
+package werft
 
 import (
 	"bytes"
@@ -7,16 +7,17 @@ import (
 	"io/ioutil"
 	"os"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
-	"github.com/32leaves/keel/pkg/logcutter"
-	"github.com/32leaves/keel/pkg/store"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/logcutter"
+	"github.com/32leaves/werft/pkg/store"
+	termtohtml "github.com/buildkite/terminal-to-html"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 // StartLocalJob starts a job whoose content is uploaded
-func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error {
+func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error {
 	req, err := inc.Recv()
 	if err != nil {
 		return err
@@ -27,7 +28,7 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 	md := *req.GetMetadata()
 	log.WithField("name", md).Debug("StartLocalJob - received metadata")
 
-	dfs, err := ioutil.TempFile(os.TempDir(), "keel-lcp")
+	dfs, err := ioutil.TempFile(os.TempDir(), "werft-lcp")
 	if err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 	}
 
 	fp := func(path string) (io.ReadCloser, error) {
-		if path == PathKeelConfig {
+		if path == PathWerftConfig {
 			return ioutil.NopCloser(bytes.NewReader(configYAML)), nil
 		}
 		return ioutil.NopCloser(bytes.NewReader(jobYAML)), nil
@@ -129,7 +130,7 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 }
 
 // newTarStreamAdapter creates a reader from an incoming workspace tar stream
-func newTarStreamAdapter(inc v1.KeelService_StartLocalJobServer, initial []byte) io.Reader {
+func newTarStreamAdapter(inc v1.WerftService_StartLocalJobServer, initial []byte) io.Reader {
 	return &tarStreamAdapter{
 		inc:       inc,
 		remainder: initial,
@@ -138,7 +139,7 @@ func newTarStreamAdapter(inc v1.KeelService_StartLocalJobServer, initial []byte)
 
 // tarStreamAdapter turns a client-side data stream into an io.Reader
 type tarStreamAdapter struct {
-	inc       v1.KeelService_StartLocalJobServer
+	inc       v1.WerftService_StartLocalJobServer
 	remainder []byte
 }
 
@@ -186,7 +187,7 @@ func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp
 }
 
 // Subscribe listens to job updates
-func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.KeelService_SubscribeServer) (err error) {
+func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.WerftService_SubscribeServer) (err error) {
 	evts := srv.events.On("job")
 	for evt := range evts {
 		job := evt.Args[0].(*v1.JobStatus)
@@ -217,7 +218,13 @@ func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1
 }
 
 // Listen listens to logs
-func (srv *Service) Listen(req *v1.ListenRequest, ls v1.KeelService_ListenServer) error {
+func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServer) error {
+	if req.Logs == v1.ListenRequestLogs_LOGS_DISABLED {
+		return nil
+	}
+
+	// TODO: implement listening for status updates
+
 	rd, err := srv.Logs.Read(ls.Context(), req.Name)
 	if err != nil {
 		if err == store.ErrNotFound {
@@ -228,19 +235,22 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.KeelService_ListenServer
 	}
 
 	evts, errchan := logcutter.DefaultCutter.Slice(rd)
-	select {
-	case evt := <-evts:
-		log.WithField("evt", evt).Info("log output")
-		err = ls.Send(&v1.ListenResponse{
-			Content: &v1.ListenResponse_Slice{
-				Slice: evt,
-			},
-		})
-	case err = <-errchan:
-		return status.Error(codes.Internal, err.Error())
-	case <-ls.Context().Done():
-		return status.Error(codes.Aborted, ls.Context().Err().Error())
-	}
+	for {
+		select {
+		case evt := <-evts:
+			if req.Logs == v1.ListenRequestLogs_LOGS_HTML {
+				evt.Payload = string(termtohtml.Render([]byte(evt.Payload)))
+			}
 
-	return status.Error(codes.Unimplemented, "not implemented")
+			err = ls.Send(&v1.ListenResponse{
+				Content: &v1.ListenResponse_Slice{
+					Slice: evt,
+				},
+			})
+		case err = <-errchan:
+			return status.Error(codes.Internal, err.Error())
+		case <-ls.Context().Done():
+			return status.Error(codes.Aborted, ls.Context().Err().Error())
+		}
+	}
 }

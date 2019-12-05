@@ -1,5 +1,5 @@
 {
-    "ref": "refs/heads/keel",
+    "ref": "refs/heads/werft",
     "before": "0000000000000000000000000000000000000000",
     "after": "30915d1ed91a8263aac18faa1fa09b57e6dbc123",
     "repository": {
@@ -132,7 +132,7 @@
     "deleted": false,
     "forced": false,
     "base_ref": "refs/heads/master",
-    "compare": "https://github.com/32leaves/test-repo/compare/keel",
+    "compare": "https://github.com/32leaves/test-repo/compare/werft",
     "commits": [
   
     ],

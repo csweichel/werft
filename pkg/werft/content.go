@@ -1,4 +1,4 @@
-package keel
+package werft
 
 import (
 	"archive/tar"
@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	// PathKeelConfig is the path relative to the repo root where we expect to find the keel config YAML
-	PathKeelConfig = ".keel/config.yaml"
+	// PathWerftConfig is the path relative to the repo root where we expect to find the werft config YAML
+	PathWerftConfig = ".werft/config.yaml"
 )
 
 // ContentProvider provides access to job workspace content
@@ -90,7 +90,7 @@ func (lcp *LocalContentProvider) copyToPod(name string) error {
 		Name(name).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
-			Container: "keel-checkout",
+			Container: "werft-checkout",
 			Command:   []string{"sh", "-c", "cd /workspace && tar xz; if [ $? == 0 ]; then touch .ready; else touch .failed; fi"},
 			Stdin:     true,
 			Stdout:    true,

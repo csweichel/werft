@@ -5,8 +5,7 @@ import (
 	"io"
 	"strings"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
-	termtohtml "github.com/buildkite/terminal-to-html"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 )
 
 // Cutter splits a log stream into slices for more structured display
@@ -21,6 +20,37 @@ const (
 	// DefaultSlice is the parent slice of all unmarked content
 	DefaultSlice = "default"
 )
+
+// NoCutter does not slice the content up at all
+var NoCutter Cutter = noCutter{}
+
+type noCutter struct{}
+
+// Slice returns all log lines
+func (noCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-chan error) {
+	evts := make(chan *v1.LogSliceEvent)
+	errc := make(chan error)
+	events, errchan = evts, errc
+
+	scanner := bufio.NewScanner(in)
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			evts <- &v1.LogSliceEvent{
+				Name:    DefaultSlice,
+				Phase:   v1.LogSlicePhase_SLICE_CONTENT,
+				Payload: line + "\n",
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			errc <- err
+		}
+		close(evts)
+		close(errc)
+	}()
+
+	return
+}
 
 // DefaultCutter implements the default cutting behaviour
 var DefaultCutter Cutter = defaultCutter{}
@@ -89,7 +119,7 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			evts <- &v1.LogSliceEvent{
 				Name:    name,
 				Phase:   v1.LogSlicePhase_SLICE_CONTENT,
-				Payload: string(termtohtml.Render([]byte(payload))),
+				Payload: string([]byte(payload)),
 			}
 		}
 		if err := scanner.Err(); err != nil {

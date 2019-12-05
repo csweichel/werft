@@ -1,4 +1,4 @@
-module github.com/32leaves/keel
+module github.com/32leaves/werft
 
 go 1.12
 
@@ -9,13 +9,14 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/bradleyfalzon/ghinstallation v1.0.0
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
-	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484
+	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484 // indirect
 	github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415
 	github.com/golang/protobuf v1.3.2
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/huandu/xstrings v1.2.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
+	github.com/lib/pq v1.2.0
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/olebedev/emitter v0.0.0-20190110104742-e8d1457e6aee

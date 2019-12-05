@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	keelv1 "github.com/32leaves/keel/pkg/api/v1"
-	v1 "github.com/32leaves/keel/pkg/api/v1"
+	werftv1 "github.com/32leaves/werft/pkg/api/v1"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
@@ -23,18 +23,18 @@ import (
 )
 
 const (
-	// LabelKeelMarker is the label applied to all jobs and configmaps. This label can be used
-	// to search for keel job objects in Kubernetes.
-	LabelKeelMarker = "keel.sh/job"
+	// LabelWerftMarker is the label applied to all jobs and configmaps. This label can be used
+	// to search for werft job objects in Kubernetes.
+	LabelWerftMarker = "werft.sh/job"
 
 	// UserDataAnnotationPrefix is prepended to all user annotations added to jobs
-	UserDataAnnotationPrefix = "userdata.keel.sh"
+	UserDataAnnotationPrefix = "userdata.werft.sh"
 
 	// AnnotationFailureLimit is the annotation denoting the max times a job may fail
-	AnnotationFailureLimit = "keel.sh/failureLimit"
+	AnnotationFailureLimit = "werft.sh/failureLimit"
 
 	// AnnotationMetadata stores the JSON encoded metadata available at creation
-	AnnotationMetadata = "keel.sh/metadata"
+	AnnotationMetadata = "werft.sh/metadata"
 )
 
 // Config configures the executor
@@ -57,7 +57,7 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 
 	return &Executor{
 		OnError:  func(err error) {},
-		OnUpdate: func(status *keelv1.JobStatus) {},
+		OnUpdate: func(status *werftv1.JobStatus) {},
 
 		Config:     config,
 		Client:     kubeClient,
@@ -72,7 +72,7 @@ type Executor struct {
 
 	// OnUpdate is called when the status of a job changes.
 	// Beware: this function can be called several times with the same status.
-	OnUpdate func(status *keelv1.JobStatus)
+	OnUpdate func(status *werftv1.JobStatus)
 
 	Client     kubernetes.Interface
 	Config     Config
@@ -128,9 +128,9 @@ func WithName(name string) StartOpt {
 }
 
 // Start starts a new job
-func (js *Executor) Start(podspec corev1.PodSpec, metadata keelv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
+func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
 	opts := startOptions{
-		JobName: fmt.Sprintf("keel-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
+		JobName: fmt.Sprintf("werft-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
 	}
 	for _, opt := range options {
 		opt(&opts)
@@ -157,7 +157,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata keelv1.JobMetadata, o
 	meta := metav1.ObjectMeta{
 		Name: opts.JobName,
 		Labels: map[string]string{
-			LabelKeelMarker: "true",
+			LabelWerftMarker: "true",
 			LabelJobName:    opts.JobName,
 		},
 		Annotations: annotations,
@@ -185,16 +185,24 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata keelv1.JobMetadata, o
 
 func (js *Executor) monitorJobs() {
 	incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", LabelKeelMarker),
+		LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
 	})
 	if err != nil {
 		js.OnError(xerrors.Errorf("cannot watch jobs, monitor is shutting down: %w", err))
 	}
 
 	for evt := range incoming.ResultChan() {
-		obj := evt.Object.(*corev1.Pod)
+		if evt.Object == nil {
+			break
+		}
+		obj, ok := evt.Object.(*corev1.Pod)
+		if !ok {
+			continue
+		}
+
 		js.handleJobEvent(evt.Type, obj)
 	}
+	log.Warn("lost connection to Kubernetes master")
 
 	// TODO: handle reconnect
 	// TODO: handle graceful shutdown
@@ -216,8 +224,8 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 	}
 }
 
-func (js *Executor) actOnUpdate(status *keelv1.JobStatus, obj *corev1.Pod) error {
-	if status.Phase == keelv1.JobPhase_PHASE_DONE {
+func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) error {
+	if status.Phase == werftv1.JobPhase_PHASE_DONE {
 		gracePeriod := int64(30)
 		policy := metav1.DeletePropagationForeground
 
@@ -235,7 +243,7 @@ func (js *Executor) actOnUpdate(status *keelv1.JobStatus, obj *corev1.Pod) error
 	return nil
 }
 
-func (js *Executor) writeEventTraceLog(status *keelv1.JobStatus, obj *corev1.Pod) {
+func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Pod) {
 	// make sure we recover from a panic in this function - not that we expect this to ever happen
 	//nolint:errcheck
 	defer recover()
@@ -259,7 +267,7 @@ func (js *Executor) writeEventTraceLog(status *keelv1.JobStatus, obj *corev1.Pod
 
 	type eventTraceEntry struct {
 		Time   string            `json:"time"`
-		Status *keelv1.JobStatus `json:"status"`
+		Status *werftv1.JobStatus `json:"status"`
 		Job    *corev1.Pod       `json:"job"`
 	}
 	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
@@ -278,7 +286,7 @@ func (js *Executor) doHousekeeping() {
 }
 
 // Find finds currently running jobs
-func (js *Executor) Find(filter []*keelv1.FilterExpression, limit int64) ([]keelv1.JobStatus, error) {
+func (js *Executor) Find(filter []*werftv1.FilterExpression, limit int64) ([]werftv1.JobStatus, error) {
 	_, err := js.Client.BatchV1().Jobs(js.Config.Namespace).List(metav1.ListOptions{
 		Limit: limit,
 	})

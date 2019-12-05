@@ -21,6 +21,7 @@ package cmd
 // THE SOFTWARE.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,22 +30,24 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/32leaves/keel/pkg/executor"
-	"github.com/32leaves/keel/pkg/keel"
-	"github.com/32leaves/keel/pkg/logcutter"
-	"github.com/32leaves/keel/pkg/store"
+	"github.com/32leaves/werft/pkg/executor"
+	"github.com/32leaves/werft/pkg/werft"
+	"github.com/32leaves/werft/pkg/logcutter"
+	"github.com/32leaves/werft/pkg/store"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	_ "github.com/lib/pq"
 )
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run <config.json>",
-	Short: "Starts the keel server",
+	Short: "Starts the werft server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fc, err := ioutil.ReadFile(args[0])
@@ -88,18 +91,33 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		jobStore := store.NewInMemoryJobStore()
+
+		log.Info("connecting to database")
+		db, err := sql.Open("postgres", cfg.Storage.JobStore)
+		if err != nil {
+			return err
+		}
+		err = db.Ping()
+		if err != nil {
+			return err
+		}
+		jobStore, err := store.NewSQLJobStore(db)
+		if err != nil {
+			return err
+		}
+
+		log.Info("connecting to kubernetes")
 		exec, err := executor.NewExecutor(execCfg, kubeConfig)
 		if err != nil {
 			return err
 		}
 		exec.Run()
-		service := &keel.Service{
+		service := &werft.Service{
 			Logs:     logStore,
 			Jobs:     jobStore,
 			Executor: exec,
 			Cutter:   logcutter.DefaultCutter,
-			GitHub: keel.GitHubSetup{
+			GitHub: werft.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
 			},
@@ -113,7 +131,7 @@ var runCmd = &cobra.Command{
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		log.Info("keel is up and running. Stop with SIGINT or CTRL+C")
+		log.Info("werft is up and running. Stop with SIGINT or CTRL+C")
 		<-sigChan
 		log.Info("Received SIGINT - shutting down")
 
@@ -127,14 +145,15 @@ func init() {
 	runCmd.Flags().String("debug-webui-proxy", "", "proxies the web UI to this address")
 }
 
-// Config configures the keel server
+// Config configures the werft server
 type Config struct {
 	Service struct {
 		WebPort  int `json:"webPort"`
 		GRPCPort int `json:"grpcPort"`
 	}
 	Storage struct {
-		LogStore string `json:"logs"`
+		LogStore string `json:"logsPath"`
+		JobStore string `json:"jobsConnectionString"`
 	} `json:"storage"`
 	Kubernetes struct {
 		Kubeconfig string `json:"kubeconfig,omitempty"`

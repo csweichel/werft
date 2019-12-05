@@ -1,4 +1,4 @@
-package keel
+package werft
 
 import (
 	"bytes"
@@ -13,10 +13,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
-	"github.com/32leaves/keel/pkg/executor"
-	"github.com/32leaves/keel/pkg/logcutter"
-	"github.com/32leaves/keel/pkg/store"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/executor"
+	"github.com/32leaves/werft/pkg/logcutter"
+	"github.com/32leaves/werft/pkg/store"
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/Masterminds/sprig"
 	"github.com/google/go-github/github"
@@ -54,7 +54,7 @@ type GitHubSetup struct {
 	Client        *github.Client
 }
 
-// Start sets up everything to run this keel instance, including executor config
+// Start sets up everything to run this werft instance, including executor config
 func (srv *Service) Start() {
 	if srv.OnError == nil {
 		srv.OnError = func(err error) {
@@ -96,7 +96,10 @@ func (srv *Service) Start() {
 
 			return
 		}
-		srv.Jobs.Store(context.Background(), *s)
+		err := srv.Jobs.Store(context.Background(), *s)
+		if err != nil {
+			srv.OnError(xerrors.Errorf("cannot store job %s: %v", s.Name, err))
+		}
 		<-srv.events.Emit("job", s)
 	}
 }
@@ -120,7 +123,7 @@ func listenToLogs(ctx context.Context, name string, inc <-chan string, dest stor
 	}
 }
 
-// StartWeb starts the keel web UI service
+// StartWeb starts the werft web UI service
 func (srv *Service) StartWeb(addr string) {
 	webuiServer := http.FileServer(rice.MustFindBox("../webui/build").HTTPBox())
 	if srv.DebugProxy != "" {
@@ -133,7 +136,7 @@ func (srv *Service) StartWeb(addr string) {
 	}
 
 	grpcServer := grpc.NewServer()
-	v1.RegisterKeelServiceServer(grpcServer, srv)
+	v1.RegisterWerftServiceServer(grpcServer, srv)
 	grpcWebServer := grpcweb.WrapServer(grpcServer)
 
 	mux := http.NewServeMux()
@@ -145,14 +148,14 @@ func (srv *Service) StartWeb(addr string) {
 		),
 	))
 
-	log.WithField("addr", addr).Info("serving keel web service")
+	log.WithField("addr", addr).Info("serving werft web service")
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
 		srv.OnError(err)
 	}
 }
 
-// StartGRPC starts the keel GRPC service
+// StartGRPC starts the werft GRPC service
 func (srv *Service) StartGRPC(addr string) {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -160,9 +163,9 @@ func (srv *Service) StartGRPC(addr string) {
 	}
 
 	grpcServer := grpc.NewServer()
-	v1.RegisterKeelServiceServer(grpcServer, srv)
+	v1.RegisterWerftServiceServer(grpcServer, srv)
 
-	log.WithField("addr", addr).Info("serving keel GRPC service")
+	log.WithField("addr", addr).Info("serving werft GRPC service")
 	err = grpcServer.Serve(lis)
 	if err != nil {
 		srv.OnError(err)
@@ -221,16 +224,16 @@ func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) 
 
 // RunJob starts a build job from some context
 func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
-	name := fmt.Sprintf("keel-%s", moniker.New().NameSep("-"))
+	name := fmt.Sprintf("werft-%s", moniker.New().NameSep("-"))
 
-	// download keel config from branch
-	keelYAML, err := cp.Download(ctx, PathKeelConfig)
+	// download werft config from branch
+	werftYAML, err := cp.Download(ctx, PathWerftConfig)
 	if err != nil {
-		// TODO handle repos without keel config more gracefully
+		// TODO handle repos without werft config more gracefully
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	var repoCfg RepoConfig
-	err = yaml.NewDecoder(keelYAML).Decode(&repoCfg)
+	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
@@ -270,7 +273,7 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 	nodePath := filepath.Join(srv.WorkspaceNodePathPrefix, name)
 	httype := corev1.HostPathDirectoryOrCreate
 	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
-		Name: "keel-workspace",
+		Name: "werft-workspace",
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
 				Path: nodePath,
@@ -279,17 +282,17 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 		},
 	})
 	cpinit := cp.InitContainer()
-	cpinit.Name = "keel-checkout"
+	cpinit.Name = "werft-checkout"
 	cpinit.ImagePullPolicy = corev1.PullIfNotPresent
 	cpinit.VolumeMounts = append(cpinit.VolumeMounts, corev1.VolumeMount{
-		Name:      "keel-workspace",
+		Name:      "werft-workspace",
 		ReadOnly:  false,
 		MountPath: "/workspace",
 	})
 	podspec.InitContainers = append(podspec.InitContainers, cpinit)
 	for i, c := range podspec.Containers {
 		podspec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-			Name:      "keel-workspace",
+			Name:      "werft-workspace",
 			ReadOnly:  false,
 			MountPath: "/workspace",
 		})

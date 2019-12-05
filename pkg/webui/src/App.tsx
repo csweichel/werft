@@ -6,14 +6,14 @@ import {
 } from "react-router-dom";
 import { JobList } from './JobList';
 import { JobView } from './JobView';
-import { KeelServiceClient } from './api/keel_pb_service';
+import { WerftServiceClient } from './api/werft_pb_service';
 
 interface AppState {
     showSidebar?: boolean
 }
 
 export default class App extends React.Component<{}, AppState> {
-    protected readonly client: KeelServiceClient;
+    protected readonly client: WerftServiceClient;
 
     constructor(p: {}) {
         super(p)
@@ -21,7 +21,7 @@ export default class App extends React.Component<{}, AppState> {
 
         let url = `${window.location.protocol}//${window.location.host}`;
         console.log("server url", url);
-        this.client = new KeelServiceClient(url);
+        this.client = new WerftServiceClient(url);
     }
 
     render() {

@@ -1,14 +1,15 @@
 import * as React from 'react';
-import { KeelServiceClient } from './api/keel_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest } from './api/keel_pb';
+import { WerftServiceClient } from './api/werft_pb_service';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs } from './api/werft_pb';
 import { Grommet, Box, Text, Table, TableBody, TableRow, TableCell, Collapsible, Heading } from 'grommet';
 import { theme } from './theme';
 import { AppBar } from './components/AppBar';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
+import { LogView } from './components/LogView';
 
 export interface JobViewProps {
-    client: KeelServiceClient;
+    client: WerftServiceClient;
     jobName: string;
 }
 
@@ -37,7 +38,7 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
         });
 
         const lreq = new ListenRequest();
-        lreq.setLogs(true);
+        lreq.setLogs(ListenRequestLogs.LOGS_HTML);
         lreq.setUpdates(true);
         lreq.setName(this.props.jobName);
         const evts = this.props.client.listen(lreq);
@@ -47,6 +48,7 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
             }
 
             const log = this.state.log;
+            console.log(log);
             log.push(h.getSlice()!);
             this.setState({ log });
         });
@@ -114,9 +116,7 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
 
                     <Box>
                         <Heading level="4">Logs</Heading>
-                        { this.state.log.map((l, i) => (
-                            <div key={i} className="term-container">{l.getPayload()}</div>
-                        ))}
+                        <LogView logs={this.state.log} />
                     </Box>
                 </Box>
             </Box>

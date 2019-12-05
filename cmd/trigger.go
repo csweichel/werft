@@ -30,8 +30,8 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/32leaves/keel/pkg/api/v1"
-	"github.com/32leaves/keel/pkg/keel"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/werft"
 	"github.com/paulbellamy/ratecounter"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -72,7 +72,7 @@ var triggerCmd = &cobra.Command{
 
 		jobPath, _ := cmd.Flags().GetString("job-file")
 		if jobPath == "" {
-			var cfg keel.RepoConfig
+			var cfg werft.RepoConfig
 			err = yaml.Unmarshal(configYAML, &cfg)
 			if err != nil {
 				return xerrors.Errorf("cannot unmarshal config: %w", err)
@@ -87,10 +87,10 @@ var triggerCmd = &cobra.Command{
 		ctx := context.Background()
 		conn, err := grpc.Dial(host, grpc.WithInsecure())
 		if err != nil {
-			return xerrors.Errorf("cannot dial keel host: %w", err)
+			return xerrors.Errorf("cannot dial werft host: %w", err)
 		}
 		defer conn.Close()
-		client := v1.NewKeelServiceClient(conn)
+		client := v1.NewWerftServiceClient(conn)
 		srv, err := client.StartLocalJob(ctx)
 		if err != nil {
 			return xerrors.Errorf("cannot start job: %w", err)
@@ -181,6 +181,26 @@ var triggerCmd = &cobra.Command{
 		}
 		fmt.Println(resp.Status.Name)
 
+		follow, _ := cmd.Flags().GetBool("follow")
+		if follow {
+			logs, err := client.Listen(ctx, &v1.ListenRequest{
+				Name: resp.Status.Name,
+				Logs: v1.ListenRequestLogs_LOGS_RAW,
+			})
+			if err != nil {
+				return err
+			}
+
+			for {
+				msg, err := logs.Recv()
+				if err != nil {
+					return err
+				}
+
+				fmt.Println(string(msg.GetSlice().Payload))
+			}
+		}
+
 		return nil
 	},
 }
@@ -189,9 +209,10 @@ func init() {
 	rootCmd.AddCommand(triggerCmd)
 
 	wd, _ := os.Getwd()
-	triggerCmd.Flags().String("host", "localhost:7777", "keel host to talk to")
-	triggerCmd.Flags().String("job-file", "", "location of the job file (defaults to the default job in the keel config)")
-	triggerCmd.Flags().String("config-file", "$CWD/.keel/config.yaml", "location of the keel config file")
+	triggerCmd.Flags().String("host", "localhost:7777", "werft host to talk to")
+	triggerCmd.Flags().String("job-file", "", "location of the job file (defaults to the default job in the werft config)")
+	triggerCmd.Flags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
 	triggerCmd.Flags().String("trigger", "manual", "job trigger. One of push, manual")
 	triggerCmd.Flags().String("cwd", wd, "working directory")
+	triggerCmd.Flags().BoolP("follow", "f", false, "follow the log output once the job is running")
 }

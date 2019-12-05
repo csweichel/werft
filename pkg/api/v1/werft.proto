@@ -3,11 +3,11 @@ syntax = "proto3";
 package v1;
 import "google/protobuf/timestamp.proto";
 
-service KeelService {
+service WerftService {
 
     // StartLocalJob starts a job by uploading the workspace content directly. The incoming requests are expected in the following order:
     //   1. metadata
-    //   2. all bytes constituting the keel/config.yaml
+    //   2. all bytes constituting the werft/config.yaml
     //   3. all bytes constituting the job YAML that will be executed (that the config.yaml points to)
     //   4. all bytes constituting the gzipped workspace tar stream
     //   5. the workspace tar stream done marker
@@ -91,7 +91,13 @@ message GetJobResponse {
 message ListenRequest {
     string name = 1;
     bool updates = 2;
-    bool logs = 3;
+    ListenRequestLogs logs = 3;
+}
+
+enum ListenRequestLogs {
+    LOGS_DISABLED = 0;
+    LOGS_RAW = 1;
+    LOGS_HTML = 2;
 }
 
 message ListenResponse {
