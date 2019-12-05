@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -16,14 +18,31 @@ const (
 
 // extracts the phase from the job object
 func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
+	defer func() {
+		if status != nil && status.Phase == v1.JobPhase_PHASE_DONE {
+			status.Metadata.Finished = ptypes.TimestampNow()
+		}
+	}()
+
 	name, hasName := getJobName(obj)
 	if !hasName {
 		return nil, xerrors.Errorf("job has no name: %v", obj.Name)
 	}
 
+	rawmd, ok := obj.Annotations[AnnotationMetadata]
+	if !ok {
+		return nil, xerrors.Errorf("job has no metadata")
+	}
+	var md v1.JobMetadata
+	err = jsonpb.UnmarshalString(rawmd, &md)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot unmarshal metadata: %w", err)
+	}
+
 	status = &v1.JobStatus{
-		Name:  name,
-		Phase: v1.JobPhase_PHASE_UNKNOWN,
+		Name:     name,
+		Metadata: &md,
+		Phase:    v1.JobPhase_PHASE_UNKNOWN,
 		Conditions: &v1.JobConditions{
 			Success: true,
 		},

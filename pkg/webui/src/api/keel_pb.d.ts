@@ -2,15 +2,102 @@
 // file: keel.proto
 
 import * as jspb from "google-protobuf";
+import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
+
+export class StartLocalJobRequest extends jspb.Message {
+  hasMetadata(): boolean;
+  clearMetadata(): void;
+  getMetadata(): JobMetadata | undefined;
+  setMetadata(value?: JobMetadata): void;
+
+  hasConfigYaml(): boolean;
+  clearConfigYaml(): void;
+  getConfigYaml(): Uint8Array | string;
+  getConfigYaml_asU8(): Uint8Array;
+  getConfigYaml_asB64(): string;
+  setConfigYaml(value: Uint8Array | string): void;
+
+  hasJobYaml(): boolean;
+  clearJobYaml(): void;
+  getJobYaml(): Uint8Array | string;
+  getJobYaml_asU8(): Uint8Array;
+  getJobYaml_asB64(): string;
+  setJobYaml(value: Uint8Array | string): void;
+
+  hasWorkspaceTar(): boolean;
+  clearWorkspaceTar(): void;
+  getWorkspaceTar(): Uint8Array | string;
+  getWorkspaceTar_asU8(): Uint8Array;
+  getWorkspaceTar_asB64(): string;
+  setWorkspaceTar(value: Uint8Array | string): void;
+
+  hasWorkspaceTarDone(): boolean;
+  clearWorkspaceTarDone(): void;
+  getWorkspaceTarDone(): boolean;
+  setWorkspaceTarDone(value: boolean): void;
+
+  getContentCase(): StartLocalJobRequest.ContentCase;
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StartLocalJobRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: StartLocalJobRequest): StartLocalJobRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StartLocalJobRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StartLocalJobRequest;
+  static deserializeBinaryFromReader(message: StartLocalJobRequest, reader: jspb.BinaryReader): StartLocalJobRequest;
+}
+
+export namespace StartLocalJobRequest {
+  export type AsObject = {
+    metadata?: JobMetadata.AsObject,
+    configYaml: Uint8Array | string,
+    jobYaml: Uint8Array | string,
+    workspaceTar: Uint8Array | string,
+    workspaceTarDone: boolean,
+  }
+
+  export enum ContentCase {
+    CONTENT_NOT_SET = 0,
+    METADATA = 1,
+    CONFIG_YAML = 2,
+    JOB_YAML = 3,
+    WORKSPACE_TAR = 4,
+    WORKSPACE_TAR_DONE = 5,
+  }
+}
+
+export class StartJobResponse extends jspb.Message {
+  hasStatus(): boolean;
+  clearStatus(): void;
+  getStatus(): JobStatus | undefined;
+  setStatus(value?: JobStatus): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StartJobResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: StartJobResponse): StartJobResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StartJobResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StartJobResponse;
+  static deserializeBinaryFromReader(message: StartJobResponse, reader: jspb.BinaryReader): StartJobResponse;
+}
+
+export namespace StartJobResponse {
+  export type AsObject = {
+    status?: JobStatus.AsObject,
+  }
+}
 
 export class ListJobsRequest extends jspb.Message {
   clearFilterList(): void;
-  getFilterList(): Array<AnnotationFilter>;
-  setFilterList(value: Array<AnnotationFilter>): void;
-  addFilter(value?: AnnotationFilter, index?: number): AnnotationFilter;
+  getFilterList(): Array<FilterExpression>;
+  setFilterList(value: Array<FilterExpression>): void;
+  addFilter(value?: FilterExpression, index?: number): FilterExpression;
 
-  getRunningOnly(): boolean;
-  setRunningOnly(value: boolean): void;
+  clearOrderList(): void;
+  getOrderList(): Array<OrderExpression>;
+  setOrderList(value: Array<OrderExpression>): void;
+  addOrder(value?: OrderExpression, index?: number): OrderExpression;
 
   getStart(): number;
   setStart(value: number): void;
@@ -30,60 +117,84 @@ export class ListJobsRequest extends jspb.Message {
 
 export namespace ListJobsRequest {
   export type AsObject = {
-    filterList: Array<AnnotationFilter.AsObject>,
-    runningOnly: boolean,
+    filterList: Array<FilterExpression.AsObject>,
+    orderList: Array<OrderExpression.AsObject>,
     start: number,
     limit: number,
   }
 }
 
-export class AnnotationFilter extends jspb.Message {
+export class FilterExpression extends jspb.Message {
   clearTermsList(): void;
-  getTermsList(): Array<AnnotationFilterTerm>;
-  setTermsList(value: Array<AnnotationFilterTerm>): void;
-  addTerms(value?: AnnotationFilterTerm, index?: number): AnnotationFilterTerm;
+  getTermsList(): Array<FilterTerm>;
+  setTermsList(value: Array<FilterTerm>): void;
+  addTerms(value?: FilterTerm, index?: number): FilterTerm;
 
   serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): AnnotationFilter.AsObject;
-  static toObject(includeInstance: boolean, msg: AnnotationFilter): AnnotationFilter.AsObject;
+  toObject(includeInstance?: boolean): FilterExpression.AsObject;
+  static toObject(includeInstance: boolean, msg: FilterExpression): FilterExpression.AsObject;
   static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
   static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: AnnotationFilter, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): AnnotationFilter;
-  static deserializeBinaryFromReader(message: AnnotationFilter, reader: jspb.BinaryReader): AnnotationFilter;
+  static serializeBinaryToWriter(message: FilterExpression, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): FilterExpression;
+  static deserializeBinaryFromReader(message: FilterExpression, reader: jspb.BinaryReader): FilterExpression;
 }
 
-export namespace AnnotationFilter {
+export namespace FilterExpression {
   export type AsObject = {
-    termsList: Array<AnnotationFilterTerm.AsObject>,
+    termsList: Array<FilterTerm.AsObject>,
   }
 }
 
-export class AnnotationFilterTerm extends jspb.Message {
-  getAnnotation(): string;
-  setAnnotation(value: string): void;
+export class FilterTerm extends jspb.Message {
+  getField(): string;
+  setField(value: string): void;
 
   getValue(): string;
   setValue(value: string): void;
 
-  getOperation(): AnnotationFilterOpMap[keyof AnnotationFilterOpMap];
-  setOperation(value: AnnotationFilterOpMap[keyof AnnotationFilterOpMap]): void;
+  getOperation(): FilterOpMap[keyof FilterOpMap];
+  setOperation(value: FilterOpMap[keyof FilterOpMap]): void;
 
   serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): AnnotationFilterTerm.AsObject;
-  static toObject(includeInstance: boolean, msg: AnnotationFilterTerm): AnnotationFilterTerm.AsObject;
+  toObject(includeInstance?: boolean): FilterTerm.AsObject;
+  static toObject(includeInstance: boolean, msg: FilterTerm): FilterTerm.AsObject;
   static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
   static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: AnnotationFilterTerm, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): AnnotationFilterTerm;
-  static deserializeBinaryFromReader(message: AnnotationFilterTerm, reader: jspb.BinaryReader): AnnotationFilterTerm;
+  static serializeBinaryToWriter(message: FilterTerm, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): FilterTerm;
+  static deserializeBinaryFromReader(message: FilterTerm, reader: jspb.BinaryReader): FilterTerm;
 }
 
-export namespace AnnotationFilterTerm {
+export namespace FilterTerm {
   export type AsObject = {
-    annotation: string,
+    field: string,
     value: string,
-    operation: AnnotationFilterOpMap[keyof AnnotationFilterOpMap],
+    operation: FilterOpMap[keyof FilterOpMap],
+  }
+}
+
+export class OrderExpression extends jspb.Message {
+  getField(): string;
+  setField(value: string): void;
+
+  getAscending(): boolean;
+  setAscending(value: boolean): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): OrderExpression.AsObject;
+  static toObject(includeInstance: boolean, msg: OrderExpression): OrderExpression.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: OrderExpression, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): OrderExpression;
+  static deserializeBinaryFromReader(message: OrderExpression, reader: jspb.BinaryReader): OrderExpression;
+}
+
+export namespace OrderExpression {
+  export type AsObject = {
+    field: string,
+    ascending: boolean,
   }
 }
 
@@ -110,6 +221,50 @@ export namespace ListJobsResponse {
   export type AsObject = {
     total: number,
     resultList: Array<JobStatus.AsObject>,
+  }
+}
+
+export class SubscribeRequest extends jspb.Message {
+  clearFilterList(): void;
+  getFilterList(): Array<FilterExpression>;
+  setFilterList(value: Array<FilterExpression>): void;
+  addFilter(value?: FilterExpression, index?: number): FilterExpression;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): SubscribeRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: SubscribeRequest): SubscribeRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: SubscribeRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): SubscribeRequest;
+  static deserializeBinaryFromReader(message: SubscribeRequest, reader: jspb.BinaryReader): SubscribeRequest;
+}
+
+export namespace SubscribeRequest {
+  export type AsObject = {
+    filterList: Array<FilterExpression.AsObject>,
+  }
+}
+
+export class SubscribeResponse extends jspb.Message {
+  hasResult(): boolean;
+  clearResult(): void;
+  getResult(): JobStatus | undefined;
+  setResult(value?: JobStatus): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): SubscribeResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: SubscribeResponse): SubscribeResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: SubscribeResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): SubscribeResponse;
+  static deserializeBinaryFromReader(message: SubscribeResponse, reader: jspb.BinaryReader): SubscribeResponse;
+}
+
+export namespace SubscribeResponse {
+  export type AsObject = {
+    result?: JobStatus.AsObject,
   }
 }
 
@@ -217,6 +372,27 @@ export namespace JobStatus {
 }
 
 export class JobMetadata extends jspb.Message {
+  getOwner(): string;
+  setOwner(value: string): void;
+
+  hasRepository(): boolean;
+  clearRepository(): void;
+  getRepository(): Repository | undefined;
+  setRepository(value?: Repository): void;
+
+  getTrigger(): JobTriggerMap[keyof JobTriggerMap];
+  setTrigger(value: JobTriggerMap[keyof JobTriggerMap]): void;
+
+  hasCreated(): boolean;
+  clearCreated(): void;
+  getCreated(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setCreated(value?: google_protobuf_timestamp_pb.Timestamp): void;
+
+  hasFinished(): boolean;
+  clearFinished(): void;
+  getFinished(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setFinished(value?: google_protobuf_timestamp_pb.Timestamp): void;
+
   clearAnnotationsList(): void;
   getAnnotationsList(): Array<Annotation>;
   setAnnotationsList(value: Array<Annotation>): void;
@@ -234,7 +410,44 @@ export class JobMetadata extends jspb.Message {
 
 export namespace JobMetadata {
   export type AsObject = {
+    owner: string,
+    repository?: Repository.AsObject,
+    trigger: JobTriggerMap[keyof JobTriggerMap],
+    created?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+    finished?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     annotationsList: Array<Annotation.AsObject>,
+  }
+}
+
+export class Repository extends jspb.Message {
+  getHost(): string;
+  setHost(value: string): void;
+
+  getOwner(): string;
+  setOwner(value: string): void;
+
+  getRepo(): string;
+  setRepo(value: string): void;
+
+  getRef(): string;
+  setRef(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): Repository.AsObject;
+  static toObject(includeInstance: boolean, msg: Repository): Repository.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: Repository, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): Repository;
+  static deserializeBinaryFromReader(message: Repository, reader: jspb.BinaryReader): Repository;
+}
+
+export namespace Repository {
+  export type AsObject = {
+    host: string,
+    owner: string,
+    repo: string,
+    ref: string,
   }
 }
 
@@ -314,15 +527,23 @@ export namespace LogSliceEvent {
   }
 }
 
-export interface AnnotationFilterOpMap {
+export interface FilterOpMap {
   OP_EQUALS: 0;
   OP_STARTS_WITH: 1;
   OP_ENDS_WITH: 2;
   OP_CONTAINS: 3;
-  OP_HAS_KEY: 4;
+  OP_EXISTS: 4;
 }
 
-export const AnnotationFilterOp: AnnotationFilterOpMap;
+export const FilterOp: FilterOpMap;
+
+export interface JobTriggerMap {
+  TRIGGER_UNKNOWN: 0;
+  TRIGGER_PUSH: 1;
+  TRIGGER_MANUAL: 2;
+}
+
+export const JobTrigger: JobTriggerMap;
 
 export interface JobPhaseMap {
   PHASE_UNKNOWN: 0;

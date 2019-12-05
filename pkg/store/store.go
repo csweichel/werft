@@ -42,5 +42,5 @@ type Jobs interface {
 
 	// Searches for jobs based on their annotations. If filter is empty no filter is applied.
 	// If limit is 0, no limit is applied.
-	Find(ctx context.Context, filter []*v1.AnnotationFilter, start, limit int) (slice []v1.JobStatus, total int, err error)
+	Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error)
 }

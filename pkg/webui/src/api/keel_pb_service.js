@@ -10,6 +10,15 @@ var KeelService = (function () {
   return KeelService;
 }());
 
+KeelService.StartLocalJob = {
+  methodName: "StartLocalJob",
+  service: KeelService,
+  requestStream: true,
+  responseStream: false,
+  requestType: keel_pb.StartLocalJobRequest,
+  responseType: keel_pb.StartJobResponse
+};
+
 KeelService.ListJobs = {
   methodName: "ListJobs",
   service: KeelService,
@@ -17,6 +26,15 @@ KeelService.ListJobs = {
   responseStream: false,
   requestType: keel_pb.ListJobsRequest,
   responseType: keel_pb.ListJobsResponse
+};
+
+KeelService.Subscribe = {
+  methodName: "Subscribe",
+  service: KeelService,
+  requestStream: false,
+  responseStream: true,
+  requestType: keel_pb.SubscribeRequest,
+  responseType: keel_pb.SubscribeResponse
 };
 
 KeelService.Listen = {
@@ -34,6 +52,47 @@ function KeelServiceClient(serviceHost, options) {
   this.serviceHost = serviceHost;
   this.options = options || {};
 }
+
+KeelServiceClient.prototype.startLocalJob = function startLocalJob(metadata) {
+  var listeners = {
+    end: [],
+    status: []
+  };
+  var client = grpc.client(KeelService.StartLocalJob, {
+    host: this.serviceHost,
+    metadata: metadata,
+    transport: this.options.transport
+  });
+  client.onEnd(function (status, statusMessage, trailers) {
+    listeners.status.forEach(function (handler) {
+      handler({ code: status, details: statusMessage, metadata: trailers });
+    });
+    listeners.end.forEach(function (handler) {
+      handler({ code: status, details: statusMessage, metadata: trailers });
+    });
+    listeners = null;
+  });
+  return {
+    on: function (type, handler) {
+      listeners[type].push(handler);
+      return this;
+    },
+    write: function (requestMessage) {
+      if (!client.started) {
+        client.start(metadata);
+      }
+      client.send(requestMessage);
+      return this;
+    },
+    end: function () {
+      client.finishSend();
+    },
+    cancel: function () {
+      listeners = null;
+      client.close();
+    }
+  };
+};
 
 KeelServiceClient.prototype.listJobs = function listJobs(requestMessage, metadata, callback) {
   if (arguments.length === 2) {
@@ -61,6 +120,45 @@ KeelServiceClient.prototype.listJobs = function listJobs(requestMessage, metadat
   return {
     cancel: function () {
       callback = null;
+      client.close();
+    }
+  };
+};
+
+KeelServiceClient.prototype.subscribe = function subscribe(requestMessage, metadata) {
+  var listeners = {
+    data: [],
+    end: [],
+    status: []
+  };
+  var client = grpc.invoke(KeelService.Subscribe, {
+    request: requestMessage,
+    host: this.serviceHost,
+    metadata: metadata,
+    transport: this.options.transport,
+    debug: this.options.debug,
+    onMessage: function (responseMessage) {
+      listeners.data.forEach(function (handler) {
+        handler(responseMessage);
+      });
+    },
+    onEnd: function (status, statusMessage, trailers) {
+      listeners.status.forEach(function (handler) {
+        handler({ code: status, details: statusMessage, metadata: trailers });
+      });
+      listeners.end.forEach(function (handler) {
+        handler({ code: status, details: statusMessage, metadata: trailers });
+      });
+      listeners = null;
+    }
+  });
+  return {
+    on: function (type, handler) {
+      listeners[type].push(handler);
+      return this;
+    },
+    cancel: function () {
+      listeners = null;
       client.close();
     }
   };

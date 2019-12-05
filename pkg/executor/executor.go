@@ -10,6 +10,8 @@ import (
 
 	keelv1 "github.com/32leaves/keel/pkg/api/v1"
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
@@ -30,6 +32,9 @@ const (
 
 	// AnnotationFailureLimit is the annotation denoting the max times a job may fail
 	AnnotationFailureLimit = "keel.sh/failureLimit"
+
+	// AnnotationMetadata stores the JSON encoded metadata available at creation
+	AnnotationMetadata = "keel.sh/metadata"
 )
 
 // Config configures the executor
@@ -131,12 +136,19 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata keelv1.JobMetadata, o
 		opt(&opts)
 	}
 
-	// TODO: store as configmap for housekeeping
-
 	annotations := make(map[string]string)
 	for key, val := range opts.Annotations {
 		annotations[fmt.Sprintf("%s/%s", UserDataAnnotationPrefix, key)] = val
 	}
+
+	metadata.Created = ptypes.TimestampNow()
+	mdjson, err := (&jsonpb.Marshaler{
+		EnumsAsInts: true,
+	}).MarshalToString(&metadata)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot marshal metadata: %w", err)
+	}
+	annotations[AnnotationMetadata] = mdjson
 
 	if podspec.RestartPolicy != corev1.RestartPolicyNever && podspec.RestartPolicy != corev1.RestartPolicyOnFailure {
 		podspec.RestartPolicy = corev1.RestartPolicyOnFailure
@@ -266,7 +278,7 @@ func (js *Executor) doHousekeeping() {
 }
 
 // Find finds currently running jobs
-func (js *Executor) Find(filter []*keelv1.AnnotationFilter, limit int64) ([]keelv1.JobStatus, error) {
+func (js *Executor) Find(filter []*keelv1.FilterExpression, limit int64) ([]keelv1.JobStatus, error) {
 	_, err := js.Client.BatchV1().Jobs(js.Config.Namespace).List(metav1.ListOptions{
 		Limit: limit,
 	})

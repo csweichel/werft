@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
 	"time"
 
 	"github.com/google/go-github/github"
@@ -85,21 +83,6 @@ func (lcp *LocalContentProvider) Serve(jobName string) error {
 }
 
 func (lcp *LocalContentProvider) copyToPod(name string) error {
-	dfs, err := ioutil.TempFile(os.TempDir(), "keel-lcp")
-	if err != nil {
-		return err
-	}
-	defer dfs.Close()
-	defer os.Remove(dfs.Name())
-
-	// upload the file to this server
-	_, err = io.Copy(dfs, lcp.TarStream)
-	if err != nil {
-		return err
-	}
-	// reset the position in the file - important: otherwise the re-upload to the container fails
-	_, err = dfs.Seek(0, 0)
-
 	req := lcp.Clientset.CoreV1().RESTClient().
 		Post().
 		Namespace(lcp.Namespace).
@@ -122,7 +105,7 @@ func (lcp *LocalContentProvider) copyToPod(name string) error {
 
 	// This call waits for the process to end
 	err = remoteExec.Stream(remotecommand.StreamOptions{
-		Stdin:  dfs,
+		Stdin:  lcp.TarStream,
 		Stdout: log.New().WithField("pod", name).WriterLevel(log.DebugLevel),
 		Stderr: log.New().WithField("pod", name).WriterLevel(log.ErrorLevel),
 		Tty:    false,

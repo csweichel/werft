@@ -161,8 +161,14 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 		return nil, err
 	}
 
+	cmd = exec.Command("git", "config", "--global", "user.name")
+	user, err := cmd.Output()
+	if err != nil {
+		return nil, xerrors.Errorf("cannot get gloval git user: %w", err)
+	}
+
 	return &v1.JobMetadata{
-		Owner: "local",
+		Owner: string(user),
 		Repository: &v1.Repository{
 			Owner: "local",
 			Repo:  filepath.Base(wd),

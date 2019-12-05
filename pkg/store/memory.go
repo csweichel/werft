@@ -102,12 +102,12 @@ func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus,
 }
 
 // Searches for jobs based on their annotations
-func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.AnnotationFilter, start, limit int) (slice []v1.JobStatus, total int, err error) {
+func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
 	var res []v1.JobStatus
 	for _, js := range s.jobs {
-		// if !MatchesFilter(js.Metadata.Annotations, filter) {
-		// 	continue
-		// }
+		if !MatchesFilter(js.Metadata, filter) {
+			continue
+		}
 
 		res = append(res, js)
 	}
@@ -115,31 +115,46 @@ func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.AnnotationFilt
 }
 
 // MatchesFilter returns true if the annotations are matched by the filter
-func MatchesFilter(annotations []*v1.Annotation, filter []*v1.AnnotationFilter) (matches bool) {
-	idx := make(map[string]string)
-	for _, at := range annotations {
-		idx[at.Key] = at.Value
+func MatchesFilter(base *v1.JobMetadata, filter []*v1.FilterExpression) (matches bool) {
+	if base == nil {
+		if len(filter) == 0 {
+			return true
+		}
+
+		return false
+	}
+
+	idx := map[string]string{
+		"owner":      base.Owner,
+		"repo.owner": base.Repository.Owner,
+		"repo.repo":  base.Repository.Repo,
+		"repo.host":  base.Repository.Host,
+		"repo.ref":   base.Repository.Ref,
+		"trigger":    strings.ToLower(strings.TrimPrefix("TRIGGER_", base.Trigger.String())),
+	}
+	for _, at := range base.Annotations {
+		idx["annotation."+at.Key] = at.Value
 	}
 
 	matches = true
 	for _, req := range filter {
 		var tm bool
 		for _, alt := range req.Terms {
-			val, ok := idx[alt.Annotation]
+			val, ok := idx[alt.Value]
 			if !ok {
 				continue
 			}
 
 			switch alt.Operation {
-			case v1.AnnotationFilterOp_OP_CONTAINS:
+			case v1.FilterOp_OP_CONTAINS:
 				tm = strings.Contains(val, alt.Value)
-			case v1.AnnotationFilterOp_OP_ENDS_WITH:
+			case v1.FilterOp_OP_ENDS_WITH:
 				tm = strings.HasSuffix(val, alt.Value)
-			case v1.AnnotationFilterOp_OP_EQUALS:
+			case v1.FilterOp_OP_EQUALS:
 				tm = val == alt.Value
-			case v1.AnnotationFilterOp_OP_STARTS_WITH:
+			case v1.FilterOp_OP_STARTS_WITH:
 				tm = strings.HasSuffix(val, alt.Value)
-			case v1.AnnotationFilterOp_OP_HAS_KEY:
+			case v1.FilterOp_OP_EXISTS:
 				tm = true
 			}
 

@@ -4,6 +4,15 @@
 import * as keel_pb from "./keel_pb";
 import {grpc} from "@improbable-eng/grpc-web";
 
+type KeelServiceStartLocalJob = {
+  readonly methodName: string;
+  readonly service: typeof KeelService;
+  readonly requestStream: true;
+  readonly responseStream: false;
+  readonly requestType: typeof keel_pb.StartLocalJobRequest;
+  readonly responseType: typeof keel_pb.StartJobResponse;
+};
+
 type KeelServiceListJobs = {
   readonly methodName: string;
   readonly service: typeof KeelService;
@@ -11,6 +20,15 @@ type KeelServiceListJobs = {
   readonly responseStream: false;
   readonly requestType: typeof keel_pb.ListJobsRequest;
   readonly responseType: typeof keel_pb.ListJobsResponse;
+};
+
+type KeelServiceSubscribe = {
+  readonly methodName: string;
+  readonly service: typeof KeelService;
+  readonly requestStream: false;
+  readonly responseStream: true;
+  readonly requestType: typeof keel_pb.SubscribeRequest;
+  readonly responseType: typeof keel_pb.SubscribeResponse;
 };
 
 type KeelServiceListen = {
@@ -24,7 +42,9 @@ type KeelServiceListen = {
 
 export class KeelService {
   static readonly serviceName: string;
+  static readonly StartLocalJob: KeelServiceStartLocalJob;
   static readonly ListJobs: KeelServiceListJobs;
+  static readonly Subscribe: KeelServiceSubscribe;
   static readonly Listen: KeelServiceListen;
 }
 
@@ -60,6 +80,7 @@ export class KeelServiceClient {
   readonly serviceHost: string;
 
   constructor(serviceHost: string, options?: grpc.RpcOptions);
+  startLocalJob(metadata?: grpc.Metadata): RequestStream<keel_pb.StartLocalJobRequest>;
   listJobs(
     requestMessage: keel_pb.ListJobsRequest,
     metadata: grpc.Metadata,
@@ -69,6 +90,7 @@ export class KeelServiceClient {
     requestMessage: keel_pb.ListJobsRequest,
     callback: (error: ServiceError|null, responseMessage: keel_pb.ListJobsResponse|null) => void
   ): UnaryResponse;
+  subscribe(requestMessage: keel_pb.SubscribeRequest, metadata?: grpc.Metadata): ResponseStream<keel_pb.SubscribeResponse>;
   listen(requestMessage: keel_pb.ListenRequest, metadata?: grpc.Metadata): ResponseStream<keel_pb.ListenResponse>;
 }
 

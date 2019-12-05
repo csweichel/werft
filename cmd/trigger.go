@@ -59,6 +59,9 @@ var triggerCmd = &cobra.Command{
 		}
 
 		md, err := getLocalJobContext(workingdir, v1.JobTrigger(trigger))
+		if err != nil {
+			return xerrors.Errorf("cannot extract metadata: %w", err)
+		}
 
 		cfgPath, _ := cmd.Flags().GetString("config-file")
 		cfgPath = strings.ReplaceAll(cfgPath, "$CWD", workingdir)

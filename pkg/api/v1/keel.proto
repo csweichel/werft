@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package v1;
+import "google/protobuf/timestamp.proto";
 
 service KeelService {
 
@@ -9,12 +10,15 @@ service KeelService {
     //   2. all bytes constituting the keel/config.yaml
     //   3. all bytes constituting the job YAML that will be executed (that the config.yaml points to)
     //   4. all bytes constituting the gzipped workspace tar stream
+    //   5. the workspace tar stream done marker
     rpc StartLocalJob(stream StartLocalJobRequest) returns (StartJobResponse) {};
 
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
 
-    rpc Listen(ListenRequest) returns (stream ListenResponse) {};
+    // Subscribe listens to new jobs/job updates
+    rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {};
 
+    rpc Listen(ListenRequest) returns (stream ListenResponse) {};
 }
 
 message StartLocalJobRequest {
@@ -32,33 +36,46 @@ message StartJobResponse {
 }
 
 message ListJobsRequest {
-    repeated AnnotationFilter filter = 1;
-    bool running_only = 2;
+    repeated FilterExpression filter = 1;
+    repeated OrderExpression order = 2;
     int32 start = 3;
     int32 limit = 4;
 }
 
-message AnnotationFilter {
-    repeated AnnotationFilterTerm terms = 1;
+message FilterExpression {
+    repeated FilterTerm terms = 1;
 }
 
-message AnnotationFilterTerm {
-    string annotation = 1;
+message FilterTerm {
+    string field = 1;
     string value = 2;
-    AnnotationFilterOp operation = 3;
+    FilterOp operation = 3;
 }
 
-enum AnnotationFilterOp {
+enum FilterOp {
     OP_EQUALS = 0;
     OP_STARTS_WITH = 1;
     OP_ENDS_WITH = 2;
     OP_CONTAINS = 3;
-    OP_HAS_KEY = 4;
+    OP_EXISTS = 4;
+}
+
+message OrderExpression {
+    string field = 1;
+    bool ascending = 2;
 }
 
 message ListJobsResponse {
     int32 total = 1;
     repeated JobStatus result = 2;
+}
+
+message SubscribeRequest {
+    repeated FilterExpression filter = 1;
+}
+
+message SubscribeResponse {
+    JobStatus result = 1;
 }
 
 message ListenRequest {
@@ -86,7 +103,9 @@ message JobMetadata {
     string owner = 1;
     Repository repository = 2;
     JobTrigger trigger = 3;
-    repeated Annotation annotations = 4;
+    google.protobuf.Timestamp created = 4;
+    google.protobuf.Timestamp finished = 5;
+    repeated Annotation annotations = 6;
 }
 
 message Repository {

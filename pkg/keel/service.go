@@ -8,6 +8,7 @@ import (
 	"os"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	"github.com/32leaves/keel/pkg/store"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,13 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 	}
 	md := *req.GetMetadata()
 	log.WithField("name", md).Debug("StartLocalJob - received metadata")
+
+	dfs, err := ioutil.TempFile(os.TempDir(), "keel-lcp")
+	if err != nil {
+		return err
+	}
+	defer dfs.Close()
+	defer os.Remove(dfs.Name())
 
 	var (
 		configYAML []byte
@@ -60,10 +68,32 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 			continue
 		}
 		if req.GetWorkspaceTar() != nil {
-			phase = phaseWorkspaceTar
+			if phase == phaseJobYaml {
+				phase = phaseWorkspaceTar
+			}
+			if phase != phaseWorkspaceTar {
+				return status.Error(codes.InvalidArgument, "expected workspace tar")
+			}
+
+			data := req.GetWorkspaceTar()
+			n, err := dfs.Write(data)
+			if err != nil {
+				return status.Error(codes.Internal, err.Error())
+			}
+			if n != len(data) {
+				return status.Error(codes.Internal, io.ErrShortWrite.Error())
+			}
+		}
+		if req.GetWorkspaceTarDone() {
+			if phase != phaseWorkspaceTar {
+				return status.Error(codes.InvalidArgument, "expected prior workspace tar")
+			}
+
 			break
 		}
 	}
+	// reset the position in the file - important: otherwise the re-upload to the container fails
+	_, err = dfs.Seek(0, 0)
 
 	if len(configYAML) == 0 {
 		return status.Error(codes.InvalidArgument, "config YAML must not be empty")
@@ -71,12 +101,6 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 	if len(jobYAML) == 0 {
 		return status.Error(codes.InvalidArgument, "job YAML must not be empty")
 	}
-
-	ts := newTarStreamAdapter(inc, req.GetWorkspaceTar())
-
-	dbgf, err := os.OpenFile("/tmp/dbg.tar.gz", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	defer dbgf.Close()
-	ts = io.TeeReader(ts, dbgf)
 
 	fp := func(path string) (io.ReadCloser, error) {
 		if path == PathKeelConfig {
@@ -86,7 +110,7 @@ func (srv *Service) StartLocalJob(inc v1.KeelService_StartLocalJobServer) error 
 	}
 	cp := &LocalContentProvider{
 		FileProvider: fp,
-		TarStream:    ts,
+		TarStream:    dfs,
 		Namespace:    srv.Executor.Config.Namespace,
 		Kubeconfig:   srv.Executor.KubeConfig,
 		Clientset:    srv.Executor.Client,
@@ -144,7 +168,7 @@ func (tsa *tarStreamAdapter) Read(p []byte) (n int, err error) {
 
 // ListJobs lists jobs
 func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp *v1.ListJobsResponse, err error) {
-	result, total, err := srv.Jobs.Find(ctx, req.Filter, int(req.Start), int(req.Limit))
+	result, total, err := srv.Jobs.Find(ctx, req.Filter, req.Order, int(req.Start), int(req.Limit))
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -158,6 +182,22 @@ func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp
 		Total:  int32(total),
 		Result: res,
 	}, nil
+}
+
+// Subscribe listens to job updates
+func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.KeelService_SubscribeServer) (err error) {
+	evts := srv.events.On("job")
+	for evt := range evts {
+		job := evt.Args[0].(*v1.JobStatus)
+		if !store.MatchesFilter(job.Metadata, req.Filter) {
+			continue
+		}
+
+		resp.Send(&v1.SubscribeResponse{
+			Result: job,
+		})
+	}
+	return nil
 }
 
 // Listen listens to logs

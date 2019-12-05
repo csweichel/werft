@@ -61,8 +61,12 @@ func (srv *Service) Start() {
 	// TOOD: on update change status in GitHub
 	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
+
+		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
+			return
+		}
 		srv.Jobs.Store(context.Background(), *s)
-		<-srv.events.Emit(fmt.Sprintf("job.%s", s.Name), s)
+		<-srv.events.Emit("job", s)
 	}
 }
 
