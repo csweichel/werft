@@ -84,6 +84,10 @@ var runCmd = &cobra.Command{
 			execCfg.Namespace = "default"
 		}
 
+		logStore, err := store.NewFileLogStore(cfg.Storage.LogStore)
+		if err != nil {
+			return err
+		}
 		jobStore := store.NewInMemoryJobStore()
 		exec, err := executor.NewExecutor(execCfg, kubeConfig)
 		if err != nil {
@@ -91,7 +95,7 @@ var runCmd = &cobra.Command{
 		}
 		exec.Run()
 		service := &keel.Service{
-			Logs:     store.NewInMemoryLogStore(),
+			Logs:     logStore,
 			Jobs:     jobStore,
 			Executor: exec,
 			Cutter:   logcutter.DefaultCutter,
@@ -129,6 +133,9 @@ type Config struct {
 		WebPort  int `json:"webPort"`
 		GRPCPort int `json:"grpcPort"`
 	}
+	Storage struct {
+		LogStore string `json:"logs"`
+	} `json:"storage"`
 	Kubernetes struct {
 		Kubeconfig string `json:"kubeconfig,omitempty"`
 		Namespace  string `json:"namespace,omitempty"`

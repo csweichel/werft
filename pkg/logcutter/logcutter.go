@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	termtohtml "github.com/buildkite/terminal-to-html"
 )
 
 // Cutter splits a log stream into slices for more structured display
@@ -88,7 +89,7 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			evts <- &v1.LogSliceEvent{
 				Name:    name,
 				Phase:   v1.LogSlicePhase_SLICE_CONTENT,
-				Payload: payload,
+				Payload: string(termtohtml.Render([]byte(payload))),
 			}
 		}
 		if err := scanner.Err(); err != nil {

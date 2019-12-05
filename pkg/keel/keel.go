@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path/filepath"
+	"sync"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
 	"github.com/32leaves/keel/pkg/executor"
@@ -41,6 +42,9 @@ type Service struct {
 	WorkspaceNodePathPrefix string
 	DebugProxy              string
 
+	mu          sync.Mutex
+	logListener map[string]context.CancelFunc
+
 	events emitter.Emitter
 }
 
@@ -62,11 +66,57 @@ func (srv *Service) Start() {
 	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
 
+		if s.Phase == v1.JobPhase_PHASE_PREPARING {
+			srv.mu.Lock()
+			if srv.logListener == nil {
+				srv.logListener = make(map[string]context.CancelFunc)
+			}
+			if _, alreadyListening := srv.logListener[s.Name]; !alreadyListening {
+				ctx, cancel := context.WithCancel(context.Background())
+				srv.logListener[s.Name] = cancel
+				go func() {
+					err := listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name), srv.Logs)
+					if err != nil {
+						srv.OnError(err)
+					}
+				}()
+			}
+			srv.mu.Unlock()
+		}
+
 		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
+			srv.mu.Lock()
+			if srv.logListener == nil {
+				srv.logListener = make(map[string]context.CancelFunc)
+			}
+			if stopListening, ok := srv.logListener[s.Name]; ok {
+				stopListening()
+			}
+			srv.mu.Unlock()
+
 			return
 		}
 		srv.Jobs.Store(context.Background(), *s)
 		<-srv.events.Emit("job", s)
+	}
+}
+
+func listenToLogs(ctx context.Context, name string, inc <-chan string, dest store.Logs) error {
+	out, err := dest.Place(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case l := <-inc:
+			_, err := out.Write([]byte(l + "\n"))
+			if err != nil {
+				return xerrors.Errorf("writing logs for %s: %v", name, err)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 

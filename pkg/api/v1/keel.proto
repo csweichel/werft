@@ -18,6 +18,8 @@ service KeelService {
     // Subscribe listens to new jobs/job updates
     rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {};
 
+    rpc GetJob(GetJobRequest) returns (GetJobResponse) {};
+
     rpc Listen(ListenRequest) returns (stream ListenResponse) {};
 }
 
@@ -75,6 +77,14 @@ message SubscribeRequest {
 }
 
 message SubscribeResponse {
+    JobStatus result = 1;
+}
+
+message GetJobRequest {
+    string name = 1;
+}
+
+message GetJobResponse {
     JobStatus result = 1;
 }
 

@@ -1,9 +1,11 @@
 import * as React from 'react';
-import { DataTable, DataTableProps, Text, Box } from 'grommet';
+import { DataTable, DataTableProps, Text, Box, Grommet } from 'grommet';
 import { Validate, StatusCritical } from 'grommet-icons';
 import { KeelServiceClient } from './api/keel_pb_service';
 import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest } from './api/keel_pb';
 import ReactTimeago from 'react-timeago';
+import { theme } from './theme';
+import { AppBar } from './components/AppBar';
 
 interface JobListProps {
     client: KeelServiceClient;
@@ -66,7 +68,10 @@ export class JobList extends React.Component<JobListProps, JobListState> {
                 property: "name",
                 header: <Text>Name</Text>,
                 primary: true,
-                search: true
+                search: true,
+                render: (row: JobStatus.AsObject) => {
+                    return <a href={`/job/${row.name}`}>{row.name}</a>;
+                }
             },
             {
                 property: "owner",
@@ -123,9 +128,14 @@ export class JobList extends React.Component<JobListProps, JobListState> {
         ]
         const rows = Array.from(this.state.jobs.entries()).map(kv => kv[1]);
 
-        return <Box align="center" justify="center" fill>
-            <DataTable columns={columns} data={rows} onSearch={() => {}} sortable={false} />
-        </Box>
+        return <Grommet theme={theme} full>
+            <AppBar />
+            <Box direction='row' flex overflow={{ horizontal: 'hidden' }} pad={{ left: 'small', right: 'small', vertical: 'small' }}>
+                <Box align="center" justify="center" fill>
+                    <DataTable columns={columns} data={rows} onSearch={() => {}} sortable={false} />
+                </Box> 
+            </Box>
+        </Grommet>
     }
 
 }

@@ -31,6 +31,15 @@ type KeelServiceSubscribe = {
   readonly responseType: typeof keel_pb.SubscribeResponse;
 };
 
+type KeelServiceGetJob = {
+  readonly methodName: string;
+  readonly service: typeof KeelService;
+  readonly requestStream: false;
+  readonly responseStream: false;
+  readonly requestType: typeof keel_pb.GetJobRequest;
+  readonly responseType: typeof keel_pb.GetJobResponse;
+};
+
 type KeelServiceListen = {
   readonly methodName: string;
   readonly service: typeof KeelService;
@@ -45,6 +54,7 @@ export class KeelService {
   static readonly StartLocalJob: KeelServiceStartLocalJob;
   static readonly ListJobs: KeelServiceListJobs;
   static readonly Subscribe: KeelServiceSubscribe;
+  static readonly GetJob: KeelServiceGetJob;
   static readonly Listen: KeelServiceListen;
 }
 
@@ -91,6 +101,15 @@ export class KeelServiceClient {
     callback: (error: ServiceError|null, responseMessage: keel_pb.ListJobsResponse|null) => void
   ): UnaryResponse;
   subscribe(requestMessage: keel_pb.SubscribeRequest, metadata?: grpc.Metadata): ResponseStream<keel_pb.SubscribeResponse>;
+  getJob(
+    requestMessage: keel_pb.GetJobRequest,
+    metadata: grpc.Metadata,
+    callback: (error: ServiceError|null, responseMessage: keel_pb.GetJobResponse|null) => void
+  ): UnaryResponse;
+  getJob(
+    requestMessage: keel_pb.GetJobRequest,
+    callback: (error: ServiceError|null, responseMessage: keel_pb.GetJobResponse|null) => void
+  ): UnaryResponse;
   listen(requestMessage: keel_pb.ListenRequest, metadata?: grpc.Metadata): ResponseStream<keel_pb.ListenResponse>;
 }
 

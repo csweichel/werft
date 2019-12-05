@@ -6,6 +6,9 @@
     "kubernetes": {
         "kubeconfig": "/Users/csweichel/.kube/config"
     },
+    "storage": {
+        "logs": "/tmp/logs"
+    },
     "github": {
         "webhookSecret": "foobar",
         "privateKeyPath": "testdata/example-app.pem",

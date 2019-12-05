@@ -8,6 +8,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/bradleyfalzon/ghinstallation v1.0.0
+	github.com/buildkite/terminal-to-html v3.2.0+incompatible
 	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484
 	github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415
 	github.com/golang/protobuf v1.3.2

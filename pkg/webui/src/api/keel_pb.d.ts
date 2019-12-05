@@ -268,6 +268,48 @@ export namespace SubscribeResponse {
   }
 }
 
+export class GetJobRequest extends jspb.Message {
+  getName(): string;
+  setName(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetJobRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: GetJobRequest): GetJobRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetJobRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetJobRequest;
+  static deserializeBinaryFromReader(message: GetJobRequest, reader: jspb.BinaryReader): GetJobRequest;
+}
+
+export namespace GetJobRequest {
+  export type AsObject = {
+    name: string,
+  }
+}
+
+export class GetJobResponse extends jspb.Message {
+  hasResult(): boolean;
+  clearResult(): void;
+  getResult(): JobStatus | undefined;
+  setResult(value?: JobStatus): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetJobResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: GetJobResponse): GetJobResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetJobResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetJobResponse;
+  static deserializeBinaryFromReader(message: GetJobResponse, reader: jspb.BinaryReader): GetJobResponse;
+}
+
+export namespace GetJobResponse {
+  export type AsObject = {
+    result?: JobStatus.AsObject,
+  }
+}
+
 export class ListenRequest extends jspb.Message {
   getName(): string;
   setName(value: string): void;

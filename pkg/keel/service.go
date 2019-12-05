@@ -8,6 +8,7 @@ import (
 	"os"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
+	"github.com/32leaves/keel/pkg/logcutter"
 	"github.com/32leaves/keel/pkg/store"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -200,8 +201,46 @@ func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.KeelService_Subs
 	return nil
 }
 
+// GetJob returns the information about a particular job
+func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1.GetJobResponse, err error) {
+	job, err := srv.Jobs.Get(ctx, req.Name)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if job == nil {
+		return nil, status.Error(codes.NotFound, "not found")
+	}
+
+	return &v1.GetJobResponse{
+		Result: job,
+	}, nil
+}
+
 // Listen listens to logs
 func (srv *Service) Listen(req *v1.ListenRequest, ls v1.KeelService_ListenServer) error {
+	rd, err := srv.Logs.Read(ls.Context(), req.Name)
+	if err != nil {
+		if err == store.ErrNotFound {
+			return status.Error(codes.NotFound, "not found")
+		}
+
+		return status.Error(codes.Internal, err.Error())
+	}
+
+	evts, errchan := logcutter.DefaultCutter.Slice(rd)
+	select {
+	case evt := <-evts:
+		log.WithField("evt", evt).Info("log output")
+		err = ls.Send(&v1.ListenResponse{
+			Content: &v1.ListenResponse_Slice{
+				Slice: evt,
+			},
+		})
+	case err = <-errchan:
+		return status.Error(codes.Internal, err.Error())
+	case <-ls.Context().Done():
+		return status.Error(codes.Aborted, ls.Context().Err().Error())
+	}
 
 	return status.Error(codes.Unimplemented, "not implemented")
 }

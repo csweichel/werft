@@ -20,12 +20,12 @@ var (
 type Logs interface {
 	// Places a logfile in this store.
 	// This function does not return until the reader returns EOF.
-	Place(ctx context.Context, id string, src io.Reader) error
+	Place(ctx context.Context, id string) (io.WriteCloser, error)
 
 	// Read retrieves a log file from this store.
-	// Consumers of this function are expected to close the reader.
 	// Returns ErrNotFound if the log file isn't found.
-	// Reading from logs currently being written is NOT supported and results in an ErrNotFound.
+	// Callers are supposed to close the reader once done.
+	// Reading from logs currently being written is supported.
 	Read(ctx context.Context, id string) (io.ReadCloser, error)
 }
 

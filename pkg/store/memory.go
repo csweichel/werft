@@ -25,43 +25,117 @@ type inMemoryLogStore struct {
 }
 
 type log struct {
-	Data *bytes.Buffer
-	Done bool
+	Data   *bytes.Buffer
+	Reader map[chan []byte]struct{}
+	Mu     sync.RWMutex
+}
+
+func (l *log) Write(p []byte) (n int, err error) {
+	l.Mu.Lock()
+	defer l.Mu.Unlock()
+
+	n, err = l.Data.Write(p)
+	if n > 0 {
+
+		for r := range l.Reader {
+			r <- p[:n]
+		}
+	}
+	if err != nil {
+		return n, err
+	}
+	return
+}
+
+func (l *log) Close() error {
+	return nil
+}
+
+type logReader struct {
+	Log       *log
+	Pos       int
+	R         chan []byte
+	remainder []byte
+	closed    bool
+}
+
+func (lr *logReader) Read(p []byte) (n int, err error) {
+	if lr.closed {
+		return 0, io.ErrClosedPipe
+	}
+
+	if len(lr.remainder) > 0 {
+		n = copy(p, lr.remainder)
+		lr.remainder = lr.remainder[:n]
+		lr.Pos += n
+		return
+	}
+
+	lr.Log.Mu.RLock()
+	if lr.Pos >= lr.Log.Data.Len() {
+		lr.Log.Mu.RUnlock()
+		inc := <-lr.R
+
+		n = copy(p, inc)
+		lr.remainder = inc[:n]
+		lr.Pos += n
+		return
+	}
+
+	n = copy(p, lr.Log.Data.Bytes()[lr.Pos:])
+	lr.Pos += n
+
+	lr.Log.Mu.RUnlock()
+	return 0, nil
+}
+
+func (lr *logReader) Close() error {
+	lr.Log.Mu.Lock()
+	defer lr.Log.Mu.Unlock()
+
+	delete(lr.Log.Reader, lr.R)
+	lr.closed = true
+
+	return nil
 }
 
 // Place writes to this store
-func (s *inMemoryLogStore) Place(ctx context.Context, id string, src io.Reader) error {
+func (s *inMemoryLogStore) Place(ctx context.Context, id string) (io.WriteCloser, error) {
 	s.mu.Lock()
 	if _, ok := s.logs[id]; ok {
 		s.mu.Unlock()
-		return ErrAlreadyExists
+		return nil, ErrAlreadyExists
 	}
 
-	lg := &log{Data: bytes.NewBuffer(nil)}
+	lg := &log{
+		Data:   bytes.NewBuffer(nil),
+		Reader: make(map[chan []byte]struct{}),
+	}
 
 	s.logs[id] = lg
 	s.mu.Unlock()
 
-	_, err := io.Copy(lg.Data, src)
-	lg.Done = true
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return lg, nil
 }
 
 // Read reads from this store
 func (s *inMemoryLogStore) Read(ctx context.Context, id string) (io.ReadCloser, error) {
 	s.mu.RLock()
-	defer s.mu.Unlock()
+	defer s.mu.RUnlock()
 
 	l, ok := s.logs[id]
-	if !ok || !l.Done {
+	if !ok {
 		return nil, ErrNotFound
 	}
 
-	return ioutil.NopCloser(l.Data), nil
+	ch := make(chan []byte)
+	l.Mu.Lock()
+	l.Reader[ch] = struct{}{}
+	l.Mu.Unlock()
+	return ioutil.NopCloser(&logReader{
+		Log: l,
+		R:   ch,
+	}), nil
 }
 
 // NewInMemoryJobStore creates a new in-memory job store
@@ -92,7 +166,7 @@ func (s *inMemoryJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) {
 	s.mu.RLock()
 	job, ok := s.jobs[name]
-	s.mu.Unlock()
+	s.mu.RUnlock()
 
 	if !ok {
 		return nil, ErrNotFound
