@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"path/filepath"
 
 	v1 "github.com/32leaves/keel/pkg/api/v1"
@@ -22,8 +25,6 @@ import (
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -38,6 +39,7 @@ type Service struct {
 
 	OnError                 func(err error)
 	WorkspaceNodePathPrefix string
+	DebugProxy              string
 
 	events emitter.Emitter
 }
@@ -48,8 +50,8 @@ type GitHubSetup struct {
 	Client        *github.Client
 }
 
-// Start sets up everything to run this keel instance, including executor config, server, etc.
-func (srv *Service) Start(addr string) {
+// Start sets up everything to run this keel instance, including executor config
+func (srv *Service) Start() {
 	if srv.OnError == nil {
 		srv.OnError = func(err error) {
 			log.WithError(err).Error("service error")
@@ -58,10 +60,23 @@ func (srv *Service) Start(addr string) {
 
 	// TOOD: on update change status in GitHub
 	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
+		log.WithField("status", s).Info("update")
+		srv.Jobs.Store(context.Background(), *s)
 		<-srv.events.Emit(fmt.Sprintf("job.%s", s.Name), s)
 	}
+}
 
+// StartWeb starts the keel web UI service
+func (srv *Service) StartWeb(addr string) {
 	webuiServer := http.FileServer(rice.MustFindBox("../webui/build").HTTPBox())
+	if srv.DebugProxy != "" {
+		tgt, err := url.Parse(srv.DebugProxy)
+		if err != nil {
+			// this is debug only - it's ok to panic
+			panic(err)
+		}
+		webuiServer = httputil.NewSingleHostReverseProxy(tgt)
+	}
 
 	grpcServer := grpc.NewServer()
 	v1.RegisterKeelServiceServer(grpcServer, srv)
@@ -76,8 +91,25 @@ func (srv *Service) Start(addr string) {
 		),
 	))
 
-	log.WithField("addr", addr).Info("serving keel service")
+	log.WithField("addr", addr).Info("serving keel web service")
 	err := http.ListenAndServe(addr, mux)
+	if err != nil {
+		srv.OnError(err)
+	}
+}
+
+// StartGRPC starts the keel GRPC service
+func (srv *Service) StartGRPC(addr string) {
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		srv.OnError(err)
+	}
+
+	grpcServer := grpc.NewServer()
+	v1.RegisterKeelServiceServer(grpcServer, srv)
+
+	log.WithField("addr", addr).Info("serving keel GRPC service")
+	err = grpcServer.Serve(lis)
 	if err != nil {
 		srv.OnError(err)
 	}
@@ -134,52 +166,53 @@ func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) 
 }
 
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, jc JobContext, cp ContentProvider) (name string, err error) {
+func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
+	name := fmt.Sprintf("keel-%s", moniker.New().NameSep("-"))
+
 	// download keel config from branch
-	keelYAML, err := cp.Download(ctx, ".keel/config.yaml")
+	keelYAML, err := cp.Download(ctx, PathKeelConfig)
 	if err != nil {
 		// TODO handle repos without keel config more gracefully
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	var repoCfg RepoConfig
 	err = yaml.NewDecoder(keelYAML).Decode(&repoCfg)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
 	// check if we need to build/do anything
-	if !repoCfg.ShouldRun(JobTriggerPush) {
+	if !repoCfg.ShouldRun(metadata.Trigger) {
 		return
 	}
 
 	// compile job podspec from template
-	tplpth := repoCfg.TemplatePath(JobTriggerPush)
+	tplpth := repoCfg.TemplatePath(metadata.Trigger)
 	jobTplYAML, err := cp.Download(ctx, tplpth)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	jobTplRaw, err := ioutil.ReadAll(jobTplYAML)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobTplRaw))
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
 	buf := bytes.NewBuffer(nil)
-	err = jobTpl.Execute(buf, jc)
+	err = jobTpl.Execute(buf, metadata)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
 	var podspec corev1.PodSpec
 	err = yaml.Unmarshal(buf.Bytes(), &podspec)
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
-	name = fmt.Sprintf("keel-%s", moniker.New().NameSep("-"))
 	nodePath := filepath.Join(srv.WorkspaceNodePathPrefix, name)
 	httype := corev1.HostPathDirectoryOrCreate
 	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
@@ -209,65 +242,41 @@ func (srv *Service) RunJob(ctx context.Context, jc JobContext, cp ContentProvide
 	}
 
 	// schedule/start job
-	name, err = srv.Executor.Start(podspec, executor.WithAnnotations(map[string]string{
-		"owner": jc.Owner,
-		"repo":  jc.Repo,
-		"rev":   jc.Revision,
-	}), executor.WithName(name))
+	status, err = srv.Executor.Start(podspec, metadata, executor.WithName(name))
 	if err != nil {
-		return "", xerrors.Errorf("cannot handle job for %s: %w", jc.String(), err)
+		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
+	name = status.Name
 
 	err = cp.Serve(name)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return name, nil
+	return status, nil
 }
 
 func (srv *Service) processPushEvent(event *github.PushEvent) {
 	ctx := context.Background()
-	jc := JobContext{
-		Owner:    *event.Repo.Owner.Name,
-		Repo:     *event.Repo.Name,
-		Revision: *event.Ref,
-		Trigger:  JobTriggerPush,
+	metadata := v1.JobMetadata{
+		Owner: *event.Pusher.Name,
+		Repository: &v1.Repository{
+			Owner: *event.Repo.Owner.Name,
+			Repo:  *event.Repo.Name,
+			Ref:   *event.Ref,
+		},
+		Trigger: v1.JobTrigger_TRIGGER_PUSH,
 	}
 
 	content := &GitHubContentProvider{
-		Owner:    jc.Owner,
-		Repo:     jc.Repo,
-		Revision: jc.Revision,
+		Owner:    metadata.Repository.Owner,
+		Repo:     metadata.Repository.Repo,
+		Revision: metadata.Repository.Ref,
 	}
-	_, err := srv.RunJob(ctx, jc, content)
+	_, err := srv.RunJob(ctx, metadata, content)
 	if err != nil {
 		srv.OnError(err)
 	}
-}
-
-// ListJobs lists jobs
-func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp *v1.ListJobsResponse, err error) {
-	result, total, err := srv.Jobs.Find(ctx, req.Filter, int(req.Start), int(req.Limit))
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	res := make([]*v1.JobStatus, len(result))
-	for i := range result {
-		res[i] = &result[i]
-	}
-
-	return &v1.ListJobsResponse{
-		Total:  int32(total),
-		Result: res,
-	}, nil
-}
-
-// Listen listens to logs
-func (srv *Service) Listen(req *v1.ListenRequest, ls v1.KeelService_ListenServer) error {
-
-	return status.Error(codes.Unimplemented, "not implemented")
 }
 
 // RepoConfig is the struct we expect to find in the repo root which configures how we build things
@@ -276,11 +285,11 @@ type RepoConfig struct {
 }
 
 // TemplatePath returns the path to the job template in the repo
-func (rc *RepoConfig) TemplatePath(trigger JobTrigger) string {
+func (rc *RepoConfig) TemplatePath(trigger v1.JobTrigger) string {
 	return rc.DefaultJob
 }
 
 // ShouldRun determines based on the repo config if the job should run
-func (rc *RepoConfig) ShouldRun(trigger JobTrigger) bool {
+func (rc *RepoConfig) ShouldRun(trigger v1.JobTrigger) bool {
 	return true
 }

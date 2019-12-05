@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -59,22 +58,14 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		var kubeClient kubernetes.Interface
+		var kubeConfig *rest.Config
 		if cfg.Kubernetes.Kubeconfig == "" {
-			k8s, err := rest.InClusterConfig()
-			if err != nil {
-				return err
-			}
-			kubeClient, err = kubernetes.NewForConfig(k8s)
+			kubeConfig, err = rest.InClusterConfig()
 			if err != nil {
 				return err
 			}
 		} else {
-			res, err := clientcmd.BuildConfigFromFlags("", cfg.Kubernetes.Kubeconfig)
-			if err != nil {
-				return err
-			}
-			kubeClient, err = kubernetes.NewForConfig(res)
+			kubeConfig, err = clientcmd.BuildConfigFromFlags("", cfg.Kubernetes.Kubeconfig)
 			if err != nil {
 				return err
 			}
@@ -92,17 +83,29 @@ var runCmd = &cobra.Command{
 		if execCfg.Namespace == "" {
 			execCfg.Namespace = "default"
 		}
+
+		jobStore := store.NewInMemoryJobStore()
+		exec, err := executor.NewExecutor(execCfg, kubeConfig)
+		if err != nil {
+			return err
+		}
+		exec.Run()
 		service := &keel.Service{
 			Logs:     store.NewInMemoryLogStore(),
-			Jobs:     store.NewInMemoryJobStore(),
-			Executor: executor.NewExecutor(execCfg, kubeClient),
+			Jobs:     jobStore,
+			Executor: exec,
 			Cutter:   logcutter.DefaultCutter,
 			GitHub: keel.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
 			},
 		}
-		go service.Start(fmt.Sprintf(":%d", cfg.Service.Port))
+		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
+			service.DebugProxy = val
+		}
+		service.Start()
+		go service.StartWeb(fmt.Sprintf(":%d", cfg.Service.WebPort))
+		go service.StartGRPC(fmt.Sprintf(":%d", cfg.Service.GRPCPort))
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -116,12 +119,15 @@ var runCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+
+	runCmd.Flags().String("debug-webui-proxy", "", "proxies the web UI to this address")
 }
 
 // Config configures the keel server
 type Config struct {
 	Service struct {
-		Port int `json:port`
+		WebPort  int `json:"webPort"`
+		GRPCPort int `json:"grpcPort"`
 	}
 	Kubernetes struct {
 		Kubeconfig string `json:"kubeconfig,omitempty"`

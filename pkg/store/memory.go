@@ -105,9 +105,9 @@ func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus,
 func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.AnnotationFilter, start, limit int) (slice []v1.JobStatus, total int, err error) {
 	var res []v1.JobStatus
 	for _, js := range s.jobs {
-		if !MatchesFilter(js.Metadata.Annotations, filter) {
-			continue
-		}
+		// if !MatchesFilter(js.Metadata.Annotations, filter) {
+		// 	continue
+		// }
 
 		res = append(res, js)
 	}

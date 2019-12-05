@@ -4,10 +4,31 @@ package v1;
 
 service KeelService {
 
+    // StartLocalJob starts a job by uploading the workspace content directly. The incoming requests are expected in the following order:
+    //   1. metadata
+    //   2. all bytes constituting the keel/config.yaml
+    //   3. all bytes constituting the job YAML that will be executed (that the config.yaml points to)
+    //   4. all bytes constituting the gzipped workspace tar stream
+    rpc StartLocalJob(stream StartLocalJobRequest) returns (StartJobResponse) {};
+
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
 
     rpc Listen(ListenRequest) returns (stream ListenResponse) {};
 
+}
+
+message StartLocalJobRequest {
+    oneof content {
+        JobMetadata metadata = 1;
+        bytes config_yaml = 2;
+        bytes job_yaml = 3;
+        bytes workspace_tar = 4;
+        bool workspace_tar_done = 5;
+    };
+}
+
+message StartJobResponse {
+    JobStatus status = 1;
 }
 
 message ListJobsRequest {
@@ -62,12 +83,28 @@ message JobStatus {
 }
 
 message JobMetadata {
-    repeated Annotation annotations = 1;
+    string owner = 1;
+    Repository repository = 2;
+    JobTrigger trigger = 3;
+    repeated Annotation annotations = 4;
+}
+
+message Repository {
+    string host = 1;
+    string owner = 2;
+    string repo = 3;
+    string ref = 4;
 }
 
 message Annotation {
     string key = 1;
     string value = 2;
+}
+
+enum JobTrigger {
+    TRIGGER_UNKNOWN = 0;
+    TRIGGER_PUSH = 1;
+    TRIGGER_MANUAL = 2;
 }
 
 enum JobPhase {

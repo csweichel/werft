@@ -1,6 +1,7 @@
 {
     "service": {
-        "port": 8080
+        "webPort": 8080,
+        "grpcPort": 7777
     },
     "kubernetes": {
         "kubeconfig": "/Users/csweichel/.kube/config"

@@ -3,12 +3,12 @@ import {
     BrowserRouter as Router,
     Switch,
     Route,
-    Link
 } from "react-router-dom";
-import { Grommet, Box, Button, Heading, Collapsible } from 'grommet';
+import { Grommet, Box, Button, Heading } from 'grommet';
 import { Notification } from 'grommet-icons';
 import { JobList } from './JobList';
 import { JobView } from './JobView';
+import { KeelServiceClient } from './api/keel_pb_service';
 
 const theme = {
     "name": "my theme",
@@ -17,9 +17,9 @@ const theme = {
     "defaultMode": "light",
     "global": {
         "colors": {
-            "brand": "#FFAA15",
+            "brand": "#FDC953",
             "background": {
-                "dark": "#222222",
+                "dark": "#080300",
                 "light": "#FFFFFF"
             },
             "background-strong": {
@@ -27,8 +27,8 @@ const theme = {
                 "light": "#FFFFFF"
             },
             "background-weak": {
-                "dark": "#444444a0",
-                "light": "#E8E8E880"
+                "dark": "#6F6B68",
+                "light": "#E7E7E7"
             },
             "background-xweak": {
                 "dark": "#66666699",
@@ -36,7 +36,7 @@ const theme = {
             },
             "text": {
                 "dark": "#EEEEEE",
-                "light": "#333333"
+                "light": "#080300"
             },
             "text-strong": {
                 "dark": "#FFFFFF",
@@ -56,9 +56,9 @@ const theme = {
             "active-text": "text-strong",
             "selected-background": "background-strong",
             "selected-text": "text-strong",
-            "status-critical": "#FF4040",
-            "status-warning": "#FFAA15",
-            "status-ok": "#00C781",
+            "status-critical": "#F75E60",
+            "status-warning": "#FDC854",
+            "status-ok": "#2EC990",
             "status-unknown": "#CCCCCC",
             "status-disabled": "#CCCCCC"
         },
@@ -97,10 +97,15 @@ interface AppState {
 }
 
 export default class App extends React.Component<{}, AppState> {
+    protected readonly client: KeelServiceClient;
 
-    constructor() {
-        super({})
+    constructor(p: {}) {
+        super(p)
         this.state = {};
+
+        let url = window.location.href;
+        url = url.substring(0, url.length-1);
+        this.client = new KeelServiceClient(url);
     }
 
     render() {
@@ -113,13 +118,13 @@ export default class App extends React.Component<{}, AppState> {
                         onClick={() => this.setState(prevState => ({ showSidebar: !prevState.showSidebar }))}
                     />
                 </AppBar>
-                <Box direction='row' flex overflow={{ horizontal: 'hidden' }}>
+                <Box direction='row' flex overflow={{ horizontal: 'hidden' }} pad={{ left: 'small', right: 'small', vertical: 'small' }}>
                     <Switch>
                         <Route path="/job">
                             <JobView />
                         </Route>
                         <Route path="/">
-                            <JobList />
+                            <JobList client={this.client} />
                         </Route>
                     </Switch>
                 </Box>

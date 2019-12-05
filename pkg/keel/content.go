@@ -1,22 +1,29 @@
 package keel
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+)
+
+const (
+	// PathKeelConfig is the path relative to the repo root where we expect to find the keel config YAML
+	PathKeelConfig = ".keel/config.yaml"
 )
 
 // ContentProvider provides access to job workspace content
@@ -36,7 +43,8 @@ type ContentProvider interface {
 
 // LocalContentProvider provides access to local files
 type LocalContentProvider struct {
-	BasePath string
+	TarStream    io.Reader
+	FileProvider func(path string) (io.ReadCloser, error)
 
 	Namespace  string
 	Kubeconfig *rest.Config
@@ -45,14 +53,14 @@ type LocalContentProvider struct {
 
 // Download provides access to a single file
 func (lcp *LocalContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	return os.OpenFile(filepath.Join(lcp.BasePath, path), os.O_RDONLY, 0644)
+	return lcp.FileProvider(path)
 }
 
 // InitContainer builds the container that will initialize the job content.
 func (lcp *LocalContentProvider) InitContainer() corev1.Container {
 	return corev1.Container{
 		Image:      "alpine:latest",
-		Command:    []string{"sh", "-c", "while [ ! -f /workspace/.ready ]; do sleep 1; done"},
+		Command:    []string{"sh", "-c", "while [ ! -f /workspace/.ready ]; do [ -f /workspace/.failed ] && exit 1; sleep 1; done"},
 		WorkingDir: "/workspace",
 	}
 }
@@ -77,65 +85,92 @@ func (lcp *LocalContentProvider) Serve(jobName string) error {
 }
 
 func (lcp *LocalContentProvider) copyToPod(name string) error {
-	req := lcp.Clientset.CoreV1().RESTClient().Post().
+	dfs, err := ioutil.TempFile(os.TempDir(), "keel-lcp")
+	if err != nil {
+		return err
+	}
+	defer dfs.Close()
+	defer os.Remove(dfs.Name())
+
+	// upload the file to this server
+	_, err = io.Copy(dfs, lcp.TarStream)
+	if err != nil {
+		return err
+	}
+	// reset the position in the file - important: otherwise the re-upload to the container fails
+	_, err = dfs.Seek(0, 0)
+
+	req := lcp.Clientset.CoreV1().RESTClient().
+		Post().
+		Namespace(lcp.Namespace).
 		Resource("pods").
 		Name(name).
-		Namespace(lcp.Namespace).
-		SubResource("exec")
-	scheme := runtime.NewScheme()
-	err := corev1.AddToScheme(scheme)
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: "keel-checkout",
+			Command:   []string{"sh", "-c", "cd /workspace && tar xz; if [ $? == 0 ]; then touch .ready; else touch .failed; fi"},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+
+	remoteExec, err := remotecommand.NewSPDYExecutor(lcp.Kubeconfig, "POST", req.URL())
 	if err != nil {
 		return xerrors.Errorf("executor run: %w", err)
 	}
 
-	parameterCodec := runtime.NewParameterCodec(scheme)
-	req.VersionedParams(&corev1.PodExecOptions{
-		Command:   []string{"sh", "-c", "cd /workspace && tar xz && touch .ready"},
-		Container: "keel-checkout",
-		Stdin:     true,
-		Stdout:    false,
-		Stderr:    false,
-		TTY:       false,
-	}, parameterCodec)
-
-	cfg := lcp.Kubeconfig
-	cfg.Timeout = 10 * time.Second
-	remoteExec, err := remotecommand.NewSPDYExecutor(cfg, "POST", req.URL())
-	if err != nil {
-		return xerrors.Errorf("executor run: %w", err)
-	}
-
-	inr, inw := io.Pipe()
-	errchan := make(chan error)
-	go func() {
-		err = remoteExec.Stream(remotecommand.StreamOptions{
-			Stdin: inr,
-			Tty:   false,
-		})
-		if err != nil {
-			errchan <- err
-		}
-		close(errchan)
-	}()
-
-	select {
-	case err := <-errchan:
-		return err
-	case <-time.After(time.Second):
-		// this is a bit tricky. If exec.Stream errors, it returns "immediately". If it doesn't it blocks until the process ends.
-		// So we wait some time to catch the initial, setup errors here. All other errors are passed to the caller via errchan
-		// and have to be handled there
-	}
-
-	cmd := exec.Command("tar", "cz", ".")
-	cmd.Dir = lcp.BasePath
-	cmd.Stdout = inw
-	err = cmd.Run()
+	// This call waits for the process to end
+	err = remoteExec.Stream(remotecommand.StreamOptions{
+		Stdin:  dfs,
+		Stdout: log.New().WithField("pod", name).WriterLevel(log.DebugLevel),
+		Stderr: log.New().WithField("pod", name).WriterLevel(log.ErrorLevel),
+		Tty:    false,
+	})
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// tarWithReadyFile adds a gzipped tar entry containting an empty file named .ready to the stream
+type tarWithReadyFile struct {
+	O         io.Reader
+	remainder []byte
+	eof       bool
+}
+
+func (t *tarWithReadyFile) Read(p []byte) (n int, err error) {
+	if len(t.remainder) > 0 {
+		n = copy(p, t.remainder)
+		t.remainder = t.remainder[n:]
+		return
+	}
+	if len(t.remainder) == 0 && t.eof {
+		log.Debug("tarWithReadyFile EOF")
+		return n, io.EOF
+	}
+
+	n, err = t.O.Read(p)
+	log.WithField("n", n).WithError(err).Debug("incoming tar data")
+	if err == io.EOF {
+		t.eof = true
+		err = nil
+
+		buf := bytes.NewBuffer(nil)
+		gzipW := gzip.NewWriter(buf)
+		tarW := tar.NewWriter(gzipW)
+		tarW.WriteHeader(&tar.Header{
+			Name:     ".ready",
+			Size:     0,
+			Typeflag: tar.TypeBlock,
+		})
+		tarW.Close()
+		gzipW.Close()
+		t.remainder = buf.Bytes()
+	}
+	return
 }
 
 // GitHubContentProvider provides access to GitHub content

@@ -25,7 +25,10 @@
                 "CGO_ENABLED": "0"
             },
             "args": [
-                "start"
+                "run",
+                "--verbose=true",
+                "--debug-webui-proxy=http://localhost:3000",
+                "testdata/example-config.json"
             ]
         }
     ]

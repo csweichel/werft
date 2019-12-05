@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	keelv1 "github.com/32leaves/keel/pkg/api/v1"
 	v1 "github.com/32leaves/keel/pkg/api/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
@@ -43,14 +44,20 @@ type ActiveJob struct {
 }
 
 // NewExecutor creates a new job center instance
-func NewExecutor(config Config, client kubernetes.Interface) *Executor {
+func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
+	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Executor{
 		OnError:  func(err error) {},
-		OnUpdate: func(status *v1.JobStatus) {},
+		OnUpdate: func(status *keelv1.JobStatus) {},
 
-		config: config,
-		client: client,
-	}
+		Config:     config,
+		Client:     kubeClient,
+		KubeConfig: kubeConfig,
+	}, nil
 }
 
 // Executor starts and watches jobs running in Kubernetes
@@ -60,10 +67,10 @@ type Executor struct {
 
 	// OnUpdate is called when the status of a job changes.
 	// Beware: this function can be called several times with the same status.
-	OnUpdate func(status *v1.JobStatus)
+	OnUpdate func(status *keelv1.JobStatus)
 
-	config     Config
-	client     kubernetes.Interface
+	Client     kubernetes.Interface
+	Config     Config
 	KubeConfig *rest.Config
 }
 
@@ -116,7 +123,7 @@ func WithName(name string) StartOpt {
 }
 
 // Start starts a new job
-func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id string, err error) {
+func (js *Executor) Start(podspec corev1.PodSpec, metadata keelv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
 	opts := startOptions{
 		JobName: fmt.Sprintf("keel-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
 	}
@@ -156,16 +163,16 @@ func (js *Executor) Start(podspec corev1.PodSpec, options ...StartOpt) (id strin
 		log.Debugf("scheduling job\n%s", dbg)
 	}
 
-	job, err := js.client.CoreV1().Pods(js.config.Namespace).Create(&poddesc)
+	job, err := js.Client.CoreV1().Pods(js.Config.Namespace).Create(&poddesc)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return job.Name, nil
+	return getStatus(job)
 }
 
 func (js *Executor) monitorJobs() {
-	incoming, err := js.client.CoreV1().Pods(js.config.Namespace).Watch(metav1.ListOptions{
+	incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=true", LabelKeelMarker),
 	})
 	if err != nil {
@@ -197,12 +204,12 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 	}
 }
 
-func (js *Executor) actOnUpdate(status *v1.JobStatus, obj *corev1.Pod) error {
-	if status.Phase == v1.JobPhase_PHASE_DONE {
+func (js *Executor) actOnUpdate(status *keelv1.JobStatus, obj *corev1.Pod) error {
+	if status.Phase == keelv1.JobPhase_PHASE_DONE {
 		gracePeriod := int64(30)
 		policy := metav1.DeletePropagationForeground
 
-		err := js.client.CoreV1().Pods(js.config.Namespace).Delete(obj.Name, &metav1.DeleteOptions{
+		err := js.Client.CoreV1().Pods(js.Config.Namespace).Delete(obj.Name, &metav1.DeleteOptions{
 			GracePeriodSeconds: &gracePeriod,
 			PropagationPolicy:  &policy,
 		})
@@ -216,20 +223,20 @@ func (js *Executor) actOnUpdate(status *v1.JobStatus, obj *corev1.Pod) error {
 	return nil
 }
 
-func (js *Executor) writeEventTraceLog(status *v1.JobStatus, obj *corev1.Pod) {
+func (js *Executor) writeEventTraceLog(status *keelv1.JobStatus, obj *corev1.Pod) {
 	// make sure we recover from a panic in this function - not that we expect this to ever happen
 	//nolint:errcheck
 	defer recover()
 
-	if js.config.EventTraceLog == "" {
+	if js.Config.EventTraceLog == "" {
 		return
 	}
 
 	var out io.Writer
-	if js.config.EventTraceLog == "-" {
+	if js.Config.EventTraceLog == "-" {
 		out = os.Stdout
 	} else {
-		f, err := os.OpenFile(js.config.EventTraceLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f, err := os.OpenFile(js.Config.EventTraceLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return
 		}
@@ -239,9 +246,9 @@ func (js *Executor) writeEventTraceLog(status *v1.JobStatus, obj *corev1.Pod) {
 	}
 
 	type eventTraceEntry struct {
-		Time   string        `json:"time"`
-		Status *v1.JobStatus `json:"status"`
-		Job    *corev1.Pod   `json:"job"`
+		Time   string            `json:"time"`
+		Status *keelv1.JobStatus `json:"status"`
+		Job    *corev1.Pod       `json:"job"`
 	}
 	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
 	// In fact we don't even want to react to it, hence the nolint.
@@ -251,7 +258,7 @@ func (js *Executor) writeEventTraceLog(status *v1.JobStatus, obj *corev1.Pod) {
 
 // Logs provides the log output of a running job. If the job is unknown, nil is returned.
 func (js *Executor) Logs(name string) <-chan string {
-	return listenToLogs(js.client, name, js.config.Namespace)
+	return listenToLogs(js.Client, name, js.Config.Namespace)
 }
 
 func (js *Executor) doHousekeeping() {
@@ -259,8 +266,8 @@ func (js *Executor) doHousekeeping() {
 }
 
 // Find finds currently running jobs
-func (js *Executor) Find(filter []*v1.AnnotationFilter, limit int64) ([]v1.JobStatus, error) {
-	_, err := js.client.BatchV1().Jobs(js.config.Namespace).List(metav1.ListOptions{
+func (js *Executor) Find(filter []*keelv1.AnnotationFilter, limit int64) ([]keelv1.JobStatus, error) {
+	_, err := js.Client.BatchV1().Jobs(js.Config.Namespace).List(metav1.ListOptions{
 		Limit: limit,
 	})
 	if err != nil {
