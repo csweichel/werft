@@ -238,6 +238,9 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 	for {
 		select {
 		case evt := <-evts:
+			if evt == nil {
+				return nil
+			}
 			if req.Logs == v1.ListenRequestLogs_LOGS_HTML {
 				evt.Payload = string(termtohtml.Render([]byte(evt.Payload)))
 			}
@@ -248,6 +251,10 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 				},
 			})
 		case err = <-errchan:
+			if err == nil {
+				return nil
+			}
+
 			return status.Error(codes.Internal, err.Error())
 		case <-ls.Context().Done():
 			return status.Error(codes.Aborted, ls.Context().Err().Error())

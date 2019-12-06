@@ -18,11 +18,13 @@ CREATE TABLE IF NOT EXISTS job_status (
 	name varchar(255) NOT NULL UNIQUE,
 	data text NOT NULL,
 	owner varchar(255) NULL,
+	phase VARCHAR(255) NOT NULL,
 	repo_owner varchar(255) NULL,
 	repo_repo varchar(255) NULL,
 	repo_host varchar(255) NULL,
 	repo_ref varchar(255) NULL,
-	trigger_src varchar(255) NULL
+	trigger_src varchar(255) NULL,
+	success int not null
 );
 
 CREATE TABLE IF NOT EXISTS annotations (
@@ -58,6 +60,11 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 		return err
 	}
 
+	success := 0
+	if job.Conditions.Success {
+		success = 1
+	}
+
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -65,19 +72,21 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 	var jobID int
 	err = tx.QueryRow(`
 		INSERT
-		INTO   job_status (name, data, owner, repo_owner, repo_repo, repo_host, repo_ref, trigger_src)
-		VALUES            ($1  , $2  , $3   , $4        , $5       , $6       , $7      , $8         ) 
+		INTO   job_status (name, data, owner, phase, repo_owner, repo_repo, repo_host, repo_ref, trigger_src, success)
+		VALUES            ($1  , $2  , $3   , $4   , $5        , $6       , $7       , $8      , $9         , $10) 
 		ON CONFLICT (name) DO UPDATE 
-			SET data = $2, owner = $3, repo_owner = $4, repo_repo = $5, repo_host = $6, repo_ref = $7, trigger_src = $8
+			SET data = $2, owner = $3, phase = $4, repo_owner = $5, repo_repo = $6, repo_host = $7, repo_ref = $8, trigger_src = $9, success = $10
 		RETURNING id`,
 		job.Name,
 		serializedJob,
 		job.Metadata.Owner,
+		strings.ToLower(job.Phase.String()),
 		job.Metadata.Repository.Owner,
 		job.Metadata.Repository.Repo,
 		job.Metadata.Repository.Host,
 		job.Metadata.Repository.Ref,
 		strings.ToLower(strings.TrimPrefix("TRIGGER_", job.Metadata.Trigger.String())),
+		success,
 	).Scan(&jobID)
 	if err != nil {
 		tx.Rollback()
@@ -128,12 +137,15 @@ func (s *SQLJobStore) Get(ctx context.Context, name string) (*v1.JobStatus, erro
 // Find searches for jobs based on their annotations. If filter is empty no filter is applied.
 func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
 	fieldMap := map[string]string{
+		"name":       "name",
 		"owner":      "owner",
+		"phase":      "phase",
 		"repo.owner": "repo_owner",
 		"repo.repo":  "repo_repo",
 		"repo.host":  "repo_host",
 		"repo.ref":   "repo_ref",
 		"trigger":    "trigger",
+		"success":    "success",
 	}
 
 	var (
