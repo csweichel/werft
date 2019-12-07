@@ -20,6 +20,7 @@ interface JobViewState {
 }
 
 export class JobView extends React.Component<JobViewProps, JobViewState> {
+    protected logCache: LogSliceEvent[] = [];
 
     constructor(props: JobViewProps) {
         super(props);
@@ -42,14 +43,21 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
         lreq.setUpdates(true);
         lreq.setName(this.props.jobName);
         const evts = this.props.client.listen(lreq);
+        
+        let tc: any | undefined;
         evts.on('data', h => {
             if (!h.hasSlice()) {
                 return;
             }
 
-            const log = this.state.log;
+            const log = this.logCache;
             log.push(h.getSlice()!);
-            this.setState({ log });
+            if (tc !== undefined) {
+                clearTimeout(tc);
+            }
+            tc = setTimeout(() => {
+                this.setState({log});
+            }, 200);
         });
         evts.on('end', console.log);
     }

@@ -21,10 +21,6 @@ export class LogView extends React.Component<LogViewProps, LogViewState> {
         this.updateChunks();
     }
 
-    componentDidUpdate() {
-        this.updateChunks();
-    }
-
     protected updateChunks() {
         let currentChunk = "default";
         let chunks = this.state.chunks;
@@ -47,6 +43,8 @@ export class LogView extends React.Component<LogViewProps, LogViewState> {
     }
 
     render() {
+        this.updateChunks();
+        
         return <React.Fragment>
             { Array.from(this.state.chunks.entries()).map(kv => (
                 <Box key={kv[0]}>
