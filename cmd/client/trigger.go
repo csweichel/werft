@@ -23,10 +23,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
@@ -66,21 +68,35 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 func followJob(client v1.WerftServiceClient, name string) error {
 	ctx := context.Background()
 	logs, err := client.Listen(ctx, &v1.ListenRequest{
-		Name: name,
-		Logs: v1.ListenRequestLogs_LOGS_RAW,
+		Name:    name,
+		Logs:    v1.ListenRequestLogs_LOGS_RAW,
+		Updates: true,
 	})
 	if err != nil {
 		return err
 	}
 
+	logger := log.New().WriterLevel(log.InfoLevel)
 	for {
 		msg, err := logs.Recv()
 		if err != nil {
 			return err
 		}
 
-		fmt.Println(string(msg.GetSlice().Payload))
+		if update := msg.GetUpdate(); update != nil {
+			if update.Phase == v1.JobPhase_PHASE_DONE {
+				if update.Conditions.Success {
+					os.Exit(0)
+				} else {
+					os.Exit(1)
+				}
+			}
+		}
+		if data := msg.GetSlice(); data != nil {
+			fmt.Fprintln(logger, data.GetPayload())
+		}
 	}
+	return nil
 }
 
 func init() {

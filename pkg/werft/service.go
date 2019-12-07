@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/logcutter"
@@ -264,45 +265,91 @@ func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1
 
 // Listen listens to logs
 func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServer) error {
-	if req.Logs == v1.ListenRequestLogs_LOGS_DISABLED {
-		return nil
-	}
+	// TOOD: if one of the listeners fails, all have to fail
 
-	// TODO: implement listening for status updates
+	var (
+		wg      sync.WaitGroup
+		errchan = make(chan error, 2)
+	)
+	if req.Logs != v1.ListenRequestLogs_LOGS_DISABLED {
+		wg.Add(1)
 
-	rd, err := srv.Logs.Read(ls.Context(), req.Name)
-	if err != nil {
-		if err == store.ErrNotFound {
-			return status.Error(codes.NotFound, "not found")
-		}
-
-		return status.Error(codes.Internal, err.Error())
-	}
-
-	evts, errchan := logcutter.DefaultCutter.Slice(rd)
-	for {
-		select {
-		case evt := <-evts:
-			if evt == nil {
-				return nil
-			}
-			if req.Logs == v1.ListenRequestLogs_LOGS_HTML {
-				evt.Payload = string(termtohtml.Render([]byte(evt.Payload)))
-			}
-
-			err = ls.Send(&v1.ListenResponse{
-				Content: &v1.ListenResponse_Slice{
-					Slice: evt,
-				},
-			})
-		case err = <-errchan:
-			if err == nil {
-				return nil
+		rd, err := srv.Logs.Read(ls.Context(), req.Name)
+		if err != nil {
+			if err == store.ErrNotFound {
+				return status.Error(codes.NotFound, "not found")
 			}
 
 			return status.Error(codes.Internal, err.Error())
-		case <-ls.Context().Done():
-			return status.Error(codes.Aborted, ls.Context().Err().Error())
 		}
+
+		go func() {
+			defer wg.Done()
+
+			evts, echan := logcutter.DefaultCutter.Slice(rd)
+			for {
+				select {
+				case evt := <-evts:
+					if evt == nil {
+						return
+					}
+					if req.Logs == v1.ListenRequestLogs_LOGS_HTML {
+						evt.Payload = string(termtohtml.Render([]byte(evt.Payload)))
+					}
+
+					err = ls.Send(&v1.ListenResponse{
+						Content: &v1.ListenResponse_Slice{
+							Slice: evt,
+						},
+					})
+				case err = <-echan:
+					if err == nil {
+						return
+					}
+
+					errchan <- status.Error(codes.Internal, err.Error())
+					return
+				case <-ls.Context().Done():
+					errchan <- status.Error(codes.Aborted, ls.Context().Err().Error())
+					return
+				}
+			}
+		}()
 	}
+
+	if req.Updates {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			evts := srv.events.On("job")
+			for evt := range evts {
+				if len(evt.Args) == 0 {
+					return
+				}
+				job, ok := evt.Args[0].(*v1.JobStatus)
+				if !ok {
+					continue
+				}
+				if job.Name != req.Name {
+					continue
+				}
+
+				ls.Send(&v1.ListenResponse{
+					Content: &v1.ListenResponse_Update{
+						Update: job,
+					},
+				})
+			}
+		}()
+	}
+
+	select {
+	case err := <-errchan:
+		return err
+	default:
+	}
+	wg.Wait()
+	return nil
 }
