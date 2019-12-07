@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	werftv1 "github.com/32leaves/werft/pkg/api/v1"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	werftv1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
@@ -158,7 +158,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		Name: opts.JobName,
 		Labels: map[string]string{
 			LabelWerftMarker: "true",
-			LabelJobName:    opts.JobName,
+			LabelJobName:     opts.JobName,
 		},
 		Annotations: annotations,
 	}
@@ -184,27 +184,32 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 }
 
 func (js *Executor) monitorJobs() {
-	incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
-	})
-	if err != nil {
-		js.OnError(xerrors.Errorf("cannot watch jobs, monitor is shutting down: %w", err))
-	}
-
-	for evt := range incoming.ResultChan() {
-		if evt.Object == nil {
-			break
-		}
-		obj, ok := evt.Object.(*corev1.Pod)
-		if !ok {
+	for {
+		incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+		})
+		if err != nil {
+			js.OnError(xerrors.Errorf("cannot watch jobs, monitor is shutting down: %w", err))
 			continue
 		}
+		log.Debug("connected to Kubernetes master")
 
-		js.handleJobEvent(evt.Type, obj)
+		for evt := range incoming.ResultChan() {
+			if evt.Object == nil {
+				break
+			}
+			obj, ok := evt.Object.(*corev1.Pod)
+			if !ok {
+				continue
+			}
+
+			js.handleJobEvent(evt.Type, obj)
+		}
+		log.Warn("lost connection to Kubernetes master")
+
+		<-time.After(1 * time.Second)
 	}
-	log.Warn("lost connection to Kubernetes master")
 
-	// TODO: handle reconnect
 	// TODO: handle graceful shutdown
 }
 
@@ -266,9 +271,9 @@ func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Po
 	}
 
 	type eventTraceEntry struct {
-		Time   string            `json:"time"`
+		Time   string             `json:"time"`
 		Status *werftv1.JobStatus `json:"status"`
-		Job    *corev1.Pod       `json:"job"`
+		Job    *corev1.Pod        `json:"job"`
 	}
 	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
 	// In fact we don't even want to react to it, hence the nolint.

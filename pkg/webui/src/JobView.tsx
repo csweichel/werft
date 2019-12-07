@@ -48,7 +48,6 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
             }
 
             const log = this.state.log;
-            console.log(log);
             log.push(h.getSlice()!);
             this.setState({ log });
         });

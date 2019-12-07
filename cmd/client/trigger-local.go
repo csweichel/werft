@@ -30,8 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/werft"
 	"github.com/paulbellamy/ratecounter"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -40,14 +40,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// triggerCmd represents the trigger command
-var triggerCmd = &cobra.Command{
-	Use:   "trigger",
-	Short: "Triggers the execution of a job",
+// triggerLocalCmd represents the triggerLocal command
+var triggerLocalCmd = &cobra.Command{
+	Use:   "local",
+	Short: "starts a job from a local directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		host, _ := cmd.Flags().GetString("host")
+		flags := cmd.Parent().PersistentFlags()
+		host, _ := flags.GetString("host")
 		workingdir, _ := cmd.Flags().GetString("cwd")
-		triggerName, _ := cmd.Flags().GetString("trigger")
+		triggerName, _ := flags.GetString("trigger")
 		trigger, ok := v1.JobTrigger_value[fmt.Sprintf("TRIGGER_%s", strings.ToUpper(triggerName))]
 		if !ok {
 			var vs []string
@@ -63,16 +64,16 @@ var triggerCmd = &cobra.Command{
 			return xerrors.Errorf("cannot extract metadata: %w", err)
 		}
 
-		cfgPath, _ := cmd.Flags().GetString("config-file")
+		cfgPath, _ := flags.GetString("config-file")
 		cfgPath = strings.ReplaceAll(cfgPath, "$CWD", workingdir)
 		configYAML, err := ioutil.ReadFile(cfgPath)
 		if err != nil {
 			return xerrors.Errorf("cannot read config file: %w", err)
 		}
 
-		jobPath, _ := cmd.Flags().GetString("job-file")
+		jobPath, _ := flags.GetString("job-file")
 		if jobPath == "" {
-			var cfg werft.RepoConfig
+			var cfg repoconfig.C
 			err = yaml.Unmarshal(configYAML, &cfg)
 			if err != nil {
 				return xerrors.Errorf("cannot unmarshal config: %w", err)
@@ -181,23 +182,11 @@ var triggerCmd = &cobra.Command{
 		}
 		fmt.Println(resp.Status.Name)
 
-		follow, _ := cmd.Flags().GetBool("follow")
+		follow, _ := flags.GetBool("follow")
 		if follow {
-			logs, err := client.Listen(ctx, &v1.ListenRequest{
-				Name: resp.Status.Name,
-				Logs: v1.ListenRequestLogs_LOGS_RAW,
-			})
+			err = followJob(client, resp.Status.Name)
 			if err != nil {
 				return err
-			}
-
-			for {
-				msg, err := logs.Recv()
-				if err != nil {
-					return err
-				}
-
-				fmt.Println(string(msg.GetSlice().Payload))
 			}
 		}
 
@@ -206,13 +195,8 @@ var triggerCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(triggerCmd)
+	triggerCmd.AddCommand(triggerLocalCmd)
 
 	wd, _ := os.Getwd()
-	triggerCmd.Flags().String("host", "localhost:7777", "werft host to talk to")
-	triggerCmd.Flags().String("job-file", "", "location of the job file (defaults to the default job in the werft config)")
-	triggerCmd.Flags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
-	triggerCmd.Flags().String("trigger", "manual", "job trigger. One of push, manual")
-	triggerCmd.Flags().String("cwd", wd, "working directory")
-	triggerCmd.Flags().BoolP("follow", "f", false, "follow the log output once the job is running")
+	triggerLocalCmd.Flags().String("cwd", wd, "working directory")
 }

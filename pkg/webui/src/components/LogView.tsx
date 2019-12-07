@@ -1,5 +1,5 @@
 import * as React from "react";
-import { LogSliceEvent, LogSlicePhase } from "../api/werft_pb";
+import { LogSliceEvent, LogSlicePhase } from "../api/keel_pb";
 import { Box, Heading } from "grommet";
 
 export interface LogViewProps {

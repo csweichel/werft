@@ -5,12 +5,14 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
 	termtohtml "github.com/buildkite/terminal-to-html"
+	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -127,6 +129,49 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 	return inc.SendAndClose(&v1.StartJobResponse{
 		Status: jobStatus,
 	})
+}
+
+// StartGitHubJob starts a job on a Git context, possibly with a custom job.
+func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (*v1.StartJobResponse, error) {
+	ghclient := github.NewClient(http.DefaultClient)
+	var cp ContentProvider = &GitHubContentProvider{
+		Owner:    req.Job.Repository.Owner,
+		Repo:     req.Job.Repository.Repo,
+		Revision: req.Job.Repository.Ref,
+		Client:   ghclient,
+	}
+
+	if req.JobYaml != nil {
+		cp = &customJobFileContentProvider{
+			ContentProvider: cp,
+			JobFile:         req.JobYaml,
+		}
+	}
+
+	md := req.Job
+
+	jobStatus, err := srv.RunJob(ctx, *md, cp)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	log.WithField("status", jobStatus).Info(("started new local job"))
+	return &v1.StartJobResponse{
+		Status: jobStatus,
+	}, nil
+}
+
+type customJobFileContentProvider struct {
+	ContentProvider
+	JobFile []byte
+}
+
+func (cp *customJobFileContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+	if path == PathWerftConfig {
+		return cp.ContentProvider.Download(ctx, path)
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(cp.JobFile)), nil
 }
 
 // newTarStreamAdapter creates a reader from an incoming workspace tar stream

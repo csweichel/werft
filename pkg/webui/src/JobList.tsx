@@ -45,10 +45,14 @@ export class JobList extends React.Component<JobListProps, JobListState> {
             alert(err);
         }
 
+        
+    }
+
+    protected startListening() {
         try {
             const req = new SubscribeRequest();
             let evts = this.props.client.subscribe(req);
-            evts.on('end', () => alert("updates ended"));
+            evts.on('end', () => setTimeout(() => this.startListening(), 1000));
             evts.on('data', r => {
                 const status = r.getResult();
                 if (!status) {
@@ -95,7 +99,6 @@ export class JobList extends React.Component<JobListProps, JobListState> {
                 header: <Text>Name</Text>,
                 primary: true,
                 search: true,
-                sortable: true,
                 render: (row: JobStatus.AsObject) => {
                     return <a href={`/job/${row.name}`}>{row.name}</a>;
                 }
@@ -104,7 +107,6 @@ export class JobList extends React.Component<JobListProps, JobListState> {
                 property: "owner",
                 header: "Owner",
                 search: true,
-                sortable: true,
                 render: (row: JobStatus.AsObject) => {
                     return row.metadata!.owner;
                 }
@@ -112,7 +114,6 @@ export class JobList extends React.Component<JobListProps, JobListState> {
             {
                 property: "age",
                 header: "Age",
-                sortable: true,
                 render: (row: JobStatus.AsObject) => {
                     return <ReactTimeago date={row.metadata!.created!.seconds * 1000} />;
                 }
@@ -121,7 +122,6 @@ export class JobList extends React.Component<JobListProps, JobListState> {
                 property: "repo.repo",
                 header: "Repository",
                 search: true,
-                sortable: true,
                 render: (row: JobStatus.AsObject) => {
                     const md = row.metadata!.repository!;
                     return `${md.host}/${md.owner}/${md.repo}`;
@@ -131,7 +131,6 @@ export class JobList extends React.Component<JobListProps, JobListState> {
                 property: "phase",
                 header: "Phase",
                 search: true,
-                sortable: true,
                 render: (row: JobStatus.AsObject) => {
                     const kvs = Object.getOwnPropertyNames(JobPhase).map(k => [k, (JobPhase as any)[k]]).find(kv => kv[1] === row.phase);
                     return kvs![0].split("_")[1].toLowerCase();

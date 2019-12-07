@@ -13,6 +13,9 @@ service WerftService {
     //   5. the workspace tar stream done marker
     rpc StartLocalJob(stream StartLocalJobRequest) returns (StartJobResponse) {};
 
+    // StartGitHubJob starts a job on a Git context, possibly with a custom job.
+    rpc StartGitHubJob(StartGitHubJobRequest) returns (StartJobResponse) {};
+
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
 
     // Subscribe listens to new jobs/job updates
@@ -35,6 +38,13 @@ message StartLocalJobRequest {
 
 message StartJobResponse {
     JobStatus status = 1;
+}
+
+message StartGitHubJobRequest {
+    JobMetadata job = 1;
+    string username = 2;
+    string password = 3;
+    bytes job_yaml = 4;
 }
 
 message ListJobsRequest {

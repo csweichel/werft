@@ -88,6 +88,42 @@ export namespace StartJobResponse {
   }
 }
 
+export class StartGitHubJobRequest extends jspb.Message {
+  hasJob(): boolean;
+  clearJob(): void;
+  getJob(): JobMetadata | undefined;
+  setJob(value?: JobMetadata): void;
+
+  getUsername(): string;
+  setUsername(value: string): void;
+
+  getPassword(): string;
+  setPassword(value: string): void;
+
+  getJobYaml(): Uint8Array | string;
+  getJobYaml_asU8(): Uint8Array;
+  getJobYaml_asB64(): string;
+  setJobYaml(value: Uint8Array | string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StartGitHubJobRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StartGitHubJobRequest;
+  static deserializeBinaryFromReader(message: StartGitHubJobRequest, reader: jspb.BinaryReader): StartGitHubJobRequest;
+}
+
+export namespace StartGitHubJobRequest {
+  export type AsObject = {
+    job?: JobMetadata.AsObject,
+    username: string,
+    password: string,
+    jobYaml: Uint8Array | string,
+  }
+}
+
 export class ListJobsRequest extends jspb.Message {
   clearFilterList(): void;
   getFilterList(): Array<FilterExpression>;

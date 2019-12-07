@@ -53,7 +53,7 @@ export const theme: ThemeType | any = {
             "status-disabled": "#CCCCCC"
         },
         "font": {
-            "family": "IBM Plex Sans, Helvetica, sans-serif",
+            "family": "Dosis, Helvetica, sans-serif",
         },
     }
 };

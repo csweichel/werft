@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
@@ -172,7 +173,7 @@ func (srv *Service) StartGRPC(addr string) {
 	}
 }
 
-// hstsHandler wraps an http.HandlerFunc such that it sets the HSTS header.
+// hstsHandler wraps an http.HandlerFunc sfuch that it sets the HSTS header.
 func hstsHandler(fn http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
@@ -232,7 +233,7 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 		// TODO handle repos without werft config more gracefully
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
-	var repoCfg RepoConfig
+	var repoCfg repoconfig.C
 	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
@@ -334,19 +335,4 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	if err != nil {
 		srv.OnError(err)
 	}
-}
-
-// RepoConfig is the struct we expect to find in the repo root which configures how we build things
-type RepoConfig struct {
-	DefaultJob string `yaml:"defaultJob"`
-}
-
-// TemplatePath returns the path to the job template in the repo
-func (rc *RepoConfig) TemplatePath(trigger v1.JobTrigger) string {
-	return rc.DefaultJob
-}
-
-// ShouldRun determines based on the repo config if the job should run
-func (rc *RepoConfig) ShouldRun(trigger v1.JobTrigger) bool {
-	return true
 }
