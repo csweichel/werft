@@ -1,0 +1,30 @@
+packages:
+- name: server
+  type: go
+  deps:
+  - pkg/webui:rice
+  srcs:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  env:
+  - CGO_ENABLED=0
+  config:
+    generate: true
+    dontTest: true
+    buildFlags:
+    - -tags
+    - server
+- name: client
+  type: go
+  srcs:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  env:
+  - CGO_ENABLED=0
+  config:
+    dontTest: true
+    buildFlags:
+    - -tags
+    - client

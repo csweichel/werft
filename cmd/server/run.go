@@ -31,9 +31,9 @@ import (
 	"syscall"
 
 	"github.com/32leaves/werft/pkg/executor"
-	"github.com/32leaves/werft/pkg/werft"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
+	"github.com/32leaves/werft/pkg/werft"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
