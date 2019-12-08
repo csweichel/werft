@@ -7,9 +7,9 @@ containers:
     - sh 
     - -c
     - |
-      apk add --no-cache sed
+      apk add --no-cache sed curl go yarn git
+      curl -L https://github.com/TypeFox/leeway/releases/download/v0.0.5/leeway_0.0.5_Linux_x86_64.tar.gz | tar xz
+      chmod +x leeway
+      export PATH=$PWD:$PATH
       cd /workspace
-      go get -v ./... | sed -e 's/^/[go get] /'
-      echo '[go get|EOF]'
-      go build        | sed -e 's/^/[go build] /'
-      echo '[go build|EOF]'
+      leeway build

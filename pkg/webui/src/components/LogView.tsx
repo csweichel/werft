@@ -1,8 +1,14 @@
 import * as React from "react";
 import { LogSliceEvent, LogSlicePhase } from "../api/keel_pb";
-import { Box, Heading } from "grommet";
+import { Typography, Paper, Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary } from "@material-ui/core";
+import { withStyles } from "@material-ui/styles";
 
-export interface LogViewProps {
+export const styles = (theme: Theme) =>
+    createStyles({
+        
+    });
+
+export interface LogViewProps extends WithStyles<typeof styles> {
     logs: LogSliceEvent[];
 }
 
@@ -10,7 +16,7 @@ export interface LogViewState {
     chunks: Map<string, string[]>;
 }
 
-export class LogView extends React.Component<LogViewProps, LogViewState> {
+class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
     
     constructor(props: LogViewProps) {
         super(props);
@@ -31,28 +37,33 @@ export class LogView extends React.Component<LogViewProps, LogViewState> {
                 currentChunk = le.getName();
                 icCount = 0;
             } else if (le.getPhase() === LogSlicePhase.SLICE_CONTENT) {
-                const content = (chunks.get(currentChunk) || []);
+                const content = (chunks.get(le.getName()) || []);
                 if (icCount++ <= content.length) {
                     return
                 }
 
                 content.push(le.getPayload());
-                chunks.set(currentChunk, content);
+                chunks.set(le.getName(), content);
             }
         });
     }
 
     render() {
         this.updateChunks();
+        const chunks = Array.from(this.state.chunks.entries());
         
         return <React.Fragment>
-            { Array.from(this.state.chunks.entries()).map(kv => (
-                <Box key={kv[0]}>
-                    <Heading level="6">{kv[0]}</Heading>
-                    <div className="term-container" dangerouslySetInnerHTML={{__html: kv[1].join("<br />")}} />
-                </Box>
+            { chunks.map((kv, i) => (
+                <ExpansionPanel key={kv[0]} defaultExpanded={i==chunks.length - 1}>
+                    <ExpansionPanelSummary>{kv[0]}</ExpansionPanelSummary>
+                    <ExpansionPanelDetails>
+                        <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: kv[1].join("<br />")}} />
+                    </ExpansionPanelDetails>
+                </ExpansionPanel>
             )) }
         </React.Fragment>
     }
  
 }
+
+export const LogView = withStyles(styles)(LogViewImpl);

@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS job_status (
 	repo_host varchar(255) NULL,
 	repo_ref varchar(255) NULL,
 	trigger_src varchar(255) NULL,
-	success int not null
+	success int not null,
+	created int not null
 );
 
 CREATE TABLE IF NOT EXISTS annotations (
@@ -72,10 +73,10 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 	var jobID int
 	err = tx.QueryRow(`
 		INSERT
-		INTO   job_status (name, data, owner, phase, repo_owner, repo_repo, repo_host, repo_ref, trigger_src, success)
-		VALUES            ($1  , $2  , $3   , $4   , $5        , $6       , $7       , $8      , $9         , $10) 
+		INTO   job_status (name, data, owner, phase, repo_owner, repo_repo, repo_host, repo_ref, trigger_src, success, created)
+		VALUES            ($1  , $2  , $3   , $4   , $5        , $6       , $7       , $8      , $9         , $10,     $11    ) 
 		ON CONFLICT (name) DO UPDATE 
-			SET data = $2, owner = $3, phase = $4, repo_owner = $5, repo_repo = $6, repo_host = $7, repo_ref = $8, trigger_src = $9, success = $10
+			SET data = $2, owner = $3, phase = $4, repo_owner = $5, repo_repo = $6, repo_host = $7, repo_ref = $8, trigger_src = $9, success = $10, created = $11
 		RETURNING id`,
 		job.Name,
 		serializedJob,
@@ -87,6 +88,7 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 		job.Metadata.Repository.Ref,
 		strings.ToLower(strings.TrimPrefix("TRIGGER_", job.Metadata.Trigger.String())),
 		success,
+		job.Metadata.Created.Seconds,
 	).Scan(&jobID)
 	if err != nil {
 		tx.Rollback()
@@ -146,6 +148,7 @@ func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, o
 		"repo.ref":   "repo_ref",
 		"trigger":    "trigger",
 		"success":    "success",
+		"created":    "created",
 	}
 
 	var (
@@ -205,6 +208,7 @@ func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, o
 		}
 		orderExps = append(orderExps, fmt.Sprintf("%s %s", field, dir))
 	}
+	orderExps = append(orderExps, "created DESC")
 	orderExps = append(orderExps, "name DESC")
 	orderExp := strings.Join(orderExps, ", ")
 

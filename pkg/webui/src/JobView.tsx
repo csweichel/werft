@@ -1,14 +1,33 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs } from './api/werft_pb';
-import { Grommet, Box, Text, Table, TableBody, TableRow, TableCell, Collapsible, Heading } from 'grommet';
-import { theme } from './theme';
-import { AppBar } from './components/AppBar';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
+import { Header, headerStyles } from './components/header';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@material-ui/core';
+import { WithStyles, withStyles } from '@material-ui/styles';
+import CloseIcon from '@material-ui/icons/Close';
+import { ColorUnknown, ColorFailure, ColorSuccess, ColorWarning } from './components/colors';
+import { debounce } from './components/util';
 
-export interface JobViewProps {
+const styles = (theme: Theme) => createStyles({
+    main: {
+        flex: 1,
+        padding: theme.spacing(6, 4),
+        background: '#eaeff1',
+    },
+    button: headerStyles(theme).button,
+    metadataItemLabel: {
+        fontWeight: "bold",
+        paddingRight: "0.5em"
+    },
+    infobar: {
+        paddingBottom: "1em"
+    }
+});
+
+export interface JobViewProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
     jobName: string;
 }
@@ -19,7 +38,7 @@ interface JobViewState {
     log: LogSliceEvent[];
 }
 
-export class JobView extends React.Component<JobViewProps, JobViewState> {
+class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     protected logCache: LogSliceEvent[] = [];
 
     constructor(props: JobViewProps) {
@@ -45,6 +64,7 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
         const evts = this.props.client.listen(lreq);
         
         let tc: any | undefined;
+        let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
         evts.on('data', h => {
             if (!h.hasSlice()) {
                 return;
@@ -52,82 +72,70 @@ export class JobView extends React.Component<JobViewProps, JobViewState> {
 
             const log = this.logCache;
             log.push(h.getSlice()!);
-            if (tc !== undefined) {
-                clearTimeout(tc);
-            }
-            tc = setTimeout(() => {
-                this.setState({log});
-            }, 200);
+            updateLogState(log);
         });
         evts.on('end', console.log);
     }
 
     render() {
-        let color = 'status-unknown';
+        let color = ColorUnknown;
         if (this.state.status && this.state.status.conditions) {
-            if (this.state.status.conditions.success) {
-                color = 'status-ok';
+            if (this.state.status.phase != JobPhase.PHASE_DONE) {
+                color = ColorWarning;
+            } else if (this.state.status.conditions.success) {
+                color = ColorSuccess;
             } else {
-                color = 'status-critical';
+                color = ColorFailure;
             }
         }
 
+        const actions = <React.Fragment>
+            <Tooltip title="Back">
+                <IconButton color="inherit" onClick={() => window.location.href = "/jobs"}>
+                    <CloseIcon />
+                </IconButton>
+            </Tooltip>
+        </React.Fragment>
+
         const job = this.state.status;
-        let metadata: ({
-            label: string
-            value: string | React.ReactFragment
-        })[][] | undefined;
-        if (!!job) {
-            metadata = [
-                [
-                    { label: "Owner", value: job.metadata!.owner },
-                    { label: "Started", value: <React.Fragment><ReactTimeago date={job.metadata!.created.seconds * 1000} /></React.Fragment> },
-                ],
-                [
-                    { label: "Repository", value: `${job.metadata!.repository!.host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}` },
-                    !!job.metadata!.finished ? { label: "Finished", value: <React.Fragment><ReactTimeago date={job.metadata!.finished.seconds * 1000} /></React.Fragment> } : { label: "", value: "" }
-                ],
-                [
-                    { label: "Revision", value: job.metadata!.repository!.ref }
-                ]
-            ];
+        const classes = this.props.classes;
+        let secondary: React.ReactFragment | undefined;
+        if (job) {
+            secondary = <Toolbar>
+                <Grid container spacing={1} alignItems="center" className={classes.infobar}>
+                    <JobMetadataItemProps label="Owner">{job!.metadata!.owner}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Repository">{`${job.metadata!.repository!.host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}`}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.ref}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
+                    <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? <ReactTimeago date={job.metadata!.finished.seconds * 1000} /> : "-"}</JobMetadataItemProps>
+                </Grid>
+            </Toolbar>
         }
 
-        return <Grommet theme={theme} full>
-            <AppBar backLink="/" backgroundColor={color}>
-                <Text>{this.props.jobName}</Text>
-            </AppBar>
-            <Box direction='row' flex overflow={{ horizontal: 'hidden' }} pad={{ left: 'small', right: 'small', vertical: 'small' }}>
-                <Box fill>
-                    {job &&
-                        <Box>
-                            <Heading level="4" onClick={() => this.setState({ showDetails: !this.state.showDetails })} style={{ cursor: "pointer" }}>Details</Heading>
-                            <Collapsible open={this.state.showDetails}>
-                                <Table>
-                                    <TableBody>
-                                        {metadata && metadata.map((rs, i) => (
-                                            <TableRow key={i}>{
-                                                rs.map((p, j) => (
-                                                    <React.Fragment key={j}>
-                                                        <TableCell><Text style={{ fontWeight: "bold" }}>{p!.label}</Text></TableCell>
-                                                        <TableCell><Text>{p!.value}</Text></TableCell>
-                                                    </React.Fragment>
-                                                ))
-                                            }</TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </Collapsible>
-                        </Box>
-                    }
-
-                    <Box>
-                        <Heading level="4">Logs</Heading>
-                        <LogView logs={this.state.log} />
-                    </Box>
-                </Box>
-            </Box>
-        </Grommet>
+        return <React.Fragment>
+            <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
+            <main className={classes.main}>
+                <LogView logs={this.state.log} />
+            </main>
+        </React.Fragment>
     }
 
 }
+
+export const JobView = withStyles(styles)(JobViewImpl);
+
+interface JobMetadataItemProps extends WithStyles<typeof styles> {
+    label: string
+    xs?: 1|2|3|4|5|6|7|8|9
+}
+
+class JobMetadataItemPropsImpl extends React.Component<JobMetadataItemProps, {}> {
+    render() {
+        return <Grid item xs={this.props.xs || 3}>
+            <span className={this.props.classes.metadataItemLabel}>{this.props.label}</span>
+            {this.props.children}
+        </Grid>
+    }
+}
+
+const JobMetadataItemProps = withStyles(styles)(JobMetadataItemPropsImpl)
