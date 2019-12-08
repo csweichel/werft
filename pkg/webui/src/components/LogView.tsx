@@ -1,6 +1,6 @@
 import * as React from "react";
 import { LogSliceEvent, LogSlicePhase } from "../api/keel_pb";
-import { Typography, Paper, Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary } from "@material-ui/core";
+import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary } from "@material-ui/core";
 import { withStyles } from "@material-ui/styles";
 
 export const styles = (theme: Theme) =>
@@ -28,17 +28,17 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
     }
 
     protected updateChunks() {
-        let currentChunk = "default";
         let chunks = this.state.chunks;
-        let icCount = 0;
+        let icCount = new Map<string, number>();
 
         this.props.logs.forEach(le => {
             if (le.getPhase() === LogSlicePhase.SLICE_START) {
-                currentChunk = le.getName();
-                icCount = 0;
+                icCount.set(le.getName(), 0);
             } else if (le.getPhase() === LogSlicePhase.SLICE_CONTENT) {
                 const content = (chunks.get(le.getName()) || []);
-                if (icCount++ <= content.length) {
+                const icc = (icCount.get(le.getName()) || 0) + 1;
+                icCount.set(le.getName(), icc);
+                if (icc <= content.length) {
                     return
                 }
 
@@ -54,7 +54,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         
         return <React.Fragment>
             { chunks.map((kv, i) => (
-                <ExpansionPanel key={kv[0]} defaultExpanded={i==chunks.length - 1}>
+                <ExpansionPanel key={kv[0]} defaultExpanded={i===chunks.length - 1}>
                     <ExpansionPanelSummary>{kv[0]}</ExpansionPanelSummary>
                     <ExpansionPanelDetails>
                         <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: kv[1].join("<br />")}} />

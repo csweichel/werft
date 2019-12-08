@@ -6,11 +6,9 @@ import {
 } from "react-router-dom";
 import { JobList } from './JobList';
 import { JobView } from './JobView';
-import { Navigator } from './components/Naviagor';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { WithStyles, ThemeProvider, withStyles } from '@material-ui/styles';
 import { CssBaseline, createMuiTheme, createStyles } from '@material-ui/core';
-import { ColorWarning } from './components/colors';
 
 interface AppState {
     showSidebar?: boolean
@@ -62,7 +60,7 @@ class AppImpl extends React.Component<AppProps, AppState> {
                         </Switch>
                     </Router >
                     <footer className={classes.footer}>
-                        <img src="/werft-small.png" />
+                        <img src="/werft-small.png" alt="werft logo" />
                     </footer>
                 </div>
             </div>

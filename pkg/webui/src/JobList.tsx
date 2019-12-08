@@ -2,7 +2,7 @@ import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, OrderExpression } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, TextField, Toolbar, Grid, fade, InputBase } from '@material-ui/core';
+import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Toolbar, Grid, fade, InputBase } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import ReactTimeago from 'react-timeago';
 import WarningIcon from '@material-ui/icons/Warning';

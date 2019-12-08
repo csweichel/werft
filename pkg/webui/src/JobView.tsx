@@ -63,7 +63,6 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         lreq.setName(this.props.jobName);
         const evts = this.props.client.listen(lreq);
         
-        let tc: any | undefined;
         let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
         evts.on('data', h => {
             if (!h.hasSlice()) {
@@ -80,7 +79,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     render() {
         let color = ColorUnknown;
         if (this.state.status && this.state.status.conditions) {
-            if (this.state.status.phase != JobPhase.PHASE_DONE) {
+            if (this.state.status.phase !== JobPhase.PHASE_DONE) {
                 color = ColorWarning;
             } else if (this.state.status.conditions.success) {
                 color = ColorSuccess;
