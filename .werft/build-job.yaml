@@ -1,15 +1,16 @@
-containers:
-- name: build
-  image: golang:1.13-alpine
-  workingDir: /workspace
-  imagePullPolicy: IfNotPresent
-  command:
-    - sh 
-    - -c
-    - |
-      apk add --no-cache sed curl go yarn git
-      curl -L https://github.com/TypeFox/leeway/releases/download/v0.0.5/leeway_0.0.5_Linux_x86_64.tar.gz | tar xz
-      chmod +x leeway
-      export PATH=$PWD:$PATH
-      cd /workspace
-      leeway build
+pod:
+  containers:
+  - name: build
+    image: golang:1.13-alpine
+    workingDir: /workspace
+    imagePullPolicy: IfNotPresent
+    command:
+      - sh 
+      - -c
+      - |
+        apk add --no-cache sed curl go yarn git
+        curl -L https://github.com/TypeFox/leeway/releases/download/v0.0.5/leeway_0.0.5_Linux_x86_64.tar.gz | tar xz
+        chmod +x leeway
+        export PATH=$PWD:$PATH
+        cd /workspace
+        leeway build

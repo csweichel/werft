@@ -265,10 +265,14 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
-	var podspec corev1.PodSpec
-	err = yaml.Unmarshal(buf.Bytes(), &podspec)
+	var jobspec repoconfig.JobSpec
+	err = yaml.Unmarshal(buf.Bytes(), &jobspec)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
+	}
+	podspec := jobspec.Pod
+	if podspec == nil {
+		return nil, xerrors.Errorf("cannot handle job for %s: no podspec present", name)
 	}
 
 	nodePath := filepath.Join(srv.WorkspaceNodePathPrefix, name)
@@ -300,7 +304,7 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 	}
 
 	// schedule/start job
-	status, err = srv.Executor.Start(podspec, metadata, executor.WithName(name))
+	status, err = srv.Executor.Start(*podspec, metadata, executor.WithName(name))
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
