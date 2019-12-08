@@ -24,6 +24,8 @@ service WerftService {
     rpc GetJob(GetJobRequest) returns (GetJobResponse) {};
 
     rpc Listen(ListenRequest) returns (stream ListenResponse) {};
+
+    rpc StopJob(StopJobRequest) returns (StopJobResponse) {};
 }
 
 message StartLocalJobRequest {
@@ -191,3 +193,9 @@ enum LogSlicePhase {
     SLICE_CONTENT = 3;
     SLICE_END = 4;
 }
+
+message StopJobRequest {
+    string name = 1;
+}
+
+message StopJobResponse { }

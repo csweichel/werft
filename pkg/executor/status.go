@@ -77,10 +77,10 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	status.Conditions.FailureCount = maxRestart
 	status.Conditions.Success = !(anyFailed || maxRestart > getFailureLimit(obj))
 
-	if obj.DeletionTimestamp != nil {
-		status.Phase = v1.JobPhase_PHASE_CLEANUP
-		return
-	}
+	// if obj.DeletionTimestamp != nil {
+	// 	status.Phase = v1.JobPhase_PHASE_CLEANUP
+	// 	return
+	// }
 	if maxRestart > getFailureLimit(obj) {
 		status.Phase = v1.JobPhase_PHASE_DONE
 		return

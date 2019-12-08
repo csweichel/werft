@@ -231,7 +231,7 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 
 func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) error {
 	if status.Phase == werftv1.JobPhase_PHASE_DONE {
-		gracePeriod := int64(30)
+		gracePeriod := int64(5)
 		policy := metav1.DeletePropagationForeground
 
 		err := js.Client.CoreV1().Pods(js.Config.Namespace).Delete(obj.Name, &metav1.DeleteOptions{
@@ -290,15 +290,31 @@ func (js *Executor) doHousekeeping() {
 	// check our state and watch for non-existent jobs/events that we missed
 }
 
-// Find finds currently running jobs
-func (js *Executor) Find(filter []*werftv1.FilterExpression, limit int64) ([]werftv1.JobStatus, error) {
-	_, err := js.Client.BatchV1().Jobs(js.Config.Namespace).List(metav1.ListOptions{
-		Limit: limit,
+// Stop stops a job
+func (js *Executor) Stop(name string) error {
+	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s", LabelJobName, name),
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// TOOD: transform jobs
-	return nil, fmt.Errorf("finish this shit")
+	if len(pods.Items) == 0 {
+		return xerrors.Errorf("unknown job: %s", name)
+	}
+	if len(pods.Items) > 1 {
+		return xerrors.Errorf("job %s has no unique execution", name)
+	}
+
+	gracePeriod := int64(30)
+	deletionPolicy := metav1.DeletePropagationForeground
+	err = js.Client.CoreV1().Pods(js.Config.Namespace).Delete(pods.Items[0].Name, &metav1.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &deletionPolicy,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

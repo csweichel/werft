@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase } from './api/werft_pb';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
@@ -8,8 +8,10 @@ import { Header, headerStyles } from './components/header';
 import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
+import StopIcon from '@material-ui/icons/Stop';
 import { ColorUnknown, ColorFailure, ColorSuccess, ColorWarning } from './components/colors';
 import { debounce, phaseToString } from './components/util';
+
 
 const styles = (theme: Theme) => createStyles({
     main: {
@@ -88,7 +90,15 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }
         }
 
+        const job = this.state.status;
         const actions = <React.Fragment>
+            { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
+                <Tooltip title="Cancel Job">
+                    <IconButton color="inherit" onClick={() => this.stopJob()}>
+                        <StopIcon />
+                    </IconButton>
+                </Tooltip>
+            }
             <Tooltip title="Back">
                 <IconButton color="inherit" onClick={() => window.location.href = "/jobs"}>
                     <CloseIcon />
@@ -96,7 +106,6 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             </Tooltip>
         </React.Fragment>
 
-        const job = this.state.status;
         const classes = this.props.classes;
         let secondary: React.ReactFragment | undefined;
         if (job) {
@@ -118,6 +127,14 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 <LogView logs={this.state.log} />
             </main>
         </React.Fragment>
+    }
+
+    protected stopJob() {
+        const req = new StopJobRequest();
+        req.setName(this.props.jobName);
+        this.props.client.stopJob(req, (err) => {
+            alert(err);
+        });
     }
 
 }

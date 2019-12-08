@@ -58,6 +58,15 @@ type WerftServiceListen = {
   readonly responseType: typeof werft_pb.ListenResponse;
 };
 
+type WerftServiceStopJob = {
+  readonly methodName: string;
+  readonly service: typeof WerftService;
+  readonly requestStream: false;
+  readonly responseStream: false;
+  readonly requestType: typeof werft_pb.StopJobRequest;
+  readonly responseType: typeof werft_pb.StopJobResponse;
+};
+
 export class WerftService {
   static readonly serviceName: string;
   static readonly StartLocalJob: WerftServiceStartLocalJob;
@@ -66,6 +75,7 @@ export class WerftService {
   static readonly Subscribe: WerftServiceSubscribe;
   static readonly GetJob: WerftServiceGetJob;
   static readonly Listen: WerftServiceListen;
+  static readonly StopJob: WerftServiceStopJob;
 }
 
 export type ServiceError = { message: string, code: number; metadata: grpc.Metadata }
@@ -130,5 +140,14 @@ export class WerftServiceClient {
     callback: (error: ServiceError|null, responseMessage: werft_pb.GetJobResponse|null) => void
   ): UnaryResponse;
   listen(requestMessage: werft_pb.ListenRequest, metadata?: grpc.Metadata): ResponseStream<werft_pb.ListenResponse>;
+  stopJob(
+    requestMessage: werft_pb.StopJobRequest,
+    metadata: grpc.Metadata,
+    callback: (error: ServiceError|null, responseMessage: werft_pb.StopJobResponse|null) => void
+  ): UnaryResponse;
+  stopJob(
+    requestMessage: werft_pb.StopJobRequest,
+    callback: (error: ServiceError|null, responseMessage: werft_pb.StopJobResponse|null) => void
+  ): UnaryResponse;
 }
 

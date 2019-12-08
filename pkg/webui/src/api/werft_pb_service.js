@@ -64,6 +64,15 @@ WerftService.Listen = {
   responseType: werft_pb.ListenResponse
 };
 
+WerftService.StopJob = {
+  methodName: "StopJob",
+  service: WerftService,
+  requestStream: false,
+  responseStream: false,
+  requestType: werft_pb.StopJobRequest,
+  responseType: werft_pb.StopJobResponse
+};
+
 exports.WerftService = WerftService;
 
 function WerftServiceClient(serviceHost, options) {
@@ -278,6 +287,37 @@ WerftServiceClient.prototype.listen = function listen(requestMessage, metadata) 
     },
     cancel: function () {
       listeners = null;
+      client.close();
+    }
+  };
+};
+
+WerftServiceClient.prototype.stopJob = function stopJob(requestMessage, metadata, callback) {
+  if (arguments.length === 2) {
+    callback = arguments[1];
+  }
+  var client = grpc.unary(WerftService.StopJob, {
+    request: requestMessage,
+    host: this.serviceHost,
+    metadata: metadata,
+    transport: this.options.transport,
+    debug: this.options.debug,
+    onEnd: function (response) {
+      if (callback) {
+        if (response.status !== grpc.Code.OK) {
+          var err = new Error(response.statusMessage);
+          err.code = response.status;
+          err.metadata = response.trailers;
+          callback(err, null);
+        } else {
+          callback(null, response.message);
+        }
+      }
+    }
+  });
+  return {
+    cancel: function () {
+      callback = null;
       client.close();
     }
   };

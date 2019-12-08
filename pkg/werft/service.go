@@ -353,3 +353,25 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 	wg.Wait()
 	return nil
 }
+
+// StopJob stops a running job
+func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.StopJobResponse, error) {
+	job, err := srv.Jobs.Get(ctx, req.Name)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if job == nil {
+		return nil, status.Error(codes.NotFound, "not found")
+	}
+
+	if job.Phase != v1.JobPhase_PHASE_PREPARING && job.Phase != v1.JobPhase_PHASE_STARTING && job.Phase != v1.JobPhase_PHASE_RUNNING {
+		return nil, status.Error(codes.FailedPrecondition, "job is unstoppable phase")
+	}
+
+	err = srv.Executor.Stop(req.Name)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &v1.StopJobResponse{}, nil
+}
