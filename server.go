@@ -23,6 +23,8 @@ package main
 
 import (
 	cmd "github.com/32leaves/werft/cmd/server"
+
+	_ "github.com/32leaves/werft/pkg/webui"
 )
 
 func main() {

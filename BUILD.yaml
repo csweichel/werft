@@ -15,6 +15,12 @@ packages:
     buildFlags:
     - -tags
     - server
+- name: server-docker
+  type: docker
+  deps:
+  - :server
+  config:
+    dockerfile: "server.Dockerfile"
 - name: client
   type: go
   srcs:
@@ -28,3 +34,8 @@ packages:
     buildFlags:
     - -tags
     - client
+- name: all
+  type: generic
+  deps:
+  - :client
+  - :server
