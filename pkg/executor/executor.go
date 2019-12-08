@@ -35,6 +35,9 @@ const (
 
 	// AnnotationMetadata stores the JSON encoded metadata available at creation
 	AnnotationMetadata = "werft.sh/metadata"
+
+	// AnnotationFailed explicitelly fails the job
+	AnnotationFailed = "werft.sh/failed"
 )
 
 // Config configures the executor
@@ -306,12 +309,9 @@ func (js *Executor) Stop(name string) error {
 		return xerrors.Errorf("job %s has no unique execution", name)
 	}
 
-	gracePeriod := int64(30)
-	deletionPolicy := metav1.DeletePropagationForeground
-	err = js.Client.CoreV1().Pods(js.Config.Namespace).Delete(pods.Items[0].Name, &metav1.DeleteOptions{
-		GracePeriodSeconds: &gracePeriod,
-		PropagationPolicy:  &deletionPolicy,
-	})
+	pod := pods.Items[0]
+	pod.Annotations[AnnotationFailed] = "pod was stopped manually"
+	_, err = js.Client.CoreV1().Pods(js.Config.Namespace).Update(&pod)
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,7 @@ import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@materi
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
-import { ColorUnknown, ColorFailure, ColorSuccess, ColorWarning } from './components/colors';
+import { ColorUnknown, ColorFailure, ColorSuccess } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 
 
@@ -133,6 +133,10 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const req = new StopJobRequest();
         req.setName(this.props.jobName);
         this.props.client.stopJob(req, (err) => {
+            if (!err) {
+                return
+            }
+
             alert(err);
         });
     }
