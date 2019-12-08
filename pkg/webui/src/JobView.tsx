@@ -9,7 +9,7 @@ import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@materi
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import { ColorUnknown, ColorFailure, ColorSuccess, ColorWarning } from './components/colors';
-import { debounce } from './components/util';
+import { debounce, phaseToString } from './components/util';
 
 const styles = (theme: Theme) => createStyles({
     main: {
@@ -65,13 +65,13 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         
         let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
         evts.on('data', h => {
-            if (!h.hasSlice()) {
-                return;
+            if (h.hasUpdate()) {
+                this.setState({ status: h.getUpdate()!.toObject() });
+            } else if (h.hasSlice()) {
+                const log = this.logCache;
+                log.push(h.getSlice()!);
+                updateLogState(log);
             }
-
-            const log = this.logCache;
-            log.push(h.getSlice()!);
-            updateLogState(log);
         });
         evts.on('end', console.log);
     }
@@ -80,7 +80,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         let color = ColorUnknown;
         if (this.state.status && this.state.status.conditions) {
             if (this.state.status.phase !== JobPhase.PHASE_DONE) {
-                color = ColorWarning;
+                color = '#A3B2BD';
             } else if (this.state.status.conditions.success) {
                 color = ColorSuccess;
             } else {
@@ -107,6 +107,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.ref}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
                     <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? <ReactTimeago date={job.metadata!.finished.seconds * 1000} /> : "-"}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
                 </Grid>
             </Toolbar>
         }

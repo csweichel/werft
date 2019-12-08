@@ -9,7 +9,7 @@ import WarningIcon from '@material-ui/icons/Warning';
 import DoneIcon from '@material-ui/icons/Done';
 import SearchIcon from '@material-ui/icons/Search';
 import { ColorUnknown, ColorSuccess, ColorFailure } from './components/colors';
-import { debounce } from './components/util';
+import { debounce, phaseToString } from './components/util';
 
 
 const styles = (theme: Theme) => createStyles({
@@ -58,23 +58,24 @@ const styles = (theme: Theme) => createStyles({
     },
 });
 
+type JobIdx = { [key: string]: JobStatus.AsObject };
+
 interface JobListProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
 }
 
 interface JobListState {
-    jobs: Map<string, JobStatus.AsObject>
+    jobs: JobIdx
     sortCol?: string
     sortAscending: boolean
 }
-
 
 class JobListImpl extends React.Component<JobListProps, JobListState> {
 
     constructor(props: JobListProps) {
         super(props);
         this.state = {
-            jobs: new Map<string, JobStatus.AsObject>(),
+            jobs: {},
             sortAscending: true
         };
     }
@@ -86,10 +87,11 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
             const jobs = resp.getResultList().map(r => r.toObject());
 
-            const idx = new Map<string, JobStatus.AsObject>();
-            jobs.forEach(j => idx.set(j.name, j));
+            const idx: JobIdx = {};
+            jobs.forEach(j => idx[j.name] = j);
 
             this.setState({ jobs: idx });
+            this.startListening();
         } catch (err) {
             alert(err);
         }
@@ -106,10 +108,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                     return;
                 }
 
-                const jobs = this.state.jobs || {};
-                jobs.set(status.getName(), status.toObject());
-                this.setState({ jobs });
+                const jobs: JobIdx = this.state.jobs || {};
+
+                jobs[status.getName()] = status.toObject();
+                this.setState({ jobs: {...jobs} });
             });
+            evts.on('status', console.warn);
         } catch (err) {
             alert(err);
         }
@@ -156,8 +160,8 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
         const jobs = resp.getResultList().map(r => r.toObject());
 
-        const idx = new Map<string, JobStatus.AsObject>();
-        jobs.forEach(j => idx.set(j.name, j));
+        const idx: JobIdx = {};
+        jobs.forEach(j => idx[j.name] = j);
 
         this.setState({ jobs: idx });
     }
@@ -205,10 +209,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 header: "Phase",
                 search: true,
                 sort: true,
-                render: (row: JobStatus.AsObject) => {
-                    const kvs = Object.getOwnPropertyNames(JobPhase).map(k => [k, (JobPhase as any)[k]]).find(kv => kv[1] === row.phase);
-                    return kvs![0].split("_")[1].toLowerCase();
-                }
+                render: (row: JobStatus.AsObject) => phaseToString(row.phase)
             },
             {
                 property: "success",
@@ -234,7 +235,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 }
             }
         ]
-        const rows = Array.from(this.state.jobs.entries()).map(kv => kv[1]);
+        const rows = Object.getOwnPropertyNames(this.state.jobs).map(k => this.state.jobs[k]);
 
         const debounceSearch = debounce((s: any) => this.search(s), 500);
         const actions = <React.Fragment>
