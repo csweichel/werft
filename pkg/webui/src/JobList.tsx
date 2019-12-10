@@ -65,7 +65,7 @@ interface JobListProps extends WithStyles<typeof styles> {
 }
 
 interface JobListState {
-    jobs: JobIdx
+    jobs: JobStatus.AsObject[]
     sortCol?: string
     sortAscending: boolean
 }
@@ -75,7 +75,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
     constructor(props: JobListProps) {
         super(props);
         this.state = {
-            jobs: {},
+            jobs: [],
             sortAscending: true
         };
     }
@@ -87,10 +87,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
             const jobs = resp.getResultList().map(r => r.toObject());
 
-            const idx: JobIdx = {};
-            jobs.forEach(j => idx[j.name] = j);
-
-            this.setState({ jobs: idx });
+            this.setState({ jobs });
             this.startListening();
         } catch (err) {
             alert(err);
@@ -107,11 +104,17 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 if (!status) {
                     return;
                 }
+                const incoming = status.toObject();
 
-                const jobs: JobIdx = this.state.jobs || {};
+                const jobs = this.state.jobs;
+                const idx = jobs.findIndex(o => o.name === incoming.name)
+                if (idx > -1) {
+                    jobs[idx] = incoming;
+                } else {
+                    jobs.unshift(incoming);
+                }
 
-                jobs[status.getName()] = status.toObject();
-                this.setState({ jobs: {...jobs} });
+                this.setState({ jobs });
             });
             evts.on('status', console.warn);
         } catch (err) {
@@ -159,11 +162,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
 
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
         const jobs = resp.getResultList().map(r => r.toObject());
-
-        const idx: JobIdx = {};
-        jobs.forEach(j => idx[j.name] = j);
-
-        this.setState({ jobs: idx });
+        this.setState({ jobs });
     }
 
     render() {
@@ -190,9 +189,10 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             {
                 property: "created",
                 header: "Age",
+                sort: true,
                 render: (row: JobStatus.AsObject) => {
                     return <ReactTimeago date={row.metadata!.created!.seconds * 1000} />;
-                }
+                },
             },
             {
                 property: "repo.repo",
@@ -202,6 +202,15 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 render: (row: JobStatus.AsObject) => {
                     const md = row.metadata!.repository!;
                     return `${md.host}/${md.owner}/${md.repo}`;
+                }
+            },
+            {
+                property: "repo.ref",
+                header: "Ref",
+                search: true,
+                sort: true,
+                render: (row: JobStatus.AsObject) => {
+                    return row.metadata!.repository!.ref!;
                 }
             },
             {
@@ -235,7 +244,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 }
             }
         ]
-        const rows = Object.getOwnPropertyNames(this.state.jobs).map(k => this.state.jobs[k]);
+        const rows = this.state.jobs;
 
         const debounceSearch = debounce((s: any) => this.search(s), 500);
         const actions = <React.Fragment>
@@ -251,6 +260,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                     }}
                     inputProps={{ 'aria-label': 'search' }}
                     onChange={e => debounceSearch({_all: e.target.value})}
+                    onKeyPress={e => this.handleSearchKeyPress(e.charCode)}
                 />
             </div>
             
@@ -306,6 +316,16 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
 
         this.setState({ sortCol: col, sortAscending: sortAsc });
         this.search({});
+    }
+
+    protected handleSearchKeyPress(charCode: number) {
+        if (charCode !== 13) {
+            return
+        }
+
+        if (this.state.jobs.length === 1) {
+            window.location.href = "/job/" + this.state.jobs[0].name
+        }
     }
 
 }

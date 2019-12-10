@@ -3869,7 +3869,8 @@ proto.v1.Repository.toObject = function(includeInstance, msg) {
     host: jspb.Message.getFieldWithDefault(msg, 1, ""),
     owner: jspb.Message.getFieldWithDefault(msg, 2, ""),
     repo: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    ref: jspb.Message.getFieldWithDefault(msg, 4, "")
+    ref: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    revision: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -3921,6 +3922,10 @@ proto.v1.Repository.deserializeBinaryFromReader = function(msg, reader) {
     case 4:
       var value = /** @type {string} */ (reader.readString());
       msg.setRef(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRevision(value);
       break;
     default:
       reader.skipField();
@@ -3976,6 +3981,13 @@ proto.v1.Repository.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       4,
+      f
+    );
+  }
+  f = message.getRevision();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
       f
     );
   }
@@ -4039,6 +4051,21 @@ proto.v1.Repository.prototype.getRef = function() {
 /** @param {string} value */
 proto.v1.Repository.prototype.setRef = function(value) {
   jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string revision = 5;
+ * @return {string}
+ */
+proto.v1.Repository.prototype.getRevision = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.v1.Repository.prototype.setRevision = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

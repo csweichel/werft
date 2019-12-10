@@ -141,6 +141,7 @@ message Repository {
     string owner = 2;
     string repo = 3;
     string ref = 4;
+    string revision = 5;
 }
 
 message Annotation {

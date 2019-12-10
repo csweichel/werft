@@ -44,3 +44,16 @@ type Jobs interface {
 	// If limit is 0, no limit is applied.
 	Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error)
 }
+
+// NumberGroup enables to atomic generation and storage of numbers.
+// This is used for build numbering
+type NumberGroup interface {
+	// Latest returns the latest number of a particular number group.
+	// Returns ErrNotFound if the group does not exist. A zero result is a valid
+	// number in a group and does not indicate its non-existence.
+	Latest(group string) (nr int, err error)
+
+	// Next returns the next number in the group. If the group did not exist prior
+	// to this call it is created. This function is thread-safe and atomic.
+	Next(group string) (nr int, err error)
+}

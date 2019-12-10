@@ -3,7 +3,6 @@ package werft
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"html/template"
 	"io/ioutil"
 	"net"
@@ -24,24 +23,35 @@ import (
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/olebedev/emitter"
 	log "github.com/sirupsen/logrus"
-	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 )
 
+// Config configures the behaviour of the service
+type Config struct {
+	// BaseURL is the URL this service is available on (e.g. https://werft.some-domain.com)
+	BaseURL string `json:"baseURL,omitempty"`
+
+	// WorkspaceNodePathPrefix is the location on the node where we place the builds
+	WorkspaceNodePathPrefix string
+
+	// Enables the webui debug proxy pointing to this address
+	DebugProxy string
+}
+
 // Service ties everything together
 type Service struct {
 	Logs     store.Logs
 	Jobs     store.Jobs
+	Groups   store.NumberGroup
 	Executor *executor.Executor
 	Cutter   logcutter.Cutter
 	GitHub   GitHubSetup
+	OnError  func(err error)
 
-	OnError                 func(err error)
-	WorkspaceNodePathPrefix string
-	DebugProxy              string
+	Config Config
 
 	mu          sync.Mutex
 	logListener map[string]context.CancelFunc
@@ -63,7 +73,6 @@ func (srv *Service) Start() {
 		}
 	}
 
-	// TOOD: on update change status in GitHub
 	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
 
@@ -77,7 +86,7 @@ func (srv *Service) Start() {
 				srv.logListener[s.Name] = cancel
 				go func() {
 					err := listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name), srv.Logs)
-					if err != nil {
+					if err != nil && err != context.Canceled {
 						srv.OnError(err)
 					}
 				}()
@@ -101,6 +110,13 @@ func (srv *Service) Start() {
 		if err != nil {
 			srv.OnError(xerrors.Errorf("cannot store job %s: %v", s.Name, err))
 		}
+
+		err = srv.updateGitHubStatus(s)
+		if err != nil {
+			srv.OnError(xerrors.Errorf("cannot update GitHub status for %s: %v", s.Name, err))
+		}
+
+		// tell our Listen subscribers about this change
 		<-srv.events.Emit("job", s)
 	}
 }
@@ -127,8 +143,8 @@ func listenToLogs(ctx context.Context, name string, inc <-chan string, dest stor
 // StartWeb starts the werft web UI service
 func (srv *Service) StartWeb(addr string) {
 	webuiServer := http.FileServer(rice.MustFindBox("../webui/build").HTTPBox())
-	if srv.DebugProxy != "" {
-		tgt, err := url.Parse(srv.DebugProxy)
+	if srv.Config.DebugProxy != "" {
+		tgt, err := url.Parse(srv.Config.DebugProxy)
 		if err != nil {
 			// this is debug only - it's ok to panic
 			panic(err)
@@ -192,40 +208,26 @@ func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpc
 	})
 }
 
-func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) {
-	var err error
-	defer func(err *error) {
-		if *err == nil {
+// RunJob starts a build job from some context
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
+	defer func(perr *error) {
+		if *perr == nil {
 			return
 		}
 
-		srv.OnError(*err)
-		http.Error(w, (*err).Error(), http.StatusInternalServerError)
+		// make sure we tell the world about this failed job startup attempt
+		var s v1.JobStatus
+		if status != nil {
+			s = *status
+		}
+		s.Phase = v1.JobPhase_PHASE_DONE
+		s.Conditions = &v1.JobConditions{Success: false, FailureCount: 1}
+		s.Metadata = &metadata
+		s.Details = (*perr).Error()
+
+		srv.Jobs.Store(context.Background(), s)
+		<-srv.events.Emit("job", s)
 	}(&err)
-
-	payload, err := github.ValidatePayload(r, srv.GitHub.WebhookSecret)
-	if err != nil {
-		return
-	}
-	event, err := github.ParseWebHook(github.WebHookType(r), payload)
-	if err != nil {
-		return
-	}
-	switch event := event.(type) {
-	case *github.CommitCommentEvent:
-		// processCommitCommentEvent(event)
-	case *github.CreateEvent:
-		// processCreateEvent(event)
-	case *github.PushEvent:
-		srv.processPushEvent(event)
-	default:
-		err = xerrors.Errorf("unhandled GitHub event: %+v", event)
-	}
-}
-
-// RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
-	name := fmt.Sprintf("werft-%s", moniker.New().NameSep("-"))
 
 	// download werft config from branch
 	werftYAML, err := cp.Download(ctx, PathWerftConfig)
@@ -275,7 +277,7 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 		return nil, xerrors.Errorf("cannot handle job for %s: no podspec present", name)
 	}
 
-	nodePath := filepath.Join(srv.WorkspaceNodePathPrefix, name)
+	nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
 	httype := corev1.HostPathDirectoryOrCreate
 	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
 		Name: "werft-workspace",
@@ -316,27 +318,4 @@ func (srv *Service) RunJob(ctx context.Context, metadata v1.JobMetadata, cp Cont
 	}
 
 	return status, nil
-}
-
-func (srv *Service) processPushEvent(event *github.PushEvent) {
-	ctx := context.Background()
-	metadata := v1.JobMetadata{
-		Owner: *event.Pusher.Name,
-		Repository: &v1.Repository{
-			Owner: *event.Repo.Owner.Name,
-			Repo:  *event.Repo.Name,
-			Ref:   *event.Ref,
-		},
-		Trigger: v1.JobTrigger_TRIGGER_PUSH,
-	}
-
-	content := &GitHubContentProvider{
-		Owner:    metadata.Repository.Owner,
-		Repo:     metadata.Repository.Repo,
-		Revision: metadata.Repository.Ref,
-	}
-	_, err := srv.RunJob(ctx, metadata, content)
-	if err != nil {
-		srv.OnError(err)
-	}
 }

@@ -9,6 +9,7 @@ import { JobView } from './JobView';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { WithStyles, ThemeProvider, withStyles } from '@material-ui/styles';
 import { CssBaseline, createMuiTheme, createStyles } from '@material-ui/core';
+import { GithubPage } from './GithubPage';
 
 interface AppState {
     showSidebar?: boolean
@@ -35,24 +36,14 @@ class AppImpl extends React.Component<AppProps, AppState> {
         return <ThemeProvider theme={theme}>
             <div className={classes.root}>
                 <CssBaseline />
-                {/* <nav className={classes.drawer}>
-                    <Hidden smUp implementation="js">
-                        <Navigator
-                            PaperProps={{ style: { width: drawerWidth } }}
-                            variant="temporary"
-                            open={this.state.showSidebar}
-                            onClose={() => this.setState({ showSidebar: !this.state.showSidebar })}
-                        />
-                    </Hidden>
-                    <Hidden xsDown implementation="css">
-                        <Navigator PaperProps={{ style: { width: drawerWidth } }} />
-                    </Hidden>
-                </nav> */}
                 <div className={classes.app}>
                     <Router>
                         <Switch>
                             <Route path="/job">
                                 <JobView client={this.client} jobName={window.location.pathname.substring("/job/".length)} />
+                            </Route>
+                            <Route path="/github">
+                                <GithubPage />
                             </Route>
                             <Route path="/">
                                 <JobList client={this.client} />

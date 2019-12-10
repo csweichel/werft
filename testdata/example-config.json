@@ -1,10 +1,13 @@
 {
     "service": {
         "webPort": 8080,
-        "grpcPort": 7777
+        "grpcPort": 7777,
+        "baseURL": "https://werft.com"
     },
     "kubernetes": {
-        "kubeconfig": "/Users/csweichel/.kube/config"
+        "kubeconfig": "/Users/csweichel/.kube/config",
+        "preperationTimeout": "10m",
+        "totalTimeout": "60m"
     },
     "storage": {
         "logsPath": "/tmp/logs",
@@ -14,6 +17,6 @@
         "webhookSecret": "foobar",
         "privateKeyPath": "testdata/example-app.pem",
         "appID": 48144,
-        "installationID": 5510129
+        "installationID": 5647067
     }
 }

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { LogSliceEvent, LogSlicePhase } from "../api/keel_pb";
+import { LogSliceEvent, LogSlicePhase } from "../api/werft_pb";
 import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary } from "@material-ui/core";
 import { withStyles } from "@material-ui/styles";
 

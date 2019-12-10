@@ -510,6 +510,9 @@ export class Repository extends jspb.Message {
   getRef(): string;
   setRef(value: string): void;
 
+  getRevision(): string;
+  setRevision(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): Repository.AsObject;
   static toObject(includeInstance: boolean, msg: Repository): Repository.AsObject;
@@ -526,6 +529,7 @@ export namespace Repository {
     owner: string,
     repo: string,
     ref: string,
+    revision: string,
   }
 }
 

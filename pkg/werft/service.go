@@ -3,10 +3,12 @@ package werft
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -15,6 +17,7 @@ import (
 	termtohtml "github.com/buildkite/terminal-to-html"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
+	"github.com/technosophos/moniker"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -120,7 +123,10 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 		Kubeconfig:   srv.Executor.KubeConfig,
 		Clientset:    srv.Executor.Client,
 	}
-	jobStatus, err := srv.RunJob(inc.Context(), md, cp)
+
+	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
+	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
+	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp)
 
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
@@ -138,7 +144,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	var cp ContentProvider = &GitHubContentProvider{
 		Owner:    req.Job.Repository.Owner,
 		Repo:     req.Job.Repository.Repo,
-		Revision: req.Job.Repository.Ref,
+		Revision: req.Job.Repository.Revision,
 		Client:   ghclient,
 	}
 
@@ -150,8 +156,9 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	md := req.Job
+	name := fmt.Sprintf("gh-%s", moniker.New().NameSep("-"))
 
-	jobStatus, err := srv.RunJob(ctx, *md, cp)
+	jobStatus, err := srv.RunJob(ctx, name, *md, cp)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

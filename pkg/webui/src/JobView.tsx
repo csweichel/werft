@@ -76,6 +76,12 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }
         });
         evts.on('end', console.log);
+
+        window.addEventListener("keydown", returnToJobList)
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener("keydown", returnToJobList)
     }
 
     render() {
@@ -113,10 +119,11 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 <Grid container spacing={1} alignItems="center" className={classes.infobar}>
                     <JobMetadataItemProps label="Owner">{job!.metadata!.owner}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Repository">{`${job.metadata!.repository!.host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}`}</JobMetadataItemProps>
-                    <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.ref}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Ref">{job.metadata!.repository!.ref}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
-                    <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? <ReactTimeago date={job.metadata!.finished.seconds * 1000} /> : "-"}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.revision}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? <ReactTimeago date={job.metadata!.finished.seconds * 1000} /> : "-"}</JobMetadataItemProps>
                 </Grid>
             </Toolbar>
         }
@@ -141,6 +148,15 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         });
     }
 
+}
+
+function returnToJobList(this: Window, evt: KeyboardEvent): any {
+    if (evt.keyCode !== 27) {
+        return
+    }
+
+    evt.preventDefault();
+    window.location.replace("/jobs");
 }
 
 export const JobView = withStyles(styles)(JobViewImpl);

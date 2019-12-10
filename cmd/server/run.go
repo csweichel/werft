@@ -80,9 +80,7 @@ var runCmd = &cobra.Command{
 		}
 		ghClient := github.NewClient(&http.Client{Transport: ghtr})
 
-		execCfg := executor.Config{
-			Namespace: cfg.Kubernetes.Namespace,
-		}
+		execCfg := cfg.Kubernetes.Config
 		if execCfg.Namespace == "" {
 			execCfg.Namespace = "default"
 		}
@@ -105,6 +103,10 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		nrGroups, err := store.NewSQLNumberGroup(db)
+		if err != nil {
+			return err
+		}
 
 		log.Info("connecting to kubernetes")
 		exec, err := executor.NewExecutor(execCfg, kubeConfig)
@@ -115,15 +117,17 @@ var runCmd = &cobra.Command{
 		service := &werft.Service{
 			Logs:     logStore,
 			Jobs:     jobStore,
+			Groups:   nrGroups,
 			Executor: exec,
 			Cutter:   logcutter.DefaultCutter,
 			GitHub: werft.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
 			},
+			Config: cfg.Service.Config,
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
-			service.DebugProxy = val
+			service.Config.DebugProxy = val
 		}
 		service.Start()
 		go service.StartWeb(fmt.Sprintf(":%d", cfg.Service.WebPort))
@@ -148,6 +152,7 @@ func init() {
 // Config configures the werft server
 type Config struct {
 	Service struct {
+		werft.Config
 		WebPort  int `json:"webPort"`
 		GRPCPort int `json:"grpcPort"`
 	}
@@ -156,8 +161,8 @@ type Config struct {
 		JobStore string `json:"jobsConnectionString"`
 	} `json:"storage"`
 	Kubernetes struct {
+		executor.Config
 		Kubeconfig string `json:"kubeconfig,omitempty"`
-		Namespace  string `json:"namespace,omitempty"`
 	} `json:"kubernetes,omitempty"`
 	GitHub struct {
 		WebhookSecret  string `json:"webhookSecret"`

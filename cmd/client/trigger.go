@@ -43,7 +43,14 @@ var triggerCmd = &cobra.Command{
 func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, error) {
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = wd
-	rev, err := cmd.Output()
+	revvision, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = wd
+	ref, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +64,10 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 	return &v1.JobMetadata{
 		Owner: string(user),
 		Repository: &v1.Repository{
-			Owner: "local",
-			Repo:  filepath.Base(wd),
-			Ref:   string(rev),
+			Owner:    "local",
+			Repo:     filepath.Base(wd),
+			Revision: string(revvision),
+			Ref:      string(ref),
 		},
 		Trigger: trigger,
 	}, nil

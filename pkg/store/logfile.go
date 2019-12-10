@@ -67,7 +67,7 @@ func (fs *FileLogStore) Place(ctx context.Context, id string) (io.WriteCloser, e
 	}
 
 	fn := fmt.Sprintf("%s.log", id)
-	fp, err := os.OpenFile(filepath.Join(fs.Base, fn), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	fp, err := os.OpenFile(filepath.Join(fs.Base, fn), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
 	}

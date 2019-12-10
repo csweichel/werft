@@ -2,6 +2,7 @@ package executor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -42,13 +44,42 @@ const (
 
 // Config configures the executor
 type Config struct {
-	Namespace     string `json:"namespace"`
-	EventTraceLog string `json:"eventTraceLog,omitempty"`
+	Namespace       string    `json:"namespace"`
+	EventTraceLog   string    `json:"eventTraceLog,omitempty"`
+	JobPrepTimeout  *Duration `json:"preperationTimeout"`
+	JobTotalTimeout *Duration `json:"totalTimeout"`
 }
 
-// ActiveJob is a currently running job
-type ActiveJob struct {
-	Annotations map[string]string
+// Duration is a JSON un-/marshallable type
+type Duration struct {
+	time.Duration
+}
+
+// MarshalJSON produces a valid JSON representation of this duration
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+// UnmarshalJSON parses a duration from its JSON representation
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return errors.New("invalid duration")
+	}
 }
 
 // NewExecutor creates a new job center instance
@@ -56,6 +87,16 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	if config.JobPrepTimeout == nil {
+		return nil, xerrors.Errorf("job preperation timeout is required")
+	}
+	if config.JobTotalTimeout == nil {
+		return nil, xerrors.Errorf("total job timeout is required")
+	}
+	if config.JobTotalTimeout.Duration < config.JobPrepTimeout.Duration {
+		return nil, xerrors.Errorf("total job timeout must be greater than the preparation timeout")
 	}
 
 	return &Executor{
@@ -290,7 +331,49 @@ func (js *Executor) Logs(name string) <-chan string {
 }
 
 func (js *Executor) doHousekeeping() {
-	// check our state and watch for non-existent jobs/events that we missed
+	tick := time.NewTicker(js.Config.JobPrepTimeout.Duration / 2)
+	for {
+		// check our state and watch for non-existent jobs/events that we missed
+		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+		})
+		if err != nil {
+			js.OnError(xerrors.Errorf("cannot perform housekeeping: %w", err))
+			continue
+		}
+
+		for _, pod := range pods.Items {
+			status, err := getStatus(&pod)
+			if err != nil {
+				js.OnError(xerrors.Errorf("cannot perform housekeeping on %s: %w", pod.Name, err))
+				continue
+			}
+
+			created, err := ptypes.Timestamp(status.Metadata.Created)
+			if err != nil {
+				js.OnError(xerrors.Errorf("cannot perform housekeeping on %s: %w", pod.Name, err))
+				continue
+			}
+
+			var ttl time.Duration
+			if status.Phase == v1.JobPhase_PHASE_PREPARING {
+				ttl = js.Config.JobPrepTimeout.Duration
+			} else {
+				ttl = js.Config.JobTotalTimeout.Duration
+			}
+			if time.Since(created) < ttl {
+				continue
+			}
+
+			msg := fmt.Sprintf("job timed out during %s", strings.TrimPrefix(strings.ToLower(status.Phase.String()), "phase_"))
+			log.WithField("job", status.Name).Info(msg)
+			err = js.addAnnotation(pod.Name, map[string]string{
+				AnnotationFailed: msg,
+			})
+		}
+
+		<-tick.C
+	}
 }
 
 // Stop stops a job
@@ -310,11 +393,34 @@ func (js *Executor) Stop(name string) error {
 	}
 
 	pod := pods.Items[0]
-	pod.Annotations[AnnotationFailed] = "pod was stopped manually"
-	_, err = js.Client.CoreV1().Pods(js.Config.Namespace).Update(&pod)
+	err = js.addAnnotation(pod.Name, map[string]string{
+		AnnotationFailed: "job was stopped manually",
+	})
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// addAnnotation adds annotations to a pod
+func (js *Executor) addAnnotation(podname string, annotations map[string]string) error {
+	client := js.Client.CoreV1().Pods(js.Config.Namespace)
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		pod, err := client.Get(podname, metav1.GetOptions{})
+		if err != nil {
+			return xerrors.Errorf("cannot find job pod %s: %w", podname, err)
+		}
+		if pod == nil {
+			return xerrors.Errorf("job pod %s does not exist", podname)
+		}
+
+		for k, v := range annotations {
+			pod.Annotations[k] = v
+		}
+
+		_, err = client.Update(pod)
+		return err
+	})
+	return err
 }

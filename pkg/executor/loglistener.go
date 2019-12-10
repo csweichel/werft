@@ -3,6 +3,7 @@ package executor
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -22,6 +23,18 @@ type logListener struct {
 	ch      chan string
 	closed  bool
 	mu      sync.RWMutex
+}
+
+// Write writes to the log listeners channel
+func (ll *logListener) Write(b []byte) (n int, err error) {
+	ll.mu.RLock()
+	defer ll.mu.RUnlock()
+	if ll.closed {
+		return 0, io.EOF
+	}
+
+	ll.ch <- string(b)
+	return len(b), nil
 }
 
 // Listen establishes a log listener for a job

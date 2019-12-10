@@ -12,7 +12,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var schema = `
+var jobSchema = `
 CREATE TABLE IF NOT EXISTS job_status (
 	id SERIAL PRIMARY KEY,
 	name varchar(255) NOT NULL UNIQUE,
@@ -36,14 +36,14 @@ CREATE TABLE IF NOT EXISTS annotations (
 );
 `
 
-// SQLJobStore stores jobs in a bbolt database
+// SQLJobStore stores jobs in a Postgres database
 type SQLJobStore struct {
 	DB *sql.DB
 }
 
 // NewSQLJobStore creates a new SQL job store
 func NewSQLJobStore(db *sql.DB) (*SQLJobStore, error) {
-	_, err := db.Exec(schema)
+	_, err := db.Exec(jobSchema)
 	if err != nil {
 		return nil, err
 	}

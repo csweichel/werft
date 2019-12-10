@@ -67,10 +67,10 @@ var triggerRemoteCmd = &cobra.Command{
 			Job: &v1.JobMetadata{
 				Owner: owner,
 				Repository: &v1.Repository{
-					Host:  "github.com",
-					Owner: owner,
-					Repo:  repo,
-					Ref:   rev,
+					Host:     "github.com",
+					Owner:    owner,
+					Repo:     repo,
+					Revision: rev,
 				},
 				Trigger: v1.JobTrigger(trigger),
 			},
