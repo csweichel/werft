@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,9 +20,11 @@ import (
 	"github.com/32leaves/werft/pkg/store"
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/Masterminds/sprig"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-github/github"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/olebedev/emitter"
+	"github.com/segmentio/textio"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
@@ -72,15 +75,15 @@ func (srv *Service) Start() {
 			log.WithError(err).Error("service error")
 		}
 	}
+	if srv.logListener == nil {
+		srv.logListener = make(map[string]context.CancelFunc)
+	}
 
 	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
 
 		if s.Phase == v1.JobPhase_PHASE_PREPARING {
 			srv.mu.Lock()
-			if srv.logListener == nil {
-				srv.logListener = make(map[string]context.CancelFunc)
-			}
 			if _, alreadyListening := srv.logListener[s.Name]; !alreadyListening {
 				ctx, cancel := context.WithCancel(context.Background())
 				srv.logListener[s.Name] = cancel
@@ -210,6 +213,7 @@ func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpc
 
 // RunJob starts a build job from some context
 func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
+	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr == nil {
 			return
@@ -220,14 +224,28 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		if status != nil {
 			s = *status
 		}
+		s.Name = name
 		s.Phase = v1.JobPhase_PHASE_DONE
 		s.Conditions = &v1.JobConditions{Success: false, FailureCount: 1}
 		s.Metadata = &metadata
+		if s.Metadata.Created == nil {
+			s.Metadata.Created = ptypes.TimestampNow()
+		}
 		s.Details = (*perr).Error()
+		logs.Write([]byte("\n[werft] FAILURE " + s.Details))
 
 		srv.Jobs.Store(context.Background(), s)
-		<-srv.events.Emit("job", s)
+		<-srv.events.Emit("job", &s)
+
+		if logs != nil {
+			logs.Close()
+		}
 	}(&err)
+
+	logs, err = srv.Logs.Place(context.TODO(), name)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
+	}
 
 	// download werft config from branch
 	werftYAML, err := cp.Download(ctx, PathWerftConfig)
@@ -304,6 +322,11 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 			MountPath: "/workspace",
 		})
 	}
+
+	// dump podspec into logs
+	pw := textio.NewPrefixWriter(logs, "[werft] ")
+	yaml.NewEncoder(pw).Encode(podspec)
+	pw.Flush()
 
 	// schedule/start job
 	status, err = srv.Executor.Start(*podspec, metadata, executor.WithName(name))

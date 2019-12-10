@@ -62,8 +62,8 @@ func (fs *FileLogStore) Place(ctx context.Context, id string) (io.WriteCloser, e
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	if _, exists := fs.files[id]; exists {
-		return nil, ErrAlreadyExists
+	if f, exists := fs.files[id]; exists {
+		return f, nil
 	}
 
 	fn := fmt.Sprintf("%s.log", id)
