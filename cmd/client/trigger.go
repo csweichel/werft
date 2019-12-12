@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	log "github.com/sirupsen/logrus"
@@ -62,12 +63,12 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 	}
 
 	return &v1.JobMetadata{
-		Owner: string(user),
+		Owner: strings.TrimSpace(string(user)),
 		Repository: &v1.Repository{
 			Owner:    "local",
 			Repo:     filepath.Base(wd),
 			Revision: string(revvision),
-			Ref:      string(ref),
+			Ref:      strings.TrimSpace(string(ref)),
 		},
 		Trigger: trigger,
 	}, nil

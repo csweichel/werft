@@ -133,6 +133,7 @@ type startOptions struct {
 	JobName     string
 	Modifier    []func(*corev1.Pod)
 	Annotations map[string]string
+	Mutex       string
 }
 
 // StartOpt configures a job at startup
@@ -168,6 +169,13 @@ func WithAnnotations(annotations map[string]string) StartOpt {
 func WithName(name string) StartOpt {
 	return func(opts *startOptions) {
 		opts.JobName = name
+	}
+}
+
+// WithMutex starts a job with a mutex (i.e. cancels all other jobs with that mutex)
+func WithMutex(name string) StartOpt {
+	return func(opts *startOptions) {
+		opts.Mutex = name
 	}
 }
 
@@ -212,6 +220,24 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	}
 	for _, opt := range opts.Modifier {
 		opt(&poddesc)
+	}
+
+	if opts.Mutex != "" {
+		poddesc.ObjectMeta.Labels[LabelMutex] = opts.Mutex
+
+		// enforce mutex by marking all other jobs with the same mutex as failed
+		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", LabelMutex, opts.Mutex)})
+		if err != nil {
+			return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
+		}
+		for _, pod := range pods.Items {
+			err := js.addAnnotation(pod.Name, map[string]string{
+				AnnotationFailed: fmt.Sprintf("a newer job (%s) with the same mutex (%s) started", opts.JobName, opts.Mutex),
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
+			}
+		}
 	}
 
 	if log.GetLevel() == log.DebugLevel {

@@ -13,4 +13,5 @@ pod:
         chmod +x leeway
         export PATH=$PWD:$PATH
         cd /workspace
+        echo "[build|PHASE] build"
         leeway build

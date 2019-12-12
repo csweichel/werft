@@ -2,7 +2,10 @@
     "service": {
         "webPort": 8080,
         "grpcPort": 7777,
-        "baseURL": "https://werft.com"
+        "baseURL": "https://werft.com",
+        "jobSpecRepos": [
+            "32leaves/test-repo:werft"
+        ]
     },
     "kubernetes": {
         "kubeconfig": "/Users/csweichel/.kube/config",

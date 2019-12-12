@@ -2,7 +2,7 @@ import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, OrderExpression } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Toolbar, Grid, fade, InputBase } from '@material-ui/core';
+import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, fade, InputBase, TablePagination } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import ReactTimeago from 'react-timeago';
 import WarningIcon from '@material-ui/icons/Warning';
@@ -28,10 +28,6 @@ const styles = (theme: Theme) => createStyles({
         },
         marginLeft: 0,
         width: '100%',
-        [theme.breakpoints.up('sm')]: {
-            marginLeft: theme.spacing(1),
-            width: 'auto',
-        },
     },
     searchIcon: {
         width: theme.spacing(7),
@@ -44,17 +40,11 @@ const styles = (theme: Theme) => createStyles({
     },
     inputRoot: {
         color: 'inherit',
+        width: '100%'
     },
     inputInput: {
         padding: theme.spacing(1, 1, 1, 7),
-        transition: theme.transitions.create('width'),
         width: '100%',
-        [theme.breakpoints.up('sm')]: {
-            width: 120,
-            '&:focus': {
-                width: 200,
-            },
-        },
     },
 });
 
@@ -66,28 +56,37 @@ interface JobListProps extends WithStyles<typeof styles> {
 
 interface JobListState {
     jobs: JobStatus.AsObject[]
+    totalJobs: number
     sortCol?: string
     sortAscending: boolean
+    search?: string
+    rowsPerPage: number
+    page: number
 }
 
 class JobListImpl extends React.Component<JobListProps, JobListState> {
 
     constructor(props: JobListProps) {
+        let search: string | undefined = window.location.pathname.substring("/job/".length+1);
+        if (search.length === 0) {
+            search = undefined;
+        }
+
         super(props);
         this.state = {
             jobs: [],
-            sortAscending: true
+            totalJobs: 0,
+            sortCol: 'created',
+            sortAscending: false,
+            search,
+            rowsPerPage: 50,
+            page: 0
         };
     }
 
     async componentDidMount() {
         try {
-            const req = new ListJobsRequest();
-            req.setLimit(50);
-            const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
-            const jobs = resp.getResultList().map(r => r.toObject());
-
-            this.setState({ jobs });
+            this.update({});
             this.startListening();
         } catch (err) {
             alert(err);
@@ -122,9 +121,20 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         }
     }
 
-    protected async search(query: any) {
+    protected async update(newState: Partial<JobListState>) {
+        const state = {
+            ...this.state,
+            ...newState
+        };
+
         const req = new ListJobsRequest();
-        req.setLimit(50);
+        req.setStart((state.page) * state.rowsPerPage);
+        req.setLimit(state.rowsPerPage);
+
+        let query: any = {};
+        if (state.search) {
+            query._all = state.search;
+        }
 
         let allFilter: FilterExpression[] = [];
         if (query._all) {
@@ -153,16 +163,23 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         }));
         req.setFilterList(allFilter);
 
-        if (!!this.state.sortCol) {
+        if (!!state.sortCol) {
             const oexp = new OrderExpression();
-            oexp.setField(this.state.sortCol);
-            oexp.setAscending(this.state.sortAscending);
+            oexp.setField(state.sortCol);
+            oexp.setAscending(state.sortAscending);
+
+            // we display `created` as age which intutively sorts the other way 'round.
+            if (state.sortCol === "age") {
+                oexp.setAscending(!this.state.sortAscending);
+            }
+
             req.setOrderList([oexp]);
         }
 
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
-        const jobs = resp.getResultList().map(r => r.toObject());
-        this.setState({ jobs });
+        state.jobs = resp.getResultList().map(r => r.toObject());
+        state.totalJobs = resp.getTotal();
+        this.setState(state);
     }
 
     render() {
@@ -246,40 +263,55 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         ]
         const rows = this.state.jobs;
 
-        const debounceSearch = debounce((s: any) => this.search(s), 500);
+        const debounceSearch = debounce((search?: string) => this.update({}), 500);
         const actions = <React.Fragment>
-            <div className={classes.search}>
-                <div className={classes.searchIcon}>
-                    <SearchIcon />
-                </div>
-                <InputBase
-                    placeholder="Search…"
-                    classes={{
-                        root: classes.inputRoot,
-                        input: classes.inputInput,
-                    }}
-                    inputProps={{ 'aria-label': 'search' }}
-                    onChange={e => debounceSearch({_all: e.target.value})}
-                    onKeyPress={e => this.handleSearchKeyPress(e.charCode)}
-                />
-            </div>
-            
-        </React.Fragment>
-
-        const secondary = <Toolbar>
-            <Grid container>
+                <Grid item xs={2}></Grid>
+                <Grid item xs={7}>
+                    <div className={classes.search}>
+                        <div className={classes.searchIcon}>
+                            <SearchIcon />
+                        </div>
+                        <InputBase
+                            placeholder="Search…"
+                            classes={{
+                                root: classes.inputRoot,
+                                input: classes.inputInput,
+                            }}
+                            inputProps={{ 'aria-label': 'search' }}
+                            onChange={e => {
+                                const search = e.target.value;
+                                this.update({ search });
+                                debounceSearch(undefined);
+                            }}
+                            onKeyPress={e => this.handleSearchKeyPress(e as any)}
+                            value={this.state.search}
+                        />
+                    </div>
+                </Grid>
                 <Grid item xs></Grid>
                 <Grid item>
-                    <Button className={classes.button} variant="outlined" color="inherit" size="small">
+                    <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
                         Start Job
                     </Button>
                 </Grid>
-            </Grid>
-        </Toolbar>
+            </React.Fragment>
 
         return <React.Fragment>
-            <Header title="Jobs" actions={actions} secondary={secondary} />
+            <Header title="Jobs" actions={actions} />
             <main className={classes.main}>
+                <TablePagination
+                    rowsPerPageOptions={[10, 50, 100]}
+                    component="div"
+                    count={this.state.totalJobs}
+                    page={this.state.page}
+                    rowsPerPage={this.state.rowsPerPage}
+                    onChangePage={(_, page) => {
+                        this.update({ page });
+                    }}
+                    onChangeRowsPerPage={(src) => {
+                        this.update({ page: 0, rowsPerPage: parseInt(src.target.value) });
+                    }}
+                />
                 <Table>
                     <TableHead>
                         <TableRow>{columns.map(col =>
@@ -288,6 +320,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                                     <TableSortLabel
                                         active={this.state.sortCol === col.property}
                                         onClick={() => this.sortColumn(col.property)}
+                                        direction={this.state.sortAscending ? 'asc' : 'desc'}
                                     >
                                         {col.header}
                                     </TableSortLabel>
@@ -314,18 +347,15 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             sortAsc = !sortAsc;
         }
 
-        this.setState({ sortCol: col, sortAscending: sortAsc });
-        this.search({});
+        this.update({ sortCol: col, sortAscending: sortAsc });
     }
 
-    protected handleSearchKeyPress(charCode: number) {
-        if (charCode !== 13) {
+    protected handleSearchKeyPress(evt: KeyboardEvent) {
+        if (evt.charCode !== 13) {
             return
         }
 
-        if (this.state.jobs.length === 1) {
-            window.location.href = "/job/" + this.state.jobs[0].name
-        }
+        window.location.href = "/jobs/" + (evt.target as HTMLInputElement).value;
     }
 
 }

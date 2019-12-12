@@ -3,12 +3,16 @@ package werft
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -56,7 +60,7 @@ func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
 		Context:     &werftGithubContext,
 		TargetURL:   &url,
 	}
-	log.WithField("status", ghstatus).Debug("updating GitHub status for %s", job.Name)
+	log.WithField("status", ghstatus).Debugf("updating GitHub status for %s", job.Name)
 	ctx := context.Background()
 	_, _, err := srv.GitHub.Client.Repositories.CreateStatus(ctx, job.Metadata.Repository.Owner, job.Metadata.Repository.Repo, job.Metadata.Repository.Revision, ghstatus)
 	if err != nil {
@@ -66,7 +70,8 @@ func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
 	return nil
 }
 
-func (srv *Service) handleGithubWebhook(w http.ResponseWriter, r *http.Request) {
+// HandleGithubWebhook handles incoming Github events
+func (srv *Service) HandleGithubWebhook(w http.ResponseWriter, r *http.Request) {
 	var err error
 	defer func(err *error) {
 		if *err == nil {
@@ -110,12 +115,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	rev := *event.After
 
 	ref := strings.TrimPrefix(*event.Ref, "refs/heads/")
-	flatname := *event.Repo.Name + "-" + strings.ToLower(strings.ReplaceAll(ref, "/", "-"))
-	t, err := srv.Groups.Next(flatname)
-	if err != nil {
-		srv.OnError(err)
-	}
-	name := fmt.Sprintf("%s.%d", flatname, t)
+	flatname := strings.ToLower(strings.ReplaceAll(ref, "/", "-"))
 
 	metadata := v1.JobMetadata{
 		Owner: *event.Pusher.Name,
@@ -134,16 +134,65 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 		},
 	}
 
-	content := &GitHubContentProvider{
+	cp := &GitHubContentProvider{
 		Client:   srv.GitHub.Client,
 		Owner:    metadata.Repository.Owner,
 		Repo:     metadata.Repository.Repo,
 		Revision: rev,
 	}
-	_, err = srv.RunJob(ctx, name, metadata, content)
+	repoCfg, err := getRepoCfg(ctx, cp)
+	if err != nil {
+		log.WithError(err).WithField("name", flatname).Error("cannot start job")
+		return
+	}
+
+	// check if we need to build/do anything
+	if !repoCfg.ShouldRun(metadata.Trigger) {
+		return
+	}
+
+	// download job podspec from GitHub
+	tplpth := repoCfg.TemplatePath(metadata.Trigger)
+	jobTplYAML, err := cp.Download(ctx, tplpth)
+	if err != nil {
+		log.WithError(err).WithField("name", flatname).Error("cannot start job")
+		return
+	}
+	jobTplRaw, err := ioutil.ReadAll(jobTplYAML)
+	if err != nil {
+		log.WithError(err).WithField("name", flatname).Error("cannot start job")
+		return
+	}
+
+	// acquire job number
+	t, err := srv.Groups.Next(flatname)
 	if err != nil {
 		srv.OnError(err)
 	}
+	jobName := filepath.Base(tplpth)
+	jobName = strings.TrimSuffix(jobName, filepath.Ext(jobName))
+	name := fmt.Sprintf("%s-%s.%d", jobName, flatname, t)
+
+	_, err = srv.RunJob(ctx, name, metadata, cp, jobTplRaw)
+	if err != nil {
+		srv.OnError(err)
+	}
+}
+
+func getRepoCfg(ctx context.Context, fp FileProvider) (*repoconfig.C, error) {
+	// download werft config from branch
+	werftYAML, err := fp.Download(ctx, PathWerftConfig)
+	if err != nil {
+		// TODO handle repos without werft config more gracefully
+		return nil, err
+	}
+	var repoCfg repoconfig.C
+	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &repoCfg, nil
 }
 
 func (srv *Service) processInstallationEvent(event *github.InstallationEvent) {

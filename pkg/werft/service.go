@@ -1,7 +1,6 @@
 package werft
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -110,23 +109,16 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 		return status.Error(codes.InvalidArgument, "job YAML must not be empty")
 	}
 
-	fp := func(path string) (io.ReadCloser, error) {
-		if path == PathWerftConfig {
-			return ioutil.NopCloser(bytes.NewReader(configYAML)), nil
-		}
-		return ioutil.NopCloser(bytes.NewReader(jobYAML)), nil
-	}
 	cp := &LocalContentProvider{
-		FileProvider: fp,
-		TarStream:    dfs,
-		Namespace:    srv.Executor.Config.Namespace,
-		Kubeconfig:   srv.Executor.KubeConfig,
-		Clientset:    srv.Executor.Client,
+		TarStream:  dfs,
+		Namespace:  srv.Executor.Config.Namespace,
+		Kubeconfig: srv.Executor.KubeConfig,
+		Clientset:  srv.Executor.Client,
 	}
 
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
 	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
-	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp)
+	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML)
 
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
@@ -139,26 +131,50 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 }
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
-func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (*v1.StartJobResponse, error) {
+func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
 	ghclient := github.NewClient(http.DefaultClient)
-	var cp ContentProvider = &GitHubContentProvider{
-		Owner:    req.Job.Repository.Owner,
-		Repo:     req.Job.Repository.Repo,
-		Revision: req.Job.Repository.Revision,
-		Client:   ghclient,
-	}
 
-	if req.JobYaml != nil {
-		cp = &customJobFileContentProvider{
-			ContentProvider: cp,
-			JobFile:         req.JobYaml,
+	md := req.Metadata
+	if md.Repository.Revision == "" && md.Repository.Ref != "" {
+		md.Repository.Revision, _, err = ghclient.Repositories.GetCommitSHA1(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Ref, "")
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}
 
-	md := req.Job
-	name := fmt.Sprintf("gh-%s", moniker.New().NameSep("-"))
+	var cp = &GitHubContentProvider{
+		Owner:    md.Repository.Owner,
+		Repo:     md.Repository.Repo,
+		Revision: md.Repository.Revision,
+		Client:   ghclient,
+	}
 
-	jobStatus, err := srv.RunJob(ctx, name, *md, cp)
+	jobYAML := req.GetJobYaml()
+	jobName := "custom"
+	if jobYAML == nil {
+		jobName = req.GetJobName()
+		tplpath := fmt.Sprintf(".werft/%s.yaml", jobName)
+		if jobName == "" {
+			repoCfg, err := getRepoCfg(ctx, cp)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+			tplpath = repoCfg.TemplatePath(req.Metadata.Trigger)
+		}
+		in, err := cp.Download(ctx, tplpath)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		jobYAML, err = ioutil.ReadAll(in)
+		in.Close()
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	name := fmt.Sprintf("%s-%s", jobName, moniker.New().NameSep("-"))
+
+	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -167,19 +183,6 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
-}
-
-type customJobFileContentProvider struct {
-	ContentProvider
-	JobFile []byte
-}
-
-func (cp *customJobFileContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	if path == PathWerftConfig {
-		return cp.ContentProvider.Download(ctx, path)
-	}
-
-	return ioutil.NopCloser(bytes.NewReader(cp.JobFile)), nil
 }
 
 // newTarStreamAdapter creates a reader from an incoming workspace tar stream
@@ -293,7 +296,12 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 		go func() {
 			defer wg.Done()
 
-			evts, echan := logcutter.DefaultCutter.Slice(rd)
+			cutter := logcutter.DefaultCutter
+			if req.Logs == v1.ListenRequestLogs_LOGS_UNSLICED {
+				cutter = logcutter.NoCutter
+			}
+
+			evts, echan := cutter.Slice(rd)
 			for {
 				select {
 				case evt := <-evts:

@@ -25,19 +25,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
 	"github.com/32leaves/werft/pkg/werft"
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/github"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -107,6 +114,10 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		uiservice, err := werft.NewUIService(ghClient, cfg.Service.JobSpecRepos)
+		if err != nil {
+			return err
+		}
 
 		log.Info("connecting to kubernetes")
 		exec, err := executor.NewExecutor(execCfg, kubeConfig)
@@ -127,11 +138,15 @@ var runCmd = &cobra.Command{
 			Config: cfg.Service.Config,
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
-			service.Config.DebugProxy = val
+			cfg.Service.Config.DebugProxy = val
 		}
 		service.Start()
-		go service.StartWeb(fmt.Sprintf(":%d", cfg.Service.WebPort))
-		go service.StartGRPC(fmt.Sprintf(":%d", cfg.Service.GRPCPort))
+
+		grpcServer := grpc.NewServer()
+		v1.RegisterWerftServiceServer(grpcServer, service)
+		v1.RegisterWerftUIServer(grpcServer, uiservice)
+		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
+		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Service.DebugProxy)
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -141,6 +156,73 @@ var runCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// startWeb starts the werft web UI service
+func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugProxy string) {
+	var webuiServer http.Handler
+	if debugProxy != "" {
+		tgt, err := url.Parse(debugProxy)
+		if err != nil {
+			// this is debug only - it's ok to panic
+			panic(err)
+		}
+
+		log.WithField("target", tgt).Debug("proxying to webui server")
+		webuiServer = httputil.NewSingleHostReverseProxy(tgt)
+	} else {
+		webuiServer = http.FileServer(rice.MustFindBox("../../pkg/webui/build").HTTPBox())
+	}
+
+	grpcWebServer := grpcweb.WrapServer(grpcServer)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/github/app", srv.HandleGithubWebhook)
+	mux.Handle("/", hstsHandler(
+		grpcTrafficSplitter(
+			webuiServer,
+			grpcWebServer,
+		),
+	))
+
+	log.WithField("addr", addr).Info("serving werft web service")
+	err := http.ListenAndServe(addr, mux)
+	if err != nil {
+		srv.OnError(err)
+	}
+}
+
+// startGRPC starts the werft GRPC service
+func startGRPC(srv *grpc.Server, addr string) {
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.WithError(err).Error("cannot start GRPC server")
+	}
+
+	log.WithField("addr", addr).Info("serving werft GRPC service")
+	err = srv.Serve(lis)
+	if err != nil {
+		log.WithError(err).Error("cannot start GRPC server")
+	}
+}
+
+// hstsHandler wraps an http.HandlerFunc sfuch that it sets the HSTS header.
+func hstsHandler(fn http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+		fn(w, r)
+	})
+}
+
+func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpcServer) http.HandlerFunc {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if wrappedGrpc.IsGrpcWebRequest(req) || wrappedGrpc.IsAcceptableGrpcCorsRequest(req) {
+			wrappedGrpc.ServeHTTP(resp, req)
+		} else {
+			// Fall back to other servers.
+			fallback.ServeHTTP(resp, req)
+		}
+	})
 }
 
 func init() {
@@ -153,8 +235,9 @@ func init() {
 type Config struct {
 	Service struct {
 		werft.Config
-		WebPort  int `json:"webPort"`
-		GRPCPort int `json:"grpcPort"`
+		WebPort      int      `json:"webPort"`
+		GRPCPort     int      `json:"grpcPort"`
+		JobSpecRepos []string `json:"jobSpecRepos"`
 	}
 	Storage struct {
 		LogStore string `json:"logsPath"`

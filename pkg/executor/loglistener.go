@@ -19,10 +19,26 @@ type logListener struct {
 	Job       string
 	Namespace string
 
-	started time.Time
-	ch      chan string
-	closed  bool
-	mu      sync.RWMutex
+	listener map[string]io.Closer
+	started  time.Time
+	ch       chan string
+	closed   bool
+	mu       sync.RWMutex
+}
+
+// Listen establishes a log listener for a job
+func listenToLogs(client kubernetes.Interface, job, namespace string) <-chan string {
+	ll := &logListener{
+		Clientset: client,
+		Job:       job,
+		Namespace: namespace,
+		started:   time.Now(),
+		ch:        make(chan string),
+		listener:  make(map[string]io.Closer),
+	}
+	go ll.Start()
+
+	return ll.ch
 }
 
 // Write writes to the log listeners channel
@@ -37,20 +53,6 @@ func (ll *logListener) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-// Listen establishes a log listener for a job
-func listenToLogs(client kubernetes.Interface, job, namespace string) <-chan string {
-	ll := &logListener{
-		Clientset: client,
-		Job:       job,
-		Namespace: namespace,
-		started:   time.Now(),
-		ch:        make(chan string),
-	}
-	go ll.Start()
-
-	return ll.ch
-}
-
 func (ll *logListener) Close() {
 	ll.mu.Lock()
 	defer ll.mu.Unlock()
@@ -58,6 +60,12 @@ func (ll *logListener) Close() {
 	if ll.closed {
 		return
 	}
+
+	for id, stp := range ll.listener {
+		stp.Close()
+		delete(ll.listener, id)
+	}
+
 	ll.closed = true
 	close(ll.ch)
 }
@@ -73,62 +81,86 @@ func (ll *logListener) Start() {
 	}
 	defer podwatch.Stop()
 
-	fwdLogs := func(pod, container string) {
-		defer recover()
+	for {
+		e := <-podwatch.ResultChan()
 
-		log.WithField("pod", pod).WithField("container", container).Debug("forwarding logs")
-		req := ll.Clientset.CoreV1().Pods(ll.Namespace).GetLogs(pod, &corev1.PodLogOptions{
-			Container: container,
-			Follow:    true,
-			Previous:  false,
-		})
-		logs, err := req.Stream()
-		if err != nil {
-			log.WithError(err).Debug("cannot connect to logs")
+		if e.Object == nil {
+			// Closed because of error
 			return
 		}
-		defer logs.Close()
 
+		pod := e.Object.(*corev1.Pod)
+
+		switch e.Type {
+		case watch.Added, watch.Modified:
+			var statuses []corev1.ContainerStatus
+			statuses = append(statuses, pod.Status.InitContainerStatuses...)
+			statuses = append(statuses, pod.Status.ContainerStatuses...)
+
+			for _, c := range statuses {
+				if c.State.Running != nil {
+					ll.tail(pod.Name, c.Name)
+				}
+			}
+		case watch.Deleted:
+			var statuses []corev1.ContainerStatus
+			statuses = append(statuses, pod.Status.InitContainerStatuses...)
+			statuses = append(statuses, pod.Status.ContainerStatuses...)
+
+			for _, c := range statuses {
+				if c.State.Terminated != nil {
+					ll.stopTailing(pod.Name, c.Name)
+				}
+			}
+		}
+	}
+}
+
+func (ll *logListener) tail(pod, container string) {
+	ll.mu.Lock()
+	defer ll.mu.Unlock()
+
+	id := fmt.Sprintf("%s/%s", pod, container)
+	_, ok := ll.listener[id]
+	if ok {
+		// we're already listening
+		return
+	}
+
+	// we have to start listenting
+	req := ll.Clientset.CoreV1().Pods(ll.Namespace).GetLogs(pod, &corev1.PodLogOptions{
+		Container: container,
+		Follow:    true,
+		Previous:  false,
+	})
+	logs, err := req.Stream()
+	if err != nil {
+		log.WithError(err).Debug("cannot connect to logs")
+		return
+	}
+	ll.listener[id] = logs
+
+	// forward the logs
+	go func() {
 		scanner := bufio.NewScanner(logs)
 		for scanner.Scan() {
-			ll.mu.RLock()
-			closed := ll.closed
-			ll.mu.RUnlock()
-			if closed {
-				break
-			}
-
 			line := scanner.Text()
 			ll.ch <- line
 		}
+	}()
+}
+
+func (ll *logListener) stopTailing(pod, container string) {
+	ll.mu.Lock()
+	defer ll.mu.Unlock()
+
+	id := fmt.Sprintf("%s/%s", pod, container)
+	stp, ok := ll.listener[id]
+	if !ok {
+		// we're already listening
+		return
 	}
 
-	// TODO: initially get container, don't just wait for it
-
-	var (
-		lastPod       string
-		lastContainer string
-	)
-	for {
-		evt := <-podwatch.ResultChan()
-		if evt.Type == watch.Deleted {
-			break
-		}
-
-		podobj := evt.Object.(*corev1.Pod)
-		var container string
-		if podobj.Status.Phase != corev1.PodRunning {
-			container = podobj.Spec.InitContainers[0].Name
-		} else {
-			container = podobj.Spec.Containers[0].Name
-		}
-
-		if lastPod == podobj.Name && lastContainer == container {
-			continue
-		}
-		lastPod = podobj.Name
-		lastContainer = container
-
-		go fwdLogs(podobj.Name, container)
-	}
+	stp.Close()
+	delete(ll.listener, id)
 }

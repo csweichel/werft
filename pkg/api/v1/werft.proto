@@ -4,7 +4,6 @@ package v1;
 import "google/protobuf/timestamp.proto";
 
 service WerftService {
-
     // StartLocalJob starts a job by uploading the workspace content directly. The incoming requests are expected in the following order:
     //   1. metadata
     //   2. all bytes constituting the werft/config.yaml
@@ -16,15 +15,19 @@ service WerftService {
     // StartGitHubJob starts a job on a Git context, possibly with a custom job.
     rpc StartGitHubJob(StartGitHubJobRequest) returns (StartJobResponse) {};
 
+    // Searches for jobs known to this instance
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
 
     // Subscribe listens to new jobs/job updates
     rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {};
 
+    // GetJob retrieves details of a single job
     rpc GetJob(GetJobRequest) returns (GetJobResponse) {};
 
+    // Listen listens to job updates and log output of a running job
     rpc Listen(ListenRequest) returns (stream ListenResponse) {};
 
+    // StopJob stops a currently running job
     rpc StopJob(StopJobRequest) returns (StopJobResponse) {};
 }
 
@@ -43,10 +46,13 @@ message StartJobResponse {
 }
 
 message StartGitHubJobRequest {
-    JobMetadata job = 1;
-    string username = 2;
-    string password = 3;
-    bytes job_yaml = 4;
+    JobMetadata metadata = 1;
+    oneof job {
+        string job_name = 2;
+        bytes job_yaml = 3;
+    };
+    string username = 4;
+    string password = 5;
 }
 
 message ListJobsRequest {
@@ -108,8 +114,9 @@ message ListenRequest {
 
 enum ListenRequestLogs {
     LOGS_DISABLED = 0;
-    LOGS_RAW = 1;
-    LOGS_HTML = 2;
+    LOGS_UNSLICED = 1;
+    LOGS_RAW = 2;
+    LOGS_HTML = 3;
 }
 
 message ListenResponse {
@@ -183,13 +190,13 @@ message JobConditions {
 
 message LogSliceEvent {
     string name = 1;
-    LogSlicePhase phase = 2;
+    LogSliceType type = 2;
     string payload = 3;
 }
 
-enum LogSlicePhase {
+enum LogSliceType {
     SLICE_ABANDONED = 0;
-    SLICE_CHECKPOINT = 1;
+    SLICE_PHASE = 1;
     SLICE_START = 2;
     SLICE_CONTENT = 3;
     SLICE_END = 4;

@@ -208,16 +208,24 @@ func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, o
 		}
 		orderExps = append(orderExps, fmt.Sprintf("%s %s", field, dir))
 	}
-	orderExps = append(orderExps, "created DESC")
-	orderExps = append(orderExps, "name DESC")
-	orderExp := strings.Join(orderExps, ", ")
+	var orderExp string
+	if len(orderExps) > 0 {
+		orderExp = fmt.Sprintf("ORDER BY %s", strings.Join(orderExps, ", "))
+	}
 
 	limitExp := "ALL"
 	if limit > 0 {
 		limitExp = fmt.Sprintf("%d", limit)
 	}
 
-	query := fmt.Sprintf("SELECT data FROM job_status %s ORDER BY %s LIMIT %s OFFSET %d", whereExp, orderExp, limitExp, start)
+	countQuery := fmt.Sprintf("SELECT COUNT(1) FROM job_status %s", whereExp)
+	log.WithField("query", countQuery).Debug("running query")
+	err = s.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	query := fmt.Sprintf("SELECT data FROM job_status %s %s LIMIT %s OFFSET %d", whereExp, orderExp, limitExp, start)
 	log.WithField("query", query).Debug("running query")
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
@@ -244,5 +252,5 @@ func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, o
 		return nil, 0, err
 	}
 
-	return result, len(result), nil
+	return result, total, nil
 }

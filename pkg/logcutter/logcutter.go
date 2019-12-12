@@ -38,7 +38,7 @@ func (noCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-
 			line := scanner.Text()
 			evts <- &v1.LogSliceEvent{
 				Name:    DefaultSlice,
-				Phase:   v1.LogSlicePhase_SLICE_CONTENT,
+				Type:    v1.LogSliceType_SLICE_CONTENT,
 				Payload: line + "\n",
 			}
 		}
@@ -64,6 +64,7 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 	events, errchan = evts, errc
 
 	scanner := bufio.NewScanner(in)
+	phase := DefaultSlice
 	go func() {
 		idx := make(map[string]struct{})
 		for scanner.Scan() {
@@ -77,13 +78,13 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			)
 
 			if !(strings.HasPrefix(sl, "[") && strings.Contains(sl, "]")) {
-				name = DefaultSlice
+				name = phase
 				payload = line
 			} else {
 				start := strings.IndexRune(sl, '[')
 				end := strings.IndexRune(sl, ']')
 				name = sl[start+1 : end]
-				payload = strings.TrimSpace(sl[end+1:])
+				payload = strings.TrimPrefix(sl[end+1:], " ")
 
 				if segs := strings.Split(name, "|"); len(segs) == 2 {
 					name = segs[0]
@@ -95,16 +96,17 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			case "EOF":
 				delete(idx, name)
 				evts <- &v1.LogSliceEvent{
-					Name:  name,
-					Phase: v1.LogSlicePhase_SLICE_END,
+					Name: name,
+					Type: v1.LogSliceType_SLICE_END,
 				}
 				continue
-			case "CHECKPOINT":
+			case "PHASE":
 				evts <- &v1.LogSliceEvent{
 					Name:    name,
-					Phase:   v1.LogSlicePhase_SLICE_CHECKPOINT,
+					Type:    v1.LogSliceType_SLICE_PHASE,
 					Payload: payload,
 				}
+				phase = name
 				continue
 			}
 
@@ -112,13 +114,13 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			if !exists {
 				idx[name] = struct{}{}
 				evts <- &v1.LogSliceEvent{
-					Name:  name,
-					Phase: v1.LogSlicePhase_SLICE_START,
+					Name: name,
+					Type: v1.LogSliceType_SLICE_START,
 				}
 			}
 			evts <- &v1.LogSliceEvent{
 				Name:    name,
-				Phase:   v1.LogSlicePhase_SLICE_CONTENT,
+				Type:    v1.LogSliceType_SLICE_CONTENT,
 				Payload: string([]byte(payload)),
 			}
 		}
@@ -128,8 +130,8 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 
 		for name := range idx {
 			evts <- &v1.LogSliceEvent{
-				Name:  name,
-				Phase: v1.LogSlicePhase_SLICE_ABANDONED,
+				Name: name,
+				Type: v1.LogSliceType_SLICE_ABANDONED,
 			}
 		}
 

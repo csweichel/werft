@@ -30,7 +30,7 @@ goog.exportSymbol('proto.v1.ListenRequest', null, global);
 goog.exportSymbol('proto.v1.ListenRequestLogs', null, global);
 goog.exportSymbol('proto.v1.ListenResponse', null, global);
 goog.exportSymbol('proto.v1.LogSliceEvent', null, global);
-goog.exportSymbol('proto.v1.LogSlicePhase', null, global);
+goog.exportSymbol('proto.v1.LogSliceType', null, global);
 goog.exportSymbol('proto.v1.OrderExpression', null, global);
 goog.exportSymbol('proto.v1.Repository', null, global);
 goog.exportSymbol('proto.v1.StartGitHubJobRequest', null, global);
@@ -93,7 +93,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.v1.StartGitHubJobRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.v1.StartGitHubJobRequest.oneofGroups_);
 };
 goog.inherits(proto.v1.StartGitHubJobRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -1072,6 +1072,32 @@ proto.v1.StartJobResponse.prototype.hasStatus = function() {
 
 
 
+/**
+ * Oneof group definitions for this message. Each group defines the field
+ * numbers belonging to that group. When of these fields' value is set, all
+ * other fields in the group are cleared. During deserialization, if multiple
+ * fields are encountered for a group, only the last value seen will be kept.
+ * @private {!Array<!Array<number>>}
+ * @const
+ */
+proto.v1.StartGitHubJobRequest.oneofGroups_ = [[2,3]];
+
+/**
+ * @enum {number}
+ */
+proto.v1.StartGitHubJobRequest.JobCase = {
+  JOB_NOT_SET: 0,
+  JOB_NAME: 2,
+  JOB_YAML: 3
+};
+
+/**
+ * @return {proto.v1.StartGitHubJobRequest.JobCase}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getJobCase = function() {
+  return /** @type {proto.v1.StartGitHubJobRequest.JobCase} */(jspb.Message.computeOneofCase(this, proto.v1.StartGitHubJobRequest.oneofGroups_[0]));
+};
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -1101,10 +1127,11 @@ proto.v1.StartGitHubJobRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.v1.StartGitHubJobRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    job: (f = msg.getJob()) && proto.v1.JobMetadata.toObject(includeInstance, f),
-    username: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    jobYaml: msg.getJobYaml_asB64()
+    metadata: (f = msg.getMetadata()) && proto.v1.JobMetadata.toObject(includeInstance, f),
+    jobName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    jobYaml: msg.getJobYaml_asB64(),
+    username: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    password: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -1144,19 +1171,23 @@ proto.v1.StartGitHubJobRequest.deserializeBinaryFromReader = function(msg, reade
     case 1:
       var value = new proto.v1.JobMetadata;
       reader.readMessage(value,proto.v1.JobMetadata.deserializeBinaryFromReader);
-      msg.setJob(value);
+      msg.setMetadata(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setUsername(value);
+      msg.setJobName(value);
       break;
     case 3:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setPassword(value);
-      break;
-    case 4:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setJobYaml(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUsername(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPassword(value);
       break;
     default:
       reader.skipField();
@@ -1187,7 +1218,7 @@ proto.v1.StartGitHubJobRequest.prototype.serializeBinary = function() {
  */
 proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getJob();
+  f = message.getMetadata();
   if (f != null) {
     writer.writeMessage(
       1,
@@ -1195,24 +1226,31 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
       proto.v1.JobMetadata.serializeBinaryToWriter
     );
   }
+  f = /** @type {string} */ (jspb.Message.getField(message, 2));
+  if (f != null) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = /** @type {!(string|Uint8Array)} */ (jspb.Message.getField(message, 3));
+  if (f != null) {
+    writer.writeBytes(
+      3,
+      f
+    );
+  }
   f = message.getUsername();
   if (f.length > 0) {
     writer.writeString(
-      2,
+      4,
       f
     );
   }
   f = message.getPassword();
   if (f.length > 0) {
     writer.writeString(
-      3,
-      f
-    );
-  }
-  f = message.getJobYaml_asU8();
-  if (f.length > 0) {
-    writer.writeBytes(
-      4,
+      5,
       f
     );
   }
@@ -1220,17 +1258,17 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
 
 
 /**
- * optional JobMetadata job = 1;
+ * optional JobMetadata metadata = 1;
  * @return {?proto.v1.JobMetadata}
  */
-proto.v1.StartGitHubJobRequest.prototype.getJob = function() {
+proto.v1.StartGitHubJobRequest.prototype.getMetadata = function() {
   return /** @type{?proto.v1.JobMetadata} */ (
     jspb.Message.getWrapperField(this, proto.v1.JobMetadata, 1));
 };
 
 
 /** @param {?proto.v1.JobMetadata|undefined} value */
-proto.v1.StartGitHubJobRequest.prototype.setJob = function(value) {
+proto.v1.StartGitHubJobRequest.prototype.setMetadata = function(value) {
   jspb.Message.setWrapperField(this, 1, value);
 };
 
@@ -1238,8 +1276,8 @@ proto.v1.StartGitHubJobRequest.prototype.setJob = function(value) {
 /**
  * Clears the message field making it undefined.
  */
-proto.v1.StartGitHubJobRequest.prototype.clearJob = function() {
-  this.setJob(undefined);
+proto.v1.StartGitHubJobRequest.prototype.clearMetadata = function() {
+  this.setMetadata(undefined);
 };
 
 
@@ -1247,52 +1285,54 @@ proto.v1.StartGitHubJobRequest.prototype.clearJob = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.v1.StartGitHubJobRequest.prototype.hasJob = function() {
+proto.v1.StartGitHubJobRequest.prototype.hasMetadata = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
 
 /**
- * optional string username = 2;
+ * optional string job_name = 2;
  * @return {string}
  */
-proto.v1.StartGitHubJobRequest.prototype.getUsername = function() {
+proto.v1.StartGitHubJobRequest.prototype.getJobName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /** @param {string} value */
-proto.v1.StartGitHubJobRequest.prototype.setUsername = function(value) {
-  jspb.Message.setProto3StringField(this, 2, value);
+proto.v1.StartGitHubJobRequest.prototype.setJobName = function(value) {
+  jspb.Message.setOneofField(this, 2, proto.v1.StartGitHubJobRequest.oneofGroups_[0], value);
 };
 
 
 /**
- * optional string password = 3;
- * @return {string}
+ * Clears the field making it undefined.
  */
-proto.v1.StartGitHubJobRequest.prototype.getPassword = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
-};
-
-
-/** @param {string} value */
-proto.v1.StartGitHubJobRequest.prototype.setPassword = function(value) {
-  jspb.Message.setProto3StringField(this, 3, value);
+proto.v1.StartGitHubJobRequest.prototype.clearJobName = function() {
+  jspb.Message.setOneofField(this, 2, proto.v1.StartGitHubJobRequest.oneofGroups_[0], undefined);
 };
 
 
 /**
- * optional bytes job_yaml = 4;
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.v1.StartGitHubJobRequest.prototype.hasJobName = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional bytes job_yaml = 3;
  * @return {!(string|Uint8Array)}
  */
 proto.v1.StartGitHubJobRequest.prototype.getJobYaml = function() {
-  return /** @type {!(string|Uint8Array)} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+  return /** @type {!(string|Uint8Array)} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
- * optional bytes job_yaml = 4;
+ * optional bytes job_yaml = 3;
  * This is a type-conversion wrapper around `getJobYaml()`
  * @return {string}
  */
@@ -1303,7 +1343,7 @@ proto.v1.StartGitHubJobRequest.prototype.getJobYaml_asB64 = function() {
 
 
 /**
- * optional bytes job_yaml = 4;
+ * optional bytes job_yaml = 3;
  * Note that Uint8Array is not supported on all browsers.
  * @see http://caniuse.com/Uint8Array
  * This is a type-conversion wrapper around `getJobYaml()`
@@ -1317,7 +1357,54 @@ proto.v1.StartGitHubJobRequest.prototype.getJobYaml_asU8 = function() {
 
 /** @param {!(string|Uint8Array)} value */
 proto.v1.StartGitHubJobRequest.prototype.setJobYaml = function(value) {
-  jspb.Message.setProto3BytesField(this, 4, value);
+  jspb.Message.setOneofField(this, 3, proto.v1.StartGitHubJobRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the field making it undefined.
+ */
+proto.v1.StartGitHubJobRequest.prototype.clearJobYaml = function() {
+  jspb.Message.setOneofField(this, 3, proto.v1.StartGitHubJobRequest.oneofGroups_[0], undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.v1.StartGitHubJobRequest.prototype.hasJobYaml = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+/**
+ * optional string username = 4;
+ * @return {string}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getUsername = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.v1.StartGitHubJobRequest.prototype.setUsername = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string password = 5;
+ * @return {string}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getPassword = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.v1.StartGitHubJobRequest.prototype.setPassword = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
@@ -4406,7 +4493,7 @@ proto.v1.LogSliceEvent.prototype.toObject = function(opt_includeInstance) {
 proto.v1.LogSliceEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
     name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    phase: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
     payload: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
@@ -4449,8 +4536,8 @@ proto.v1.LogSliceEvent.deserializeBinaryFromReader = function(msg, reader) {
       msg.setName(value);
       break;
     case 2:
-      var value = /** @type {!proto.v1.LogSlicePhase} */ (reader.readEnum());
-      msg.setPhase(value);
+      var value = /** @type {!proto.v1.LogSliceType} */ (reader.readEnum());
+      msg.setType(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -4492,7 +4579,7 @@ proto.v1.LogSliceEvent.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPhase();
+  f = message.getType();
   if (f !== 0.0) {
     writer.writeEnum(
       2,
@@ -4525,16 +4612,16 @@ proto.v1.LogSliceEvent.prototype.setName = function(value) {
 
 
 /**
- * optional LogSlicePhase phase = 2;
- * @return {!proto.v1.LogSlicePhase}
+ * optional LogSliceType type = 2;
+ * @return {!proto.v1.LogSliceType}
  */
-proto.v1.LogSliceEvent.prototype.getPhase = function() {
-  return /** @type {!proto.v1.LogSlicePhase} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+proto.v1.LogSliceEvent.prototype.getType = function() {
+  return /** @type {!proto.v1.LogSliceType} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
-/** @param {!proto.v1.LogSlicePhase} value */
-proto.v1.LogSliceEvent.prototype.setPhase = function(value) {
+/** @param {!proto.v1.LogSliceType} value */
+proto.v1.LogSliceEvent.prototype.setType = function(value) {
   jspb.Message.setProto3EnumField(this, 2, value);
 };
 
@@ -4794,8 +4881,9 @@ proto.v1.FilterOp = {
  */
 proto.v1.ListenRequestLogs = {
   LOGS_DISABLED: 0,
-  LOGS_RAW: 1,
-  LOGS_HTML: 2
+  LOGS_UNSLICED: 1,
+  LOGS_RAW: 2,
+  LOGS_HTML: 3
 };
 
 /**
@@ -4822,9 +4910,9 @@ proto.v1.JobPhase = {
 /**
  * @enum {number}
  */
-proto.v1.LogSlicePhase = {
+proto.v1.LogSliceType = {
   SLICE_ABANDONED: 0,
-  SLICE_CHECKPOINT: 1,
+  SLICE_PHASE: 1,
   SLICE_START: 2,
   SLICE_CONTENT: 3,
   SLICE_END: 4

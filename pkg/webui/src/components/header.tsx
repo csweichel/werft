@@ -9,8 +9,12 @@ const lightColor = 'rgba(255, 255, 255, 0.7)';
 
 export const headerStyles = (theme: Theme) =>
     createStyles({
+        mainBar: {
+            zIndex: 999,
+        },
         secondaryBar: {
-            zIndex: 0,
+            paddingTop: '0.5em',
+            zIndex: 999,
         },
         menuButton: {
             marginLeft: -theme.spacing(1),
@@ -52,22 +56,20 @@ class HeaderImpl extends React.Component<HeaderProps, HeaderState> {
             <React.Fragment>
                 <AppBar
                     component="div"
-                    className={classes.secondaryBar}
+                    className={classes.mainBar}
                     color="primary"
-                    position="static"
+                    position="sticky"
                     elevation={0}
                     style={appbarStyle}
                 >
                     <Toolbar>
                         <Grid container alignItems="center" spacing={1}>
-                            <Grid item xs>
+                            <Grid item>
                                 <Typography color="inherit" variant="h5" component="h2">
                                     {this.props.title}
                                 </Typography>
                             </Grid>
-                            <Grid item>
-                                {this.props.actions}
-                            </Grid>
+                            {this.props.actions}
                         </Grid>
                     </Toolbar>
                 </AppBar>
@@ -76,7 +78,7 @@ class HeaderImpl extends React.Component<HeaderProps, HeaderState> {
                         component="div"
                         className={classes.secondaryBar}
                         color="primary"
-                        position="static"
+                        position="sticky"
                         elevation={0}
                         style={appbarStyle}
                 >{this.props.secondary}</AppBar>

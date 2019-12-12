@@ -14,6 +14,9 @@ import (
 const (
 	// LabelJobName adds the ID of the job to the k8s object
 	LabelJobName = "werft.sh/jobName"
+
+	// LabelMutex makes jobs findable via their mutex
+	LabelMutex = "werft.sh/mutex"
 )
 
 // extracts the phase from the job object

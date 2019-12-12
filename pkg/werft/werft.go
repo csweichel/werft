@@ -3,13 +3,9 @@ package werft
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"path/filepath"
 	"sync"
 
@@ -18,18 +14,16 @@ import (
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
-	rice "github.com/GeertJohan/go.rice"
 	"github.com/Masterminds/sprig"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-github/github"
-	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/olebedev/emitter"
 	"github.com/segmentio/textio"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
-	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/json"
 )
 
 // Config configures the behaviour of the service
@@ -97,6 +91,13 @@ func (srv *Service) Start() {
 			srv.mu.Unlock()
 		}
 
+		if s.Phase == v1.JobPhase_PHASE_RUNNING {
+			out, err := srv.Logs.Place(context.TODO(), s.Name)
+			if err == nil {
+				fmt.Fprintln(out, "[running|PHASE] job running")
+			}
+		}
+
 		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
 			srv.mu.Lock()
 			if srv.logListener == nil {
@@ -143,76 +144,8 @@ func listenToLogs(ctx context.Context, name string, inc <-chan string, dest stor
 	}
 }
 
-// StartWeb starts the werft web UI service
-func (srv *Service) StartWeb(addr string) {
-	webuiServer := http.FileServer(rice.MustFindBox("../webui/build").HTTPBox())
-	if srv.Config.DebugProxy != "" {
-		tgt, err := url.Parse(srv.Config.DebugProxy)
-		if err != nil {
-			// this is debug only - it's ok to panic
-			panic(err)
-		}
-		webuiServer = httputil.NewSingleHostReverseProxy(tgt)
-	}
-
-	grpcServer := grpc.NewServer()
-	v1.RegisterWerftServiceServer(grpcServer, srv)
-	grpcWebServer := grpcweb.WrapServer(grpcServer)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/github/app", srv.handleGithubWebhook)
-	mux.Handle("/", hstsHandler(
-		grpcTrafficSplitter(
-			webuiServer,
-			grpcWebServer,
-		),
-	))
-
-	log.WithField("addr", addr).Info("serving werft web service")
-	err := http.ListenAndServe(addr, mux)
-	if err != nil {
-		srv.OnError(err)
-	}
-}
-
-// StartGRPC starts the werft GRPC service
-func (srv *Service) StartGRPC(addr string) {
-	lis, err := net.Listen("tcp", addr)
-	if err != nil {
-		srv.OnError(err)
-	}
-
-	grpcServer := grpc.NewServer()
-	v1.RegisterWerftServiceServer(grpcServer, srv)
-
-	log.WithField("addr", addr).Info("serving werft GRPC service")
-	err = grpcServer.Serve(lis)
-	if err != nil {
-		srv.OnError(err)
-	}
-}
-
-// hstsHandler wraps an http.HandlerFunc sfuch that it sets the HSTS header.
-func hstsHandler(fn http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
-		fn(w, r)
-	})
-}
-
-func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpcServer) http.HandlerFunc {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if wrappedGrpc.IsGrpcWebRequest(req) || wrappedGrpc.IsAcceptableGrpcCorsRequest(req) {
-			wrappedGrpc.ServeHTTP(resp, req)
-		} else {
-			// Fall back to other servers.
-			fallback.ServeHTTP(resp, req)
-		}
-	})
-}
-
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider) (status *v1.JobStatus, err error) {
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte) (status *v1.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr == nil {
@@ -246,35 +179,9 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	if err != nil {
 		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
 	}
+	fmt.Fprintln(logs, "[preparing|PHASE] job preparation")
 
-	// download werft config from branch
-	werftYAML, err := cp.Download(ctx, PathWerftConfig)
-	if err != nil {
-		// TODO handle repos without werft config more gracefully
-		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
-	}
-	var repoCfg repoconfig.C
-	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
-	}
-
-	// check if we need to build/do anything
-	if !repoCfg.ShouldRun(metadata.Trigger) {
-		return
-	}
-
-	// compile job podspec from template
-	tplpth := repoCfg.TemplatePath(metadata.Trigger)
-	jobTplYAML, err := cp.Download(ctx, tplpth)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
-	}
-	jobTplRaw, err := ioutil.ReadAll(jobTplYAML)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
-	}
-	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobTplRaw))
+	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobYAML))
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
@@ -325,7 +232,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 	// dump podspec into logs
 	pw := textio.NewPrefixWriter(logs, "[werft] ")
-	yaml.NewEncoder(pw).Encode(podspec)
+	k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *podspec}, pw)
 	pw.Flush()
 
 	// schedule/start job

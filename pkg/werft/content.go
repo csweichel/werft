@@ -26,9 +26,6 @@ const (
 
 // ContentProvider provides access to job workspace content
 type ContentProvider interface {
-	// Download provides access to a single file
-	Download(ctx context.Context, path string) (io.ReadCloser, error)
-
 	// InitContainer builds the container that will initialize the job content.
 	// The VolumeMount for /workspace is added by the caller.
 	// Name and ImagePullPolicy will be overwriten.
@@ -39,19 +36,19 @@ type ContentProvider interface {
 	Serve(jobName string) error
 }
 
+// FileProvider provides access to a single file
+type FileProvider interface {
+	// Download provides access to a single file
+	Download(ctx context.Context, path string) (io.ReadCloser, error)
+}
+
 // LocalContentProvider provides access to local files
 type LocalContentProvider struct {
-	TarStream    io.Reader
-	FileProvider func(path string) (io.ReadCloser, error)
+	TarStream io.Reader
 
 	Namespace  string
 	Kubeconfig *rest.Config
 	Clientset  kubernetes.Interface
-}
-
-// Download provides access to a single file
-func (lcp *LocalContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	return lcp.FileProvider(path)
 }
 
 // InitContainer builds the container that will initialize the job content.

@@ -5,12 +5,15 @@ import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Switch, FormControlLabel } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
+import SubjectIcon from '@material-ui/icons/Subject';
+import TocIcon from '@material-ui/icons/Toc';
 import { ColorUnknown, ColorFailure, ColorSuccess } from './components/colors';
 import { debounce, phaseToString } from './components/util';
+
 
 
 const styles = (theme: Theme) => createStyles({
@@ -32,6 +35,7 @@ const styles = (theme: Theme) => createStyles({
 export interface JobViewProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
     jobName: string;
+    rawLogs?: boolean;
 }
 
 interface JobViewState {
@@ -61,6 +65,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
+        if (this.props.rawLogs) {
+            lreq.setLogs(ListenRequestLogs.LOGS_UNSLICED);
+        }
         lreq.setUpdates(true);
         lreq.setName(this.props.jobName);
         const evts = this.props.client.listen(lreq);
@@ -86,30 +93,51 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 
     render() {
         let color = ColorUnknown;
+        let failed = false;
+        let finished = true;
         if (this.state.status && this.state.status.conditions) {
             if (this.state.status.phase !== JobPhase.PHASE_DONE) {
                 color = '#A3B2BD';
+                finished = false;
             } else if (this.state.status.conditions.success) {
                 color = ColorSuccess;
             } else {
                 color = ColorFailure;
+                failed = true;
             }
         }
 
         const job = this.state.status;
         const actions = <React.Fragment>
-            { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
-                <Tooltip title="Cancel Job">
-                    <IconButton color="inherit" onClick={() => this.stopJob()}>
-                        <StopIcon />
+            <Grid item xs></Grid>
+            <Grid item>
+                { this.props.rawLogs && 
+                    <Tooltip title="View Sliced Logs">
+                        <IconButton color="inherit" href={`/job/${this.props.jobName}`}>
+                            <TocIcon />
+                        </IconButton>
+                    </Tooltip>
+                }
+                { !this.props.rawLogs && 
+                    <Tooltip title="View Raw Logs">
+                        <IconButton color="inherit" href={`/job/${this.props.jobName}/raw`}>
+                            <SubjectIcon />
+                        </IconButton>
+                    </Tooltip>
+                }
+                { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
+                    <Tooltip title="Cancel Job">
+                        <IconButton color="inherit" onClick={() => this.stopJob()}>
+                            <StopIcon />
+                        </IconButton>
+                    </Tooltip>
+                }
+                <Tooltip title="Back">
+                    <IconButton color="inherit" onClick={() => window.location.href = "/jobs"}>
+                        <CloseIcon />
                     </IconButton>
                 </Tooltip>
-            }
-            <Tooltip title="Back">
-                <IconButton color="inherit" onClick={() => window.location.href = "/jobs"}>
-                    <CloseIcon />
-                </IconButton>
-            </Tooltip>
+            </Grid>
         </React.Fragment>
 
         const classes = this.props.classes;
@@ -127,11 +155,12 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 </Grid>
             </Toolbar>
         }
+        const runningPhases: number[] = [JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING];
 
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
-                <LogView logs={this.state.log} />
+                <LogView logs={this.state.log} failed={failed} raw={this.props.rawLogs} finished={finished} />
             </main>
         </React.Fragment>
     }

@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/reporef"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
@@ -34,18 +35,13 @@ import (
 
 // triggerRemoteCmd represents the triggerRemote command
 var triggerRemoteCmd = &cobra.Command{
-	Use:   "github <owner>/<repo>(@revision)",
+	Use:   "github <owner>/<repo>(:ref | @revision)",
 	Short: "starts a job from a remore repository",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		segs := strings.Split(args[0], "/")
-		if len(segs) < 2 {
-			return xerrors.Errorf("%s is not in the format owner/repo(@revision)")
-		}
-		owner, repo, rev := segs[0], segs[1], ""
-		if strings.Contains(repo, "@") {
-			segs = strings.Split(repo, "@")
-			repo, rev = segs[0], segs[1]
+		repo, err := reporef.Parse(args[0])
+		if err != nil {
+			return err
 		}
 
 		flags := cmd.Parent().PersistentFlags()
@@ -61,31 +57,36 @@ var triggerRemoteCmd = &cobra.Command{
 			return xerrors.Errorf("Invalid value for --trigger. Valid choices are %s", strings.Join(vs, "\n"))
 		}
 
-		username, _ := flags.GetString("username")
-		password, _ := flags.GetString("password")
+		username, _ := cmd.Flags().GetString("username")
+		password, _ := cmd.Flags().GetString("password")
+
 		req := &v1.StartGitHubJobRequest{
-			Job: &v1.JobMetadata{
-				Owner: owner,
-				Repository: &v1.Repository{
-					Host:     "github.com",
-					Owner:    owner,
-					Repo:     repo,
-					Revision: rev,
-				},
-				Trigger: v1.JobTrigger(trigger),
+			Metadata: &v1.JobMetadata{
+				Owner:      repo.Owner,
+				Repository: repo,
+				Trigger:    v1.JobTrigger(trigger),
 			},
 			Username: username,
 			Password: password,
 		}
 
+		jobname, _ := cmd.Flags().GetString("job-name")
 		jobPath, _ := flags.GetString("job-file")
-		if jobPath != "" {
+		if jobname != "" && jobPath != "" {
+			return xerrors.Errorf("cannot specify both: job name and job path")
+		} else if jobname != "" {
+			req.Job = &v1.StartGitHubJobRequest_JobName{
+				JobName: jobname,
+			}
+		} else if jobPath != "" {
 			fc, err := ioutil.ReadFile(jobPath)
 			if err != nil {
 				return err
 			}
 
-			req.JobYaml = fc
+			req.Job = &v1.StartGitHubJobRequest_JobYaml{
+				JobYaml: fc,
+			}
 		}
 
 		ctx := context.Background()
@@ -119,4 +120,5 @@ func init() {
 
 	triggerRemoteCmd.Flags().String("username", "", "username to use as authorization")
 	triggerRemoteCmd.Flags().String("password", "", "password to use as authorization")
+	triggerRemoteCmd.Flags().StringP("job-name", "j", "", "start a particular job (defaults to the default job of the repo)")
 }

@@ -26,27 +26,27 @@ func TestDefaultCutterSlice(t *testing.T) {
 [otherproc] Cool beans
 			`,
 			[]v1.LogSliceEvent{
-				v1.LogSliceEvent{Name: "foobar", Phase: v1.LogSlicePhase_SLICE_START},
-				v1.LogSliceEvent{Name: "foobar", Phase: v1.LogSlicePhase_SLICE_CONTENT, Payload: "Hello World this is a test"},
-				v1.LogSliceEvent{Name: "otherproc", Phase: v1.LogSlicePhase_SLICE_START},
-				v1.LogSliceEvent{Name: "otherproc", Phase: v1.LogSlicePhase_SLICE_CONTENT, Payload: "Some other process"},
-				v1.LogSliceEvent{Name: "foobar", Phase: v1.LogSlicePhase_SLICE_CONTENT, Payload: "More output"},
-				v1.LogSliceEvent{Name: "foobar", Phase: v1.LogSlicePhase_SLICE_END},
-				v1.LogSliceEvent{Name: "otherproc", Phase: v1.LogSlicePhase_SLICE_CONTENT, Payload: "Cool beans"},
-				v1.LogSliceEvent{Name: "otherproc", Phase: v1.LogSlicePhase_SLICE_ABANDONED},
+				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_START},
+				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "Hello World this is a test"},
+				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_START},
+				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "Some other process"},
+				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "More output"},
+				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_END},
+				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "Cool beans"},
+				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_ABANDONED},
 			},
 			nil,
 		},
 		{
 			`
-[build|CHECKPOINT] Pushing foobar
+[build|PHASE] Pushing foobar
 [components/foobar:docker] c13a632cd17b: Preparing
 			`,
 			[]v1.LogSliceEvent{
-				v1.LogSliceEvent{Name: "build", Phase: v1.LogSlicePhase_SLICE_CHECKPOINT, Payload: "Pushing foobar"},
-				v1.LogSliceEvent{Name: "components/foobar:docker", Phase: v1.LogSlicePhase_SLICE_START},
-				v1.LogSliceEvent{Name: "components/foobar:docker", Phase: v1.LogSlicePhase_SLICE_CONTENT, Payload: "c13a632cd17b: Preparing"},
-				v1.LogSliceEvent{Name: "components/foobar:docker", Phase: v1.LogSlicePhase_SLICE_ABANDONED},
+				v1.LogSliceEvent{Name: "build", Type: v1.LogSliceType_SLICE_PHASE, Payload: "Pushing foobar"},
+				v1.LogSliceEvent{Name: "components/foobar:docker", Type: v1.LogSliceType_SLICE_START},
+				v1.LogSliceEvent{Name: "components/foobar:docker", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "c13a632cd17b: Preparing"},
+				v1.LogSliceEvent{Name: "components/foobar:docker", Type: v1.LogSliceType_SLICE_ABANDONED},
 			},
 			nil,
 		},
@@ -80,11 +80,11 @@ func TestDefaultCutterSlice(t *testing.T) {
 		if !reflect.DeepEqual(test.Events, events) {
 			expevt := make([]string, len(test.Events))
 			for i, evt := range test.Events {
-				expevt[i] = fmt.Sprintf("\t[%s] %s: %s", evt.Name, evt.Phase.String(), evt.Payload)
+				expevt[i] = fmt.Sprintf("\t[%s] %s: %s", evt.Name, evt.Type.String(), evt.Payload)
 			}
 			actevt := make([]string, len(events))
 			for i, evt := range events {
-				actevt[i] = fmt.Sprintf("\t[%s] %s: %s", evt.Name, evt.Phase.String(), evt.Payload)
+				actevt[i] = fmt.Sprintf("\t[%s] %s: %s", evt.Name, evt.Type.String(), evt.Payload)
 			}
 
 			t.Errorf("unexpected events:\n%s\nexpected:\n%s", strings.Join(actevt, "\n"), strings.Join(expevt, "\n"))

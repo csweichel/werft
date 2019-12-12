@@ -89,10 +89,22 @@ export namespace StartJobResponse {
 }
 
 export class StartGitHubJobRequest extends jspb.Message {
-  hasJob(): boolean;
-  clearJob(): void;
-  getJob(): JobMetadata | undefined;
-  setJob(value?: JobMetadata): void;
+  hasMetadata(): boolean;
+  clearMetadata(): void;
+  getMetadata(): JobMetadata | undefined;
+  setMetadata(value?: JobMetadata): void;
+
+  hasJobName(): boolean;
+  clearJobName(): void;
+  getJobName(): string;
+  setJobName(value: string): void;
+
+  hasJobYaml(): boolean;
+  clearJobYaml(): void;
+  getJobYaml(): Uint8Array | string;
+  getJobYaml_asU8(): Uint8Array;
+  getJobYaml_asB64(): string;
+  setJobYaml(value: Uint8Array | string): void;
 
   getUsername(): string;
   setUsername(value: string): void;
@@ -100,11 +112,7 @@ export class StartGitHubJobRequest extends jspb.Message {
   getPassword(): string;
   setPassword(value: string): void;
 
-  getJobYaml(): Uint8Array | string;
-  getJobYaml_asU8(): Uint8Array;
-  getJobYaml_asB64(): string;
-  setJobYaml(value: Uint8Array | string): void;
-
+  getJobCase(): StartGitHubJobRequest.JobCase;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
   static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
@@ -117,10 +125,17 @@ export class StartGitHubJobRequest extends jspb.Message {
 
 export namespace StartGitHubJobRequest {
   export type AsObject = {
-    job?: JobMetadata.AsObject,
+    metadata?: JobMetadata.AsObject,
+    jobName: string,
+    jobYaml: Uint8Array | string,
     username: string,
     password: string,
-    jobYaml: Uint8Array | string,
+  }
+
+  export enum JobCase {
+    JOB_NOT_SET = 0,
+    JOB_NAME = 2,
+    JOB_YAML = 3,
   }
 }
 
@@ -585,8 +600,8 @@ export class LogSliceEvent extends jspb.Message {
   getName(): string;
   setName(value: string): void;
 
-  getPhase(): LogSlicePhaseMap[keyof LogSlicePhaseMap];
-  setPhase(value: LogSlicePhaseMap[keyof LogSlicePhaseMap]): void;
+  getType(): LogSliceTypeMap[keyof LogSliceTypeMap];
+  setType(value: LogSliceTypeMap[keyof LogSliceTypeMap]): void;
 
   getPayload(): string;
   setPayload(value: string): void;
@@ -604,7 +619,7 @@ export class LogSliceEvent extends jspb.Message {
 export namespace LogSliceEvent {
   export type AsObject = {
     name: string,
-    phase: LogSlicePhaseMap[keyof LogSlicePhaseMap],
+    type: LogSliceTypeMap[keyof LogSliceTypeMap],
     payload: string,
   }
 }
@@ -657,8 +672,9 @@ export const FilterOp: FilterOpMap;
 
 export interface ListenRequestLogsMap {
   LOGS_DISABLED: 0;
-  LOGS_RAW: 1;
-  LOGS_HTML: 2;
+  LOGS_UNSLICED: 1;
+  LOGS_RAW: 2;
+  LOGS_HTML: 3;
 }
 
 export const ListenRequestLogs: ListenRequestLogsMap;
@@ -682,13 +698,13 @@ export interface JobPhaseMap {
 
 export const JobPhase: JobPhaseMap;
 
-export interface LogSlicePhaseMap {
+export interface LogSliceTypeMap {
   SLICE_ABANDONED: 0;
-  SLICE_CHECKPOINT: 1;
+  SLICE_PHASE: 1;
   SLICE_START: 2;
   SLICE_CONTENT: 3;
   SLICE_END: 4;
 }
 
-export const LogSlicePhase: LogSlicePhaseMap;
+export const LogSliceType: LogSliceTypeMap;
 

@@ -3,60 +3,61 @@ import {
     BrowserRouter as Router,
     Switch,
     Route,
+    useParams,
 } from "react-router-dom";
 import { JobList } from './JobList';
-import { JobView } from './JobView';
+import { JobView, JobViewProps } from './JobView';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { WithStyles, ThemeProvider, withStyles } from '@material-ui/styles';
 import { CssBaseline, createMuiTheme, createStyles } from '@material-ui/core';
 import { GithubPage } from './GithubPage';
-
-interface AppState {
-    showSidebar?: boolean
-}
+import { StartJob } from './StartJob';
+import { WerftUIClient } from './api/werft-ui_pb_service';
 
 export interface AppProps extends WithStyles<typeof styles> { }
 
-class AppImpl extends React.Component<AppProps, AppState> {
-    protected readonly client: WerftServiceClient;
+let url = `${window.location.protocol}//${window.location.host}`;
+console.log("server url", url);
+const client = new WerftServiceClient(url);
+const uiClient = new WerftUIClient(url);
 
-    constructor(p: AppProps) {
-        super(p)
-        this.state = {
-            showSidebar: false
-        };
+const JobViewWithName: React.SFC<Partial<JobViewProps>> = props => {
+    const {name} = useParams();
+    return <JobView client={client} jobName={name!} {...props} />
+}
 
-        let url = `${window.location.protocol}//${window.location.host}`;
-        console.log("server url", url);
-        this.client = new WerftServiceClient(url);
-    }
+const AppImpl: React.SFC<AppProps> = (props) => {
+    const { classes } = props;
 
-    render() {
-        const { classes } = this.props;
-        return <ThemeProvider theme={theme}>
-            <div className={classes.root}>
-                <CssBaseline />
-                <div className={classes.app}>
-                    <Router>
-                        <Switch>
-                            <Route path="/job">
-                                <JobView client={this.client} jobName={window.location.pathname.substring("/job/".length)} />
-                            </Route>
-                            <Route path="/github">
-                                <GithubPage />
-                            </Route>
-                            <Route path="/">
-                                <JobList client={this.client} />
-                            </Route>
-                        </Switch>
-                    </Router >
-                    <footer className={classes.footer}>
-                        <img src="/werft-small.png" alt="werft logo" />
-                    </footer>
-                </div>
+    return <ThemeProvider theme={theme}>
+        <div className={classes.root}>
+            <CssBaseline />
+            <div className={classes.app}>
+                <Router>
+                    <Switch>
+                        <Route path="/job/:name/raw">
+                            <JobViewWithName client={client} rawLogs={true} />
+                        </Route>
+                        <Route path="/job/:name">
+                            <JobViewWithName client={client} />
+                        </Route>
+                        <Route path="/github">
+                            <GithubPage />
+                        </Route>
+                        <Route path="/start">
+                            <StartJob client={client} uiClient={uiClient} />
+                        </Route>
+                        <Route path="/">
+                            <JobList client={client} />
+                        </Route>
+                    </Switch>
+                </Router >
+                <footer className={classes.footer}>
+                    <img src="/werft-small.png" alt="werft logo" />
+                </footer>
             </div>
-        </ThemeProvider>
-    }
+        </div>
+    </ThemeProvider>
 }
 
 
