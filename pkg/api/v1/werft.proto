@@ -132,6 +132,7 @@ message JobStatus {
     JobPhase phase = 3;
     JobConditions conditions = 4;
     string details = 5;
+    repeated JobResult results = 6;
 }
 
 message JobMetadata {
@@ -188,6 +189,12 @@ message JobConditions {
     int32 failure_count = 2;
 }
 
+message JobResult {
+    string type = 1;
+    string payload = 2;
+    string description = 3;
+}
+
 message LogSliceEvent {
     string name = 1;
     LogSliceType type = 2;
@@ -200,6 +207,7 @@ enum LogSliceType {
     SLICE_START = 2;
     SLICE_CONTENT = 3;
     SLICE_END = 4;
+    SLICE_RESULT = 5;
 }
 
 message StopJobRequest {

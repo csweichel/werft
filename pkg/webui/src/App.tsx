@@ -23,7 +23,7 @@ const uiClient = new WerftUIClient(url);
 
 const JobViewWithName: React.SFC<Partial<JobViewProps>> = props => {
     const {name} = useParams();
-    return <JobView client={client} jobName={name!} {...props} />
+    return <JobView client={client} jobName={name!} view={props.view!} {...props} />
 }
 
 const AppImpl: React.SFC<AppProps> = (props) => {
@@ -36,10 +36,13 @@ const AppImpl: React.SFC<AppProps> = (props) => {
                 <Router>
                     <Switch>
                         <Route path="/job/:name/raw">
-                            <JobViewWithName client={client} rawLogs={true} />
+                            <JobViewWithName client={client} view="raw-logs" />
+                        </Route>
+                        <Route path="/job/:name/results">
+                            <JobViewWithName client={client} view="results" />
                         </Route>
                         <Route path="/job/:name">
-                            <JobViewWithName client={client} />
+                            <JobViewWithName client={client} view="logs" />
                         </Route>
                         <Route path="/github">
                             <GithubPage />

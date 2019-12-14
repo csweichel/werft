@@ -40,6 +40,9 @@ const (
 
 	// AnnotationFailed explicitelly fails the job
 	AnnotationFailed = "werft.sh/failed"
+
+	// AnnotationResults stores JSON encoded list of a job results
+	AnnotationResults = "werft.sh/results"
 )
 
 // Config configures the executor
@@ -352,7 +355,7 @@ func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Po
 }
 
 // Logs provides the log output of a running job. If the job is unknown, nil is returned.
-func (js *Executor) Logs(name string) <-chan string {
+func (js *Executor) Logs(name string) io.Reader {
 	return listenToLogs(js.Client, name, js.Config.Namespace)
 }
 
@@ -402,23 +405,32 @@ func (js *Executor) doHousekeeping() {
 	}
 }
 
-// Stop stops a job
-func (js *Executor) Stop(name string) error {
+// Finds the pod executing a job
+func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=%s", LabelJobName, name),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(pods.Items) == 0 {
-		return xerrors.Errorf("unknown job: %s", name)
+		return nil, xerrors.Errorf("unknown job: %s", name)
 	}
 	if len(pods.Items) > 1 {
-		return xerrors.Errorf("job %s has no unique execution", name)
+		return nil, xerrors.Errorf("job %s has no unique execution", name)
 	}
 
-	pod := pods.Items[0]
+	return &pods.Items[0], nil
+}
+
+// Stop stops a job
+func (js *Executor) Stop(name string) error {
+	pod, err := js.getJobPod(name)
+	if err != nil {
+		return err
+	}
+
 	err = js.addAnnotation(pod.Name, map[string]string{
 		AnnotationFailed: "job was stopped manually",
 	})
@@ -427,6 +439,44 @@ func (js *Executor) Stop(name string) error {
 	}
 
 	return nil
+}
+
+// RegisterResult registers a result produced by a job
+func (js *Executor) RegisterResult(jobname string, res *v1.JobResult) error {
+	pod, err := js.getJobPod(jobname)
+	if err != nil {
+		return err
+	}
+	podname := pod.Name
+
+	client := js.Client.CoreV1().Pods(js.Config.Namespace)
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		pod, err := client.Get(podname, metav1.GetOptions{})
+		if err != nil {
+			return xerrors.Errorf("cannot find job pod %s: %w", podname, err)
+		}
+		if pod == nil {
+			return xerrors.Errorf("job pod %s does not exist", podname)
+		}
+
+		var results []v1.JobResult
+		if c, ok := pod.Annotations[AnnotationResults]; ok {
+			err := json.Unmarshal([]byte(c), &results)
+			if err != nil {
+				return xerrors.Errorf("cannot unmarshal previous results: %w", err)
+			}
+		}
+		results = append(results, *res)
+		ra, err := json.Marshal(results)
+		if err != nil {
+			return xerrors.Errorf("cannot remarshal results: %w", err)
+		}
+		pod.Annotations[AnnotationResults] = string(ra)
+
+		_, err = client.Update(pod)
+		return err
+	})
+	return err
 }
 
 // addAnnotation adds annotations to a pod

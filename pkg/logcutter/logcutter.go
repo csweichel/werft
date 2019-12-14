@@ -100,6 +100,13 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 					Type: v1.LogSliceType_SLICE_END,
 				}
 				continue
+			case "RESULT":
+				evts <- &v1.LogSliceEvent{
+					Name:    name,
+					Type:    v1.LogSliceType_SLICE_RESULT,
+					Payload: payload,
+				}
+				continue
 			case "PHASE":
 				evts <- &v1.LogSliceEvent{
 					Name:    name,

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { LogSliceEvent, LogSliceType } from "../api/werft_pb";
-import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary, Typography, Step, StepLabel, Stepper, Switch, Grid, FormControlLabel } from "@material-ui/core";
+import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary, Typography, Step, StepLabel, Stepper } from "@material-ui/core";
 import { withStyles } from "@material-ui/styles";
 import { StickyScroll } from "./StickyScroll";
 
@@ -100,7 +100,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         const rawLog = this.props.logs.map(c => c.getPayload());
         const rawContent = rawLog.join("")
         return <React.Fragment>
-            <StickyScroll enabled={this.state.autoscroll}>
+            <StickyScroll>
                 <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: rawContent}} />
             </StickyScroll>
         </React.Fragment>
@@ -119,7 +119,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                 </Step>
             )}</Stepper>
 
-            <StickyScroll enabled={this.state.autoscroll}>
+            <StickyScroll>
             { chunks.map((kv, i) => {
                 const chunk = kv[1];
                 if (isContent(chunk)) { return (
@@ -153,12 +153,6 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         return <React.Fragment>
             { this.props.raw && this.renderRaw() }
             { !this.props.raw && this.renderSliced() }
-            { !this.props.finished && 
-            <Grid container>
-                <Grid item xs></Grid>
-                <Grid item><FormControlLabel control={<Switch checked={this.state.autoscroll} onChange={e => this.setState({autoscroll: e.target.checked})} />} label="autoscroll" /></Grid>
-            </Grid>
-            }
         </React.Fragment>
     }
  

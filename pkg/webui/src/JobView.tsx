@@ -4,17 +4,15 @@ import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest,
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
+import { ResultView } from './components/ResultView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
-import SubjectIcon from '@material-ui/icons/Subject';
-import TocIcon from '@material-ui/icons/Toc';
 import { ColorUnknown, ColorFailure, ColorSuccess } from './components/colors';
 import { debounce, phaseToString } from './components/util';
-
-
+import * as moment from 'moment';
 
 const styles = (theme: Theme) => createStyles({
     main: {
@@ -35,7 +33,7 @@ const styles = (theme: Theme) => createStyles({
 export interface JobViewProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
     jobName: string;
-    rawLogs?: boolean;
+    view: "logs" | "raw-logs" | "results";
 }
 
 interface JobViewState {
@@ -65,7 +63,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
-        if (this.props.rawLogs) {
+        if (this.props.view === "raw-logs") {
             lreq.setLogs(ListenRequestLogs.LOGS_UNSLICED);
         }
         lreq.setUpdates(true);
@@ -110,21 +108,16 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const job = this.state.status;
         const actions = <React.Fragment>
             <Grid item xs></Grid>
+            { job && job.resultsList.length > 0 && 
+                <Grid item>
+                    <Tabs onChange={() => {}} value={this.props.view}>
+                        <Tab label="Logs" value="logs" href={`/job/${this.props.jobName}`} />
+                        <Tab label="Raw Logs" value="raw-logs" href={`/job/${this.props.jobName}/raw`} />
+                        <Tab label="Results" value="results" href={`/job/${this.props.jobName}/results`} />
+                    </Tabs>
+                </Grid>
+            }
             <Grid item>
-                { this.props.rawLogs && 
-                    <Tooltip title="View Sliced Logs">
-                        <IconButton color="inherit" href={`/job/${this.props.jobName}`}>
-                            <TocIcon />
-                        </IconButton>
-                    </Tooltip>
-                }
-                { !this.props.rawLogs && 
-                    <Tooltip title="View Raw Logs">
-                        <IconButton color="inherit" href={`/job/${this.props.jobName}/raw`}>
-                            <SubjectIcon />
-                        </IconButton>
-                    </Tooltip>
-                }
                 { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
                     <Tooltip title="Cancel Job">
                         <IconButton color="inherit" onClick={() => this.stopJob()}>
@@ -151,15 +144,20 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
                     <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.revision}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
-                    <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? <ReactTimeago date={job.metadata!.finished.seconds * 1000} /> : "-"}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Finished">{!!job.metadata!.finished ? moment.unix(job.metadata!.finished.seconds).from(moment.unix(job.metadata!.created.seconds)) : "-"}</JobMetadataItemProps>
                 </Grid>
-            </Toolbar>
+            </Toolbar>;
         }
         
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
-                <LogView logs={this.state.log} failed={failed} raw={this.props.rawLogs} finished={finished} />
+                { (this.props.view === "logs" || this.props.view === "raw-logs") &&
+                    <LogView logs={this.state.log} failed={failed} raw={this.props.view === "raw-logs"} finished={finished} />
+                }
+                { this.props.view === "results" &&
+                    <ResultView status={this.state.status} />  
+                }
             </main>
         </React.Fragment>
     }

@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -119,7 +118,6 @@ func followJob(client v1.WerftServiceClient, name string) error {
 		return err
 	}
 
-	logger := log.New().WriterLevel(log.InfoLevel)
 	for {
 		msg, err := logs.Recv()
 		if err != nil {
@@ -128,6 +126,8 @@ func followJob(client v1.WerftServiceClient, name string) error {
 
 		if update := msg.GetUpdate(); update != nil {
 			if update.Phase == v1.JobPhase_PHASE_DONE {
+				prettyPrint(update, jobGetTpl)
+
 				if update.Conditions.Success {
 					os.Exit(0)
 				} else {
@@ -136,7 +136,7 @@ func followJob(client v1.WerftServiceClient, name string) error {
 			}
 		}
 		if data := msg.GetSlice(); data != nil {
-			fmt.Fprintln(logger, data.GetPayload())
+			pringLogSlice(data)
 		}
 	}
 }

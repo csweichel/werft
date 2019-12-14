@@ -151,17 +151,17 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	jobYAML := req.GetJobYaml()
-	jobName := "custom"
+	jobSpecName := "custom"
 	if jobYAML == nil {
-		jobName = req.GetJobName()
-		tplpath := fmt.Sprintf(".werft/%s.yaml", jobName)
-		if jobName == "" {
+		jobSpecName = req.GetJobName()
+		tplpath := fmt.Sprintf(".werft/%s.yaml", jobSpecName)
+		if jobSpecName == "" {
 			repoCfg, err := getRepoCfg(ctx, cp)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			tplpath = repoCfg.TemplatePath(req.Metadata.Trigger)
-			jobName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
+			jobSpecName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
 		}
 		in, err := cp.Download(ctx, tplpath)
 		if err != nil {
@@ -187,7 +187,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 			srv.OnError(err)
 		}
 	}
-	name := fmt.Sprintf("%s-%s-%s.%d", md.Repository.Repo, jobName, flatname, t)
+	name := fmt.Sprintf("%s-%s-%s.%d", md.Repository.Repo, jobSpecName, flatname, t)
 
 	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML)
 	if err != nil {

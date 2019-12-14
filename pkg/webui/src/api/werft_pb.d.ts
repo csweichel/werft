@@ -444,6 +444,11 @@ export class JobStatus extends jspb.Message {
   getDetails(): string;
   setDetails(value: string): void;
 
+  clearResultsList(): void;
+  getResultsList(): Array<JobResult>;
+  setResultsList(value: Array<JobResult>): void;
+  addResults(value?: JobResult, index?: number): JobResult;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): JobStatus.AsObject;
   static toObject(includeInstance: boolean, msg: JobStatus): JobStatus.AsObject;
@@ -461,6 +466,7 @@ export namespace JobStatus {
     phase: JobPhaseMap[keyof JobPhaseMap],
     conditions?: JobConditions.AsObject,
     details: string,
+    resultsList: Array<JobResult.AsObject>,
   }
 }
 
@@ -596,6 +602,34 @@ export namespace JobConditions {
   }
 }
 
+export class JobResult extends jspb.Message {
+  getType(): string;
+  setType(value: string): void;
+
+  getPayload(): string;
+  setPayload(value: string): void;
+
+  getDescription(): string;
+  setDescription(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): JobResult.AsObject;
+  static toObject(includeInstance: boolean, msg: JobResult): JobResult.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: JobResult, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): JobResult;
+  static deserializeBinaryFromReader(message: JobResult, reader: jspb.BinaryReader): JobResult;
+}
+
+export namespace JobResult {
+  export type AsObject = {
+    type: string,
+    payload: string,
+    description: string,
+  }
+}
+
 export class LogSliceEvent extends jspb.Message {
   getName(): string;
   setName(value: string): void;
@@ -704,6 +738,7 @@ export interface LogSliceTypeMap {
   SLICE_START: 2;
   SLICE_CONTENT: 3;
   SLICE_END: 4;
+  SLICE_RESULT: 5;
 }
 
 export const LogSliceType: LogSliceTypeMap;

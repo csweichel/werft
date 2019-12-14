@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -42,6 +43,14 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		return nil, xerrors.Errorf("cannot unmarshal metadata: %w", err)
 	}
 
+	var results []*v1.JobResult
+	if c, ok := obj.Annotations[AnnotationResults]; ok {
+		err = json.Unmarshal([]byte(c), &results)
+		if err != nil {
+			return nil, xerrors.Errorf("cannot unmarshal results: %w", err)
+		}
+	}
+
 	status = &v1.JobStatus{
 		Name:     name,
 		Metadata: &md,
@@ -49,6 +58,7 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		Conditions: &v1.JobConditions{
 			Success: true,
 		},
+		Results: results,
 	}
 
 	var (

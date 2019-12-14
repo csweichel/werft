@@ -16,6 +16,9 @@ export const headerStyles = (theme: Theme) =>
             paddingTop: '0.5em',
             zIndex: 999,
         },
+        thirdBar: {
+            zIndex: 1,
+        },
         menuButton: {
             marginLeft: -theme.spacing(1),
         },
@@ -39,6 +42,7 @@ export interface HeaderProps extends WithStyles<typeof headerStyles> {
     color?: string
     actions?: React.ReactFragment
     secondary?: React.ReactFragment
+    thirdrow?: React.ReactFragment
 }
 
 interface HeaderState {}
@@ -82,6 +86,16 @@ class HeaderImpl extends React.Component<HeaderProps, HeaderState> {
                         elevation={0}
                         style={appbarStyle}
                 >{this.props.secondary}</AppBar>
+                }
+                { this.props.thirdrow && 
+                    <AppBar
+                        component="div"
+                        className={classes.thirdBar}
+                        color="primary"
+                        position="static"
+                        elevation={0}
+                        style={appbarStyle}
+                >{this.props.thirdrow}</AppBar>
                 }
             </React.Fragment>
         )

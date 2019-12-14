@@ -21,44 +21,35 @@ type logListener struct {
 
 	listener map[string]io.Closer
 	started  time.Time
-	ch       chan string
 	closed   bool
 	mu       sync.RWMutex
+
+	out  io.Reader
+	in   io.WriteCloser
+	inmu sync.Mutex
 }
 
 // Listen establishes a log listener for a job
-func listenToLogs(client kubernetes.Interface, job, namespace string) <-chan string {
+func listenToLogs(client kubernetes.Interface, job, namespace string) io.Reader {
 	ll := &logListener{
 		Clientset: client,
 		Job:       job,
 		Namespace: namespace,
 		started:   time.Now(),
-		ch:        make(chan string),
 		listener:  make(map[string]io.Closer),
 	}
+	ll.out, ll.in = io.Pipe()
 	go ll.Start()
 
-	return ll.ch
+	return ll.out
 }
 
-// Write writes to the log listeners channel
-func (ll *logListener) Write(b []byte) (n int, err error) {
-	ll.mu.RLock()
-	defer ll.mu.RUnlock()
-	if ll.closed {
-		return 0, io.EOF
-	}
-
-	ll.ch <- string(b)
-	return len(b), nil
-}
-
-func (ll *logListener) Close() {
+func (ll *logListener) Close() error {
 	ll.mu.Lock()
 	defer ll.mu.Unlock()
 
 	if ll.closed {
-		return
+		return nil
 	}
 
 	for id, stp := range ll.listener {
@@ -67,7 +58,10 @@ func (ll *logListener) Close() {
 	}
 
 	ll.closed = true
-	close(ll.ch)
+	ll.inmu.Lock()
+	defer ll.inmu.Unlock()
+
+	return ll.in.Close()
 }
 
 func (ll *logListener) Start() {
@@ -142,12 +136,14 @@ func (ll *logListener) tail(pod, container string) {
 	}
 	ll.listener[id] = logs
 
-	// forward the logs
+	// forward the logs line by line to ensure we don't mix the output of different conainer
 	go func() {
 		scanner := bufio.NewScanner(logs)
 		for scanner.Scan() {
 			line := scanner.Text()
-			ll.ch <- line
+			ll.inmu.Lock()
+			ll.in.Write([]byte(line + "\n"))
+			ll.inmu.Unlock()
 		}
 	}()
 }

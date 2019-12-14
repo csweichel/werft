@@ -64,17 +64,23 @@ var jobLogsCmd = &cobra.Command{
 				continue
 			}
 
-			slice := msg.GetSlice()
-			var tpl string
-			switch slice.Type {
-			case v1.LogSliceType_SLICE_PHASE:
-				tpl = "\033[33m\033[1m{{ .Name }}\t\033[39m{{ .Payload }}\033[0m\n"
-			case v1.LogSliceType_SLICE_CONTENT:
-				tpl = "\033[2m[{{ .Name }}]\033[0m {{ .Payload }}\n"
-			}
-			prettyPrint(msg.GetSlice(), tpl)
+			pringLogSlice(msg.GetSlice())
 		}
 	},
+}
+
+func pringLogSlice(slice *v1.LogSliceEvent) {
+	var tpl string
+	switch slice.Type {
+	case v1.LogSliceType_SLICE_PHASE:
+		tpl = "\033[33m\033[1m{{ .Name }}\t\033[39m{{ .Payload }}\033[0m\n"
+	case v1.LogSliceType_SLICE_CONTENT:
+		tpl = "\033[2m[{{ .Name }}]\033[0m {{ .Payload }}\n"
+	}
+	if tpl == "" {
+		return
+	}
+	prettyPrint(slice, tpl)
 }
 
 func init() {

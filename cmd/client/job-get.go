@@ -27,6 +27,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var jobGetTpl = `Name:	{{ .Name }}
+Phase:	{{ .Phase }}
+Success:	{{ .Conditions.Success }}
+Metadata:
+  Owner:	{{ .Metadata.Owner }}
+  Trigger:	{{ .Metadata.Trigger }}
+  Started:	{{ .Metadata.Created | toRFC3339 }}
+  Finished:	{{ .Metadata.Finished | toRFC3339 }}
+Repository:
+  Host:	{{ .Metadata.Repository.Host }}
+  Owner:	{{ .Metadata.Repository.Owner }}
+  Repo:	{{ .Metadata.Repository.Repo }}
+  Ref:	{{ .Metadata.Repository.Ref }}
+  Revision:	{{ .Metadata.Repository.Revision }}
+{{- if .Results }}
+Results:
+{{- range .Results }}
+  {{ .Type }}:	{{ .Payload }}
+	{{ .Description -}}
+{{ end -}}
+{{- end }}
+`
+
 // jobGetCmd represents the list command
 var jobGetCmd = &cobra.Command{
 	Use:   "get <name>",
@@ -45,21 +68,7 @@ var jobGetCmd = &cobra.Command{
 			return err
 		}
 
-		return prettyPrint(resp.Result, `Name:	{{ .Name }}
-Phase:	{{ .Phase }}
-Success:	{{ .Conditions.Success }}
-Metadata:
-  Owner:	{{ .Metadata.Owner }}
-  Trigger:	{{ .Metadata.Trigger }}
-  Started:	{{ .Metadata.Created | toRFC3339 }}
-  Finished:	{{ .Metadata.Finished | toRFC3339 }}
-Repository:
-  Host:	{{ .Metadata.Repository.Host }}
-  Owner:	{{ .Metadata.Repository.Owner }}
-  Repo:	{{ .Metadata.Repository.Repo }}
-  Ref:	{{ .Metadata.Repository.Ref }}
-  Revision:	{{ .Metadata.Repository.Revision }}
-`)
+		return prettyPrint(resp.Result, jobGetTpl)
 	},
 }
 

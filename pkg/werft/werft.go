@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/32leaves/werft/pkg/api/repoconfig"
@@ -82,7 +83,7 @@ func (srv *Service) Start() {
 				ctx, cancel := context.WithCancel(context.Background())
 				srv.logListener[s.Name] = cancel
 				go func() {
-					err := listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name), srv.Logs)
+					err := srv.listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name))
 					if err != nil && err != context.Canceled {
 						srv.OnError(err)
 					}
@@ -91,12 +92,13 @@ func (srv *Service) Start() {
 			srv.mu.Unlock()
 		}
 
-		if s.Phase == v1.JobPhase_PHASE_RUNNING {
-			out, err := srv.Logs.Place(context.TODO(), s.Name)
-			if err == nil {
-				fmt.Fprintln(out, "[running|PHASE] job running")
-			}
-		}
+		// TODO make sure this runs only once, e.g. by improving the status computation s.t. we pass through starting
+		// if s.Phase == v1.JobPhase_PHASE_RUNNING {
+		// 	out, err := srv.Logs.Place(context.TODO(), s.Name)
+		// 	if err == nil {
+		// 		fmt.Fprintln(out, "[running|PHASE] job running")
+		// 	}
+		// }
 
 		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
 			srv.mu.Lock()
@@ -125,16 +127,49 @@ func (srv *Service) Start() {
 	}
 }
 
-func listenToLogs(ctx context.Context, name string, inc <-chan string, dest store.Logs) error {
-	out, err := dest.Place(ctx, name)
+func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader) error {
+	out, err := srv.Logs.Place(ctx, name)
 	if err != nil {
 		return err
 	}
 
+	// we pipe the content to the log cutter to find results
+	pr, pw := io.Pipe()
+	tr := io.TeeReader(inc, pw)
+	evtchan, cerrchan := srv.Cutter.Slice(pr)
+
+	// then forward the logs we read from the executor to the log store
+	errchan := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(out, tr)
+		if err != nil && err != io.EOF {
+			errchan <- err
+		}
+		close(errchan)
+	}()
+
 	for {
 		select {
-		case l := <-inc:
-			_, err := out.Write([]byte(l + "\n"))
+		case err := <-cerrchan:
+			log.WithError(err).WithField("name", name).Warn("listening for build results failed")
+			continue
+		case evt := <-evtchan:
+			if evt.Type != v1.LogSliceType_SLICE_RESULT {
+				continue
+			}
+
+			segs := strings.Fields(evt.Payload)
+			payload, desc := segs[0], strings.Join(segs[1:], " ")
+			res := &v1.JobResult{
+				Type:        strings.TrimSpace(evt.Name),
+				Payload:     payload,
+				Description: desc,
+			}
+			err := srv.Executor.RegisterResult(name, res)
+			if err != nil {
+				log.WithError(err).WithField("name", name).WithField("res", res).Warn("cannot record job result")
+			}
+		case err := <-errchan:
 			if err != nil {
 				return xerrors.Errorf("writing logs for %s: %v", name, err)
 			}

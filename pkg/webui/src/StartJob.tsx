@@ -170,6 +170,11 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
         if (!j) {
             return
         }
+        if (!!this.state.submitted) {
+            return
+        }
+
+        this.setState({submitted: true});
 
         const repo = j.getRepo()!;
         if (!!this.state.useRef) {
@@ -195,7 +200,6 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
         req.setJobName(j.getName());
         req.setMetadata(md);
         
-        this.setState({submitted: true});
         this.props.client.startGitHubJob(req, (err, ok) => {
             this.setState({submitted: false});
             if (err) {
