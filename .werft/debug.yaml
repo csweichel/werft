@@ -12,5 +12,6 @@ pod:
         echo "[build|PHASE] building stuff"
         for i in $(seq 1 10); do echo "[foo] output $i"; done
         echo "[url|RESULT] https://github.com/32leaves/werft the github project"
-        echo "[docker|RESULT] csweichel/werft:latest"
-        echo "[docker|RESULT] csweichel/werft-utils:latest Latest release of the werft utilities"
+        echo "[url|RESULT] https://github.com/32leaves/tree/{{ .Repository.Ref }} this branch on Github"
+        echo "[docker|RESULT] csweichel/werft:{{ .Name }} this version's docker image"
+        echo "[docker|RESULT] csweichel/werft-utils:{{ .Name }} this versions utility image"

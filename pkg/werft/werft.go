@@ -222,7 +222,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	buf := bytes.NewBuffer(nil)
-	err = jobTpl.Execute(buf, metadata)
+	err = jobTpl.Execute(buf, newTemplateObj(name, &metadata))
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
@@ -283,4 +283,27 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	return status, nil
+}
+
+type templateObj struct {
+	Name        string
+	Owner       string
+	Repository  v1.Repository
+	Trigger     string
+	Annotations map[string]string
+}
+
+func newTemplateObj(name string, md *v1.JobMetadata) templateObj {
+	annotations := make(map[string]string)
+	for _, a := range md.Annotations {
+		annotations[a.Key] = a.Value
+	}
+
+	return templateObj{
+		Name:        name,
+		Owner:       md.Owner,
+		Repository:  *md.Repository,
+		Trigger:     strings.ToLower(strings.TrimPrefix(md.Trigger.String(), "TRIGGER_")),
+		Annotations: annotations,
+	}
 }
