@@ -30,22 +30,34 @@ import (
 	"github.com/32leaves/werft/pkg/reporef"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-	"google.golang.org/grpc"
 )
 
-// triggerRemoteCmd represents the triggerRemote command
-var triggerRemoteCmd = &cobra.Command{
-	Use:   "github <owner>/<repo>(:ref | @revision)",
+// runGithubCmd represents the triggerRemote command
+var runGithubCmd = &cobra.Command{
+	Use:   "github [<owner>/<repo>(:ref | @revision)]",
 	Short: "starts a job from a remore repository",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		repo, err := reporef.Parse(args[0])
-		if err != nil {
-			return err
+		flags := cmd.Parent().PersistentFlags()
+		cwd, _ := flags.GetString("cwd")
+
+		var (
+			md  *v1.JobMetadata
+			err error
+		)
+		if len(args) == 0 {
+			md, err = getLocalJobContext(cwd, v1.JobTrigger_TRIGGER_MANUAL)
+		} else {
+			repo, err := reporef.Parse(args[0])
+			if err != nil {
+				return err
+			}
+			md = &v1.JobMetadata{
+				Owner:      repo.Owner,
+				Repository: repo,
+			}
 		}
 
-		flags := cmd.Parent().PersistentFlags()
-		host, _ := flags.GetString("host")
 		triggerName, _ := flags.GetString("trigger")
 		trigger, ok := v1.JobTrigger_value[fmt.Sprintf("TRIGGER_%s", strings.ToUpper(triggerName))]
 		if !ok {
@@ -56,16 +68,12 @@ var triggerRemoteCmd = &cobra.Command{
 
 			return xerrors.Errorf("Invalid value for --trigger. Valid choices are %s", strings.Join(vs, "\n"))
 		}
+		md.Trigger = v1.JobTrigger(trigger)
 
 		username, _ := cmd.Flags().GetString("username")
 		password, _ := cmd.Flags().GetString("password")
-
 		req := &v1.StartGitHubJobRequest{
-			Metadata: &v1.JobMetadata{
-				Owner:      repo.Owner,
-				Repository: repo,
-				Trigger:    v1.JobTrigger(trigger),
-			},
+			Metadata: md,
 			Username: username,
 			Password: password,
 		}
@@ -89,14 +97,11 @@ var triggerRemoteCmd = &cobra.Command{
 			}
 		}
 
-		ctx := context.Background()
-		conn, err := grpc.Dial(host, grpc.WithInsecure())
-		if err != nil {
-			return err
-		}
-
+		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
+
+		ctx := context.Background()
 		resp, err := client.StartGitHubJob(ctx, req)
 		if err != nil {
 			return err
@@ -116,9 +121,9 @@ var triggerRemoteCmd = &cobra.Command{
 }
 
 func init() {
-	triggerCmd.AddCommand(triggerRemoteCmd)
+	runCmd.AddCommand(runGithubCmd)
 
-	triggerRemoteCmd.Flags().String("username", "", "username to use as authorization")
-	triggerRemoteCmd.Flags().String("password", "", "password to use as authorization")
-	triggerRemoteCmd.Flags().StringP("job-name", "j", "", "start a particular job (defaults to the default job of the repo)")
+	runGithubCmd.Flags().String("username", "", "username to use as authorization")
+	runGithubCmd.Flags().String("password", "", "password to use as authorization")
+	runGithubCmd.Flags().StringP("job-name", "j", "", "start a particular job (defaults to the default job of the repo)")
 }

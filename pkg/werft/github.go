@@ -3,9 +3,7 @@ package werft
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/32leaves/werft/pkg/api/repoconfig"
@@ -151,29 +149,9 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 		return
 	}
 
-	// download job podspec from GitHub
-	tplpth := repoCfg.TemplatePath(metadata.Trigger)
-	jobTplYAML, err := cp.Download(ctx, tplpth)
-	if err != nil {
-		log.WithError(err).WithField("name", flatname).Error("cannot start job")
-		return
-	}
-	jobTplRaw, err := ioutil.ReadAll(jobTplYAML)
-	if err != nil {
-		log.WithError(err).WithField("name", flatname).Error("cannot start job")
-		return
-	}
-
-	// acquire job number
-	t, err := srv.Groups.Next(flatname)
-	if err != nil {
-		srv.OnError(err)
-	}
-	jobName := filepath.Base(tplpth)
-	jobName = strings.TrimSuffix(jobName, filepath.Ext(jobName))
-	name := fmt.Sprintf("%s-%s.%d", jobName, flatname, t)
-
-	_, err = srv.RunJob(ctx, name, metadata, cp, jobTplRaw)
+	_, err = srv.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
+		Metadata: &metadata,
+	})
 	if err != nil {
 		srv.OnError(err)
 	}

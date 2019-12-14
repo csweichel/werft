@@ -23,6 +23,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,20 +35,23 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// triggerCmd represents the trigger command
-var triggerCmd = &cobra.Command{
-	Use:   "trigger",
-	Short: "Triggers the execution of a job",
+// runCmd represents the run command
+var runCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Starts the execution of a job",
 	Args:  cobra.MinimumNArgs(1),
 }
 
 func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, error) {
+	var repo v1.Repository
+
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = wd
-	revvision, err := cmd.Output()
+	revision, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
+	repo.Revision = strings.TrimSpace(string(revision))
 
 	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 	cmd.Dir = wd
@@ -55,6 +59,7 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 	if err != nil {
 		return nil, err
 	}
+	repo.Ref = strings.TrimSpace(string(ref))
 
 	cmd = exec.Command("git", "config", "--global", "user.name")
 	user, err := cmd.Output()
@@ -62,16 +67,45 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 		return nil, xerrors.Errorf("cannot get gloval git user: %w", err)
 	}
 
+	cmd = exec.Command("git", "config", "--get", "remote.origin.url")
+	origin, err := cmd.Output()
+	if err == nil {
+		err = configureRepoFromOrigin(&repo, strings.TrimSpace(string(origin)))
+		if err != nil {
+			log.WithError(err).Debug("cannot parse local context")
+		}
+	}
+	if repo.Owner == "" {
+		repo.Host = "local"
+		repo.Owner = "local"
+		repo.Repo = filepath.Base(wd)
+	}
+
 	return &v1.JobMetadata{
-		Owner: strings.TrimSpace(string(user)),
-		Repository: &v1.Repository{
-			Owner:    "local",
-			Repo:     filepath.Base(wd),
-			Revision: string(revvision),
-			Ref:      strings.TrimSpace(string(ref)),
-		},
-		Trigger: trigger,
+		Owner:      strings.TrimSpace(string(user)),
+		Repository: &repo,
+		Trigger:    trigger,
 	}, nil
+}
+
+// configureRepoFromOrigin is very much geared towards GitHub origins in the form of:
+//     https://github.com/32leaves/werft.git
+// It might work on others, but that's neither tested nor intended.
+func configureRepoFromOrigin(repo *v1.Repository, origin string) error {
+	ourl, err := url.Parse(strings.TrimSpace(string(origin)))
+	if err != nil {
+		return err
+	}
+
+	repo.Host = ourl.Host
+
+	segs := strings.Split(strings.Trim(ourl.Path, "/"), "/")
+	if len(segs) >= 2 {
+		repo.Owner = segs[0]
+		repo.Repo = strings.TrimSuffix(segs[1], ".git")
+	}
+
+	return nil
 }
 
 func followJob(client v1.WerftServiceClient, name string) error {
@@ -105,15 +139,13 @@ func followJob(client v1.WerftServiceClient, name string) error {
 			fmt.Fprintln(logger, data.GetPayload())
 		}
 	}
-	return nil
 }
 
 func init() {
-	rootCmd.AddCommand(triggerCmd)
+	rootCmd.AddCommand(runCmd)
 
-	triggerCmd.PersistentFlags().String("host", "localhost:7777", "werft host to talk to")
-	triggerCmd.PersistentFlags().String("job-file", "", "location of the job file (defaults to the default job in the werft config)")
-	triggerCmd.PersistentFlags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
-	triggerCmd.PersistentFlags().String("trigger", "manual", "job trigger. One of push, manual")
-	triggerCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")
+	runCmd.PersistentFlags().String("job-file", "", "location of the job file (defaults to the default job in the werft config)")
+	runCmd.PersistentFlags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
+	runCmd.PersistentFlags().String("trigger", "manual", "job trigger. One of push, manual")
+	runCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")
 }

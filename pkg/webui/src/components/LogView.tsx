@@ -1,6 +1,6 @@
 import * as React from "react";
 import { LogSliceEvent, LogSliceType } from "../api/werft_pb";
-import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary, Typography, Step, StepLabel, Stepper, Snackbar, SnackbarContent, Switch, Grid, FormControlLabel } from "@material-ui/core";
+import { Theme, createStyles, WithStyles, ExpansionPanel, ExpansionPanelDetails, ExpansionPanelSummary, Typography, Step, StepLabel, Stepper, Switch, Grid, FormControlLabel } from "@material-ui/core";
 import { withStyles } from "@material-ui/styles";
 import { StickyScroll } from "./StickyScroll";
 

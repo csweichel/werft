@@ -81,7 +81,7 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 		job.Name,
 		serializedJob,
 		job.Metadata.Owner,
-		strings.ToLower(job.Phase.String()),
+		strings.ToLower(strings.TrimPrefix(job.Phase.String(), "PHASE_")),
 		job.Metadata.Repository.Owner,
 		job.Metadata.Repository.Repo,
 		job.Metadata.Repository.Host,

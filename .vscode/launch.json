@@ -30,6 +30,22 @@
                 "--debug-webui-proxy=http://localhost:3000",
                 "testdata/example-config.json"
             ]
+        },
+        {
+            "name": "Debug Job Log",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/client.go",
+            "env": {
+                "CGO_ENABLED": "0"
+            },
+            "buildFlags": "-tags client",
+            "args": [
+                "job",
+                "logs",
+                "werft-build-job-test-branches.1"
+            ]
         }
     ]
 }

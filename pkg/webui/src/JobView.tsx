@@ -5,7 +5,7 @@ import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Switch, FormControlLabel } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
@@ -155,8 +155,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 </Grid>
             </Toolbar>
         }
-        const runningPhases: number[] = [JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING];
-
+        
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>

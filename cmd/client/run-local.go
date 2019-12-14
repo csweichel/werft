@@ -36,17 +36,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 )
 
-// triggerLocalCmd represents the triggerLocal command
-var triggerLocalCmd = &cobra.Command{
+// runLocalCmd represents the triggerLocal command
+var runLocalCmd = &cobra.Command{
 	Use:   "local",
 	Short: "starts a job from a local directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flags := cmd.Parent().PersistentFlags()
-		host, _ := flags.GetString("host")
 		workingdir, _ := cmd.Flags().GetString("cwd")
 		triggerName, _ := flags.GetString("trigger")
 		trigger, ok := v1.JobTrigger_value[fmt.Sprintf("TRIGGER_%s", strings.ToUpper(triggerName))]
@@ -85,13 +83,11 @@ var triggerLocalCmd = &cobra.Command{
 			return xerrors.Errorf("cannot read job file: %w", err)
 		}
 
-		ctx := context.Background()
-		conn, err := grpc.Dial(host, grpc.WithInsecure())
-		if err != nil {
-			return xerrors.Errorf("cannot dial werft host: %w", err)
-		}
+		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
+
+		ctx := context.Background()
 		srv, err := client.StartLocalJob(ctx)
 		if err != nil {
 			return xerrors.Errorf("cannot start job: %w", err)
@@ -195,8 +191,8 @@ var triggerLocalCmd = &cobra.Command{
 }
 
 func init() {
-	triggerCmd.AddCommand(triggerLocalCmd)
+	runCmd.AddCommand(runLocalCmd)
 
 	wd, _ := os.Getwd()
-	triggerLocalCmd.Flags().String("cwd", wd, "working directory")
+	runLocalCmd.Flags().String("cwd", wd, "working directory")
 }

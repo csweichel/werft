@@ -47,11 +47,13 @@ func (fs *FileLogStore) init() error {
 	}
 
 	for _, l := range logs {
-		fs.files[strings.TrimSuffix(l.Name(), ".log")] = &file{
+		f := &file{
 			closed: true,
 			fn:     l.Name(),
 			cond:   sync.NewCond(&sync.Mutex{}),
 		}
+		f.Close()
+		fs.files[strings.TrimSuffix(l.Name(), ".log")] = f
 	}
 
 	return nil

@@ -26,9 +26,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 )
 
-var verbose bool
+var (
+	verbose bool
+	host    string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -57,4 +61,14 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "en/disable verbose logging")
+	rootCmd.PersistentFlags().StringVar(&host, "host", "localhost:7777", "werft host to talk to")
+}
+
+func dial() *grpc.ClientConn {
+	conn, err := grpc.Dial(host, grpc.WithInsecure())
+	if err != nil {
+		log.WithError(err).Fatal("cannot connect to werft server")
+	}
+
+	return conn
 }

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -160,6 +161,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			tplpath = repoCfg.TemplatePath(req.Metadata.Trigger)
+			jobName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
 		}
 		in, err := cp.Download(ctx, tplpath)
 		if err != nil {
@@ -172,7 +174,20 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		}
 	}
 
-	name := fmt.Sprintf("%s-%s", jobName, moniker.New().NameSep("-"))
+	// acquire job number
+	flatname := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
+	t := 0
+	if flatname == "" {
+		// we did not compute a sensible flatname - use moniker
+		flatname = moniker.New().NameSep("-")
+	} else {
+		// we have a flatname but must use the number group
+		t, err = srv.Groups.Next(flatname)
+		if err != nil {
+			srv.OnError(err)
+		}
+	}
+	name := fmt.Sprintf("%s-%s-%s.%d", md.Repository.Repo, jobName, flatname, t)
 
 	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML)
 	if err != nil {
@@ -306,6 +321,7 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 				select {
 				case evt := <-evts:
 					if evt == nil {
+						log.Debug("logs finished")
 						return
 					}
 					if req.Logs == v1.ListenRequestLogs_LOGS_HTML {

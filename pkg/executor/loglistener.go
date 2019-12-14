@@ -83,13 +83,15 @@ func (ll *logListener) Start() {
 
 	for {
 		e := <-podwatch.ResultChan()
-
 		if e.Object == nil {
 			// Closed because of error
 			return
 		}
-
-		pod := e.Object.(*corev1.Pod)
+		pod, ok := e.Object.(*corev1.Pod)
+		if !ok {
+			// not a pod
+			return
+		}
 
 		switch e.Type {
 		case watch.Added, watch.Modified:
