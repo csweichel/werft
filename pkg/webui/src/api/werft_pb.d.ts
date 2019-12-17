@@ -106,11 +106,8 @@ export class StartGitHubJobRequest extends jspb.Message {
   getJobYaml_asB64(): string;
   setJobYaml(value: Uint8Array | string): void;
 
-  getUsername(): string;
-  setUsername(value: string): void;
-
-  getPassword(): string;
-  setPassword(value: string): void;
+  getToken(): string;
+  setToken(value: string): void;
 
   getJobCase(): StartGitHubJobRequest.JobCase;
   serializeBinary(): Uint8Array;
@@ -128,8 +125,7 @@ export namespace StartGitHubJobRequest {
     metadata?: JobMetadata.AsObject,
     jobName: string,
     jobYaml: Uint8Array | string,
-    username: string,
-    password: string,
+    token: string,
   }
 
   export enum JobCase {
@@ -737,8 +733,9 @@ export interface LogSliceTypeMap {
   SLICE_PHASE: 1;
   SLICE_START: 2;
   SLICE_CONTENT: 3;
-  SLICE_END: 4;
-  SLICE_RESULT: 5;
+  SLICE_DONE: 4;
+  SLICE_FAIL: 5;
+  SLICE_RESULT: 6;
 }
 
 export const LogSliceType: LogSliceTypeMap;

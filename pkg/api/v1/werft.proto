@@ -51,8 +51,7 @@ message StartGitHubJobRequest {
         string job_name = 2;
         bytes job_yaml = 3;
     };
-    string username = 4;
-    string password = 5;
+    string token = 4;
 }
 
 message ListJobsRequest {
@@ -206,8 +205,9 @@ enum LogSliceType {
     SLICE_PHASE = 1;
     SLICE_START = 2;
     SLICE_CONTENT = 3;
-    SLICE_END = 4;
-    SLICE_RESULT = 5;
+    SLICE_DONE = 4;
+    SLICE_FAIL = 5;
+    SLICE_RESULT = 6;
 }
 
 message StopJobRequest {

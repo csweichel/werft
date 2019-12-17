@@ -70,12 +70,10 @@ var runGithubCmd = &cobra.Command{
 		}
 		md.Trigger = v1.JobTrigger(trigger)
 
-		username, _ := cmd.Flags().GetString("username")
-		password, _ := cmd.Flags().GetString("password")
+		token, _ := cmd.Flags().GetString("token")
 		req := &v1.StartGitHubJobRequest{
 			Metadata: md,
-			Username: username,
-			Password: password,
+			Token:    token,
 		}
 
 		jobname, _ := cmd.Flags().GetString("job-name")
@@ -123,7 +121,6 @@ var runGithubCmd = &cobra.Command{
 func init() {
 	runCmd.AddCommand(runGithubCmd)
 
-	runGithubCmd.Flags().String("username", "", "username to use as authorization")
-	runGithubCmd.Flags().String("password", "", "password to use as authorization")
+	runGithubCmd.Flags().String("token", "", "Token to use for authorization against GitHub")
 	runGithubCmd.Flags().StringP("job-name", "j", "", "start a particular job (defaults to the default job of the repo)")
 }

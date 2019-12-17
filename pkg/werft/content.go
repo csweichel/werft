@@ -159,6 +159,7 @@ type GitHubContentProvider struct {
 	Repo     string
 	Revision string
 	Client   *github.Client
+	Token    string
 }
 
 // Download provides access to a single file
@@ -170,11 +171,23 @@ func (gcp *GitHubContentProvider) Download(ctx context.Context, path string) (io
 
 // InitContainer builds the container that will initialize the job content.
 func (gcp *GitHubContentProvider) InitContainer() corev1.Container {
+	cloneCmd := "git clone"
+	if gcp.Token != "" {
+		cloneCmd = "git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHTOKEN; echo password=x-oauth-basic'\""
+	}
+	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, gcp.Owner, gcp.Repo, gcp.Revision)
+
 	return corev1.Container{
 		Image: "alpine/git:latest",
+		Env: []corev1.EnvVar{
+			corev1.EnvVar{
+				Name:  "GHTOKEN",
+				Value: gcp.Token,
+			},
+		},
 		Command: []string{
 			"sh", "-c",
-			fmt.Sprintf("git clone https://github.com/%s/%s.git .; git checkout %s", gcp.Owner, gcp.Repo, gcp.Revision),
+			cloneCmd,
 		},
 		WorkingDir: "/workspace",
 	}

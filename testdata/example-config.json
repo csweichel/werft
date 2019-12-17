@@ -5,7 +5,8 @@
         "baseURL": "https://werft.com",
         "jobSpecRepos": [
             "32leaves/test-repo:werft"
-        ]
+        ],
+        "workspaceNodePathPrefix": "/mnt/disks/ssd0/builds"
     },
     "kubernetes": {
         "kubeconfig": "/Users/csweichel/.kube/config",

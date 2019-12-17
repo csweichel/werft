@@ -28,7 +28,7 @@ require (
 	github.com/technosophos/moniker v0.0.0-20180509230615-a5dbd03a2245
 	golang.org/x/lint v0.0.0-20190313153728-d0100b6bd8b3 // indirect
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
-	golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c // indirect
+	golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c
 	golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135 // indirect
 	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7
 	google.golang.org/grpc v1.25.1

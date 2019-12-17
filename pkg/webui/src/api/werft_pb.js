@@ -1152,8 +1152,7 @@ proto.v1.StartGitHubJobRequest.toObject = function(includeInstance, msg) {
     metadata: (f = msg.getMetadata()) && proto.v1.JobMetadata.toObject(includeInstance, f),
     jobName: jspb.Message.getFieldWithDefault(msg, 2, ""),
     jobYaml: msg.getJobYaml_asB64(),
-    username: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 5, "")
+    token: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -1205,11 +1204,7 @@ proto.v1.StartGitHubJobRequest.deserializeBinaryFromReader = function(msg, reade
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setUsername(value);
-      break;
-    case 5:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setPassword(value);
+      msg.setToken(value);
       break;
     default:
       reader.skipField();
@@ -1262,17 +1257,10 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
       f
     );
   }
-  f = message.getUsername();
+  f = message.getToken();
   if (f.length > 0) {
     writer.writeString(
       4,
-      f
-    );
-  }
-  f = message.getPassword();
-  if (f.length > 0) {
-    writer.writeString(
-      5,
       f
     );
   }
@@ -1401,32 +1389,17 @@ proto.v1.StartGitHubJobRequest.prototype.hasJobYaml = function() {
 
 
 /**
- * optional string username = 4;
+ * optional string token = 4;
  * @return {string}
  */
-proto.v1.StartGitHubJobRequest.prototype.getUsername = function() {
+proto.v1.StartGitHubJobRequest.prototype.getToken = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /** @param {string} value */
-proto.v1.StartGitHubJobRequest.prototype.setUsername = function(value) {
+proto.v1.StartGitHubJobRequest.prototype.setToken = function(value) {
   jspb.Message.setProto3StringField(this, 4, value);
-};
-
-
-/**
- * optional string password = 5;
- * @return {string}
- */
-proto.v1.StartGitHubJobRequest.prototype.getPassword = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
-};
-
-
-/** @param {string} value */
-proto.v1.StartGitHubJobRequest.prototype.setPassword = function(value) {
-  jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
@@ -5172,8 +5145,9 @@ proto.v1.LogSliceType = {
   SLICE_PHASE: 1,
   SLICE_START: 2,
   SLICE_CONTENT: 3,
-  SLICE_END: 4,
-  SLICE_RESULT: 5
+  SLICE_DONE: 4,
+  SLICE_FAIL: 5,
+  SLICE_RESULT: 6
 };
 
 goog.object.extend(exports, proto.v1);

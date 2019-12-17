@@ -104,7 +104,7 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 
 	return &Executor{
 		OnError:  func(err error) {},
-		OnUpdate: func(status *werftv1.JobStatus) {},
+		OnUpdate: func(pod *corev1.Pod, status *werftv1.JobStatus) {},
 
 		Config:     config,
 		Client:     kubeClient,
@@ -119,7 +119,7 @@ type Executor struct {
 
 	// OnUpdate is called when the status of a job changes.
 	// Beware: this function can be called several times with the same status.
-	OnUpdate func(status *werftv1.JobStatus)
+	OnUpdate func(pod *corev1.Pod, status *werftv1.JobStatus)
 
 	Client     kubernetes.Interface
 	Config     Config
@@ -294,7 +294,7 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 		return
 	}
 
-	js.OnUpdate(status)
+	js.OnUpdate(obj, status)
 	err = js.actOnUpdate(status, obj)
 	if err != nil {
 		js.OnError(err)

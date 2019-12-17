@@ -93,11 +93,19 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			}
 
 			switch verb {
-			case "EOF":
+			case "DONE":
 				delete(idx, name)
 				evts <- &v1.LogSliceEvent{
 					Name: name,
-					Type: v1.LogSliceType_SLICE_END,
+					Type: v1.LogSliceType_SLICE_DONE,
+				}
+				continue
+			case "FAIL":
+				delete(idx, name)
+				evts <- &v1.LogSliceEvent{
+					Name:    name,
+					Payload: payload,
+					Type:    v1.LogSliceType_SLICE_FAIL,
 				}
 				continue
 			case "RESULT":

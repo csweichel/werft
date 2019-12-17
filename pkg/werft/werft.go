@@ -22,9 +22,9 @@ import (
 	"github.com/segmentio/textio"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // Config configures the behaviour of the service
@@ -33,7 +33,7 @@ type Config struct {
 	BaseURL string `json:"baseURL,omitempty"`
 
 	// WorkspaceNodePathPrefix is the location on the node where we place the builds
-	WorkspaceNodePathPrefix string
+	WorkspaceNodePathPrefix string `json:"workspaceNodePathPrefix,omitempty"`
 
 	// Enables the webui debug proxy pointing to this address
 	DebugProxy string
@@ -74,8 +74,17 @@ func (srv *Service) Start() {
 		srv.logListener = make(map[string]context.CancelFunc)
 	}
 
-	srv.Executor.OnUpdate = func(s *v1.JobStatus) {
+	srv.Executor.OnUpdate = func(pod *corev1.Pod, s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
+
+		out, err := srv.Logs.Place(context.TODO(), s.Name)
+		if err == nil {
+			pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
+			pw.WriteString("\n")
+			k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(pod, pw)
+			pw.WriteString("\n")
+			pw.Flush()
+		}
 
 		if s.Phase == v1.JobPhase_PHASE_PREPARING {
 			srv.mu.Lock()
@@ -94,10 +103,10 @@ func (srv *Service) Start() {
 
 		// TODO make sure this runs only once, e.g. by improving the status computation s.t. we pass through starting
 		// if s.Phase == v1.JobPhase_PHASE_RUNNING {
-		// 	out, err := srv.Logs.Place(context.TODO(), s.Name)
-		// 	if err == nil {
-		// 		fmt.Fprintln(out, "[running|PHASE] job running")
-		// 	}
+		// out, err := srv.Logs.Place(context.TODO(), s.Name)
+		// if err == nil {
+		// 	fmt.Fprintln(out, "[running|PHASE] job running")
+		// }
 		// }
 
 		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
@@ -112,7 +121,7 @@ func (srv *Service) Start() {
 
 			return
 		}
-		err := srv.Jobs.Store(context.Background(), *s)
+		err = srv.Jobs.Store(context.Background(), *s)
 		if err != nil {
 			srv.OnError(xerrors.Errorf("cannot store job %s: %v", s.Name, err))
 		}
@@ -228,10 +237,14 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	var jobspec repoconfig.JobSpec
-	err = yaml.Unmarshal(buf.Bytes(), &jobspec)
+	err = yaml.NewYAMLOrJSONDecoder(bytes.NewReader(buf.Bytes()), 4096).Decode(&jobspec)
+	// err = yaml.Unmarshal(buf.Bytes(), &jobspec)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
+
+	// we have to use the Kubernetes YAML decoder to decode the podspec
+
 	podspec := jobspec.Pod
 	if podspec == nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: no podspec present", name)
@@ -266,7 +279,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	// dump podspec into logs
-	pw := textio.NewPrefixWriter(logs, "[werft] ")
+	pw := textio.NewPrefixWriter(logs, "[werft:template] ")
 	k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *podspec}, pw)
 	pw.Flush()
 

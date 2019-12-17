@@ -14,7 +14,7 @@ export const headerStyles = (theme: Theme) =>
         },
         secondaryBar: {
             paddingTop: '0.5em',
-            zIndex: 999,
+            zIndex: 2,
         },
         thirdBar: {
             zIndex: 1,
@@ -82,20 +82,10 @@ class HeaderImpl extends React.Component<HeaderProps, HeaderState> {
                         component="div"
                         className={classes.secondaryBar}
                         color="primary"
-                        position="sticky"
-                        elevation={0}
-                        style={appbarStyle}
-                >{this.props.secondary}</AppBar>
-                }
-                { this.props.thirdrow && 
-                    <AppBar
-                        component="div"
-                        className={classes.thirdBar}
-                        color="primary"
                         position="static"
                         elevation={0}
                         style={appbarStyle}
-                >{this.props.thirdrow}</AppBar>
+                >{this.props.secondary}</AppBar>
                 }
             </React.Fragment>
         )

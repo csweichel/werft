@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
+	"golang.org/x/oauth2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -133,7 +133,14 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
 func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
-	ghclient := github.NewClient(http.DefaultClient)
+	ghclient := srv.GitHub.Client
+	if req.Token != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: req.Token},
+		)
+		tc := oauth2.NewClient(ctx, ts)
+		ghclient = github.NewClient(tc)
+	}
 
 	md := req.Metadata
 	if md.Repository.Revision == "" && md.Repository.Ref != "" {
@@ -147,6 +154,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		Owner:    md.Repository.Owner,
 		Repo:     md.Repository.Repo,
 		Revision: md.Repository.Revision,
+		Token:    req.Token,
 		Client:   ghclient,
 	}
 
@@ -175,19 +183,20 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	// acquire job number
-	flatname := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
-	t := 0
-	if flatname == "" {
+	name := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
+	if name == "" {
 		// we did not compute a sensible flatname - use moniker
-		flatname = moniker.New().NameSep("-")
+		name = moniker.New().NameSep("-")
 	} else {
 		// we have a flatname but must use the number group
-		t, err = srv.Groups.Next(flatname)
+		name = fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, name)
+		t, err := srv.Groups.Next(name)
 		if err != nil {
 			srv.OnError(err)
 		}
+
+		name = fmt.Sprintf("%s.%d", name, t)
 	}
-	name := fmt.Sprintf("%s-%s-%s.%d", md.Repository.Repo, jobSpecName, flatname, t)
 
 	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML)
 	if err != nil {

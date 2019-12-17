@@ -1,4 +1,5 @@
-// +build !client
+package cmd
+
 // Copyright © 2019 Christian Weichel
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,16 +20,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
-
 import (
-	cmd "github.com/32leaves/werft/cmd/server"
-
-	_ "github.com/32leaves/werft/pkg/webui"
-	
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	cmd.Execute()
+// initCmd represents the job command
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Initializes configuration for werft",
+	Args:  cobra.ExactArgs(1),
+}
+
+func init() {
+	rootCmd.AddCommand(initCmd)
 }

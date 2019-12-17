@@ -1,4 +1,5 @@
-// +build !client
+package cmd
+
 // Copyright © 2019 Christian Weichel
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,16 +20,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
-
 import (
-	cmd "github.com/32leaves/werft/cmd/server"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
-	_ "github.com/32leaves/werft/pkg/webui"
-	
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	cmd.Execute()
+var initJobCmd = &cobra.Command{
+	Use:   "job <name>",
+	Short: "creates a job YAML file",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		fn, _ := cmd.Flags().GetString("output")
+		if fn == "" {
+			fn = filepath.Join(".werft", fmt.Sprintf("%s.yaml", name))
+		}
+
+		if _, err := os.Stat(filepath.Dir(fn)); err != nil {
+			err := os.MkdirAll(filepath.Dir(fn), 0755)
+			if err != nil {
+				return err
+			}
+		}
+
+		return ioutil.WriteFile(fn, []byte(`pod:
+  containers:
+  - name: `+name+`
+    image: alpine:latest
+    workingDir: /workspace
+    imagePullPolicy: IfNotPresent
+    command:
+    - sh 
+    - -c
+    - |
+	  echo Hello World`), 0644)
+	},
+}
+
+func init() {
+	initCmd.AddCommand(initJobCmd)
+
+	initJobCmd.Flags().StringP("output", "o", "", "output filename (defaults to .werft/jobname.yaml)")
 }

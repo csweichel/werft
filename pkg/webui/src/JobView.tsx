@@ -108,15 +108,13 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const job = this.state.status;
         const actions = <React.Fragment>
             <Grid item xs></Grid>
-            { job && job.resultsList.length > 0 && 
-                <Grid item>
-                    <Tabs onChange={() => {}} value={this.props.view}>
-                        <Tab label="Logs" value="logs" href={`/job/${this.props.jobName}`} />
-                        <Tab label="Raw Logs" value="raw-logs" href={`/job/${this.props.jobName}/raw`} />
-                        <Tab label="Results" value="results" href={`/job/${this.props.jobName}/results`} />
-                    </Tabs>
-                </Grid>
-            }
+            <Grid item>
+                <Tabs onChange={() => {}} value={this.props.view}>
+                    <Tab label="Logs" value="logs" href={`/job/${this.props.jobName}`} />
+                    <Tab label="Raw Logs" value="raw-logs" href={`/job/${this.props.jobName}/raw`} />
+                    { job && job.resultsList.length > 0 && <Tab label="Results" value="results" href={`/job/${this.props.jobName}/results`} /> }
+                </Tabs>
+            </Grid>
             <Grid item>
                 { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
                     <Tooltip title="Cancel Job">
@@ -144,7 +142,13 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
                     <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.revision}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
-                    <JobMetadataItemProps label="Finished"><Tooltip title={((job.metadata!.finished.seconds-job.metadata!.created.seconds)/60)+" minutes"}><span>{!!job.metadata!.finished ? moment.unix(job.metadata!.finished.seconds).from(moment.unix(job.metadata!.created.seconds)) : "-"}</span></Tooltip></JobMetadataItemProps>
+                    { job.metadata!.finished && <JobMetadataItemProps label="Finished">
+                        <Tooltip title={((job.metadata!.finished.seconds-job.metadata!.created.seconds)/60)+" minutes"}>
+                            <span>
+                                {moment.unix(job.metadata!.finished.seconds).from(moment.unix(job.metadata!.created.seconds))}
+                            </span>
+                        </Tooltip>
+                    </JobMetadataItemProps> }
                 </Grid>
             </Toolbar>;
         }
@@ -152,8 +156,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
+                { this.state.status && this.state.status.details }
                 { (this.props.view === "logs" || this.props.view === "raw-logs") &&
-                    <LogView logs={this.state.log} failed={failed} raw={this.props.view === "raw-logs"} finished={finished} />
+                    <LogView name={this.state.status && this.state.status.name} logs={this.state.log} failed={failed} raw={this.props.view === "raw-logs"} finished={finished} />
                 }
                 { this.props.view === "results" &&
                     <ResultView status={this.state.status} />  
