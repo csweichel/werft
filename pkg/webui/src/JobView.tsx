@@ -6,7 +6,7 @@ import './components/terminal.css';
 import { LogView } from './components/LogView';
 import { ResultView } from './components/ResultView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typography, Button } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
@@ -19,6 +19,15 @@ const styles = (theme: Theme) => createStyles({
         flex: 1,
         padding: theme.spacing(6, 4),
         background: '#eaeff1',
+    },
+    mainError: {
+        flex: 1,
+        padding: theme.spacing(6, 4),
+        background: '#39355B'
+    },
+    errorMessage: {
+        color: '#eaeff1',
+        fontWeight: 800,
     },
     button: headerStyles(theme).button,
     metadataItemLabel: {
@@ -40,6 +49,7 @@ interface JobViewState {
     status?: JobStatus.AsObject
     showDetails: boolean;
     log: LogSliceEvent[];
+    error?: any;
 }
 
 class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
@@ -54,12 +64,17 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     }
 
     async componentDidMount() {
+        window.addEventListener("keydown", returnToJobList);
+
         const req = new GetJobRequest();
         req.setName(this.props.jobName);
-        const resp = await new Promise<GetJobResponse>((resolve, reject) => this.props.client.getJob(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
-        this.setState({
-            status: resp.getResult()!.toObject()
-        });
+        try {
+            const resp = await new Promise<GetJobResponse>((resolve, reject) => this.props.client.getJob(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
+            this.setState({ status: resp.getResult()!.toObject() });
+        } catch (err) {
+            this.setState({error: err});
+            return;
+        }
 
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
@@ -81,8 +96,6 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }
         });
         evts.on('end', console.log);
-
-        window.addEventListener("keydown", returnToJobList)
     }
 
     componentWillUnmount() {
@@ -153,6 +166,17 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             </Toolbar>;
         }
         
+        if (!!this.state.error) {
+            return <main className={classes.mainError}>
+                <Grid container alignContent="center" justify="center" direction="column">
+                    <Grid item xs>
+                        <Typography variant="h1" className={classes.errorMessage}>{this.state.error.metadata.headersMap["grpc-message"][0]}</Typography>
+                        <Button variant="contained" href="/jobs">Back</Button>
+                    </Grid>
+                </Grid>
+            </main>
+        }
+
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
@@ -163,7 +187,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 { this.props.view === "results" &&
                     <ResultView status={this.state.status} />  
                 }
-            </main>
+            </main> 
         </React.Fragment>
     }
 

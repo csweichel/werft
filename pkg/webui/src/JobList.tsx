@@ -2,14 +2,14 @@ import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
 import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, OrderExpression } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, fade, InputBase, TablePagination } from '@material-ui/core';
+import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, TablePagination } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import ReactTimeago from 'react-timeago';
 import WarningIcon from '@material-ui/icons/Warning';
 import DoneIcon from '@material-ui/icons/Done';
-import SearchIcon from '@material-ui/icons/Search';
 import { ColorUnknown, ColorSuccess, ColorFailure } from './components/colors';
 import { debounce, phaseToString } from './components/util';
+import { SearchBox } from './components/SearchBox';
 
 
 const styles = (theme: Theme) => createStyles({
@@ -19,33 +19,6 @@ const styles = (theme: Theme) => createStyles({
         background: '#eaeff1',
     },
     button: headerStyles(theme).button,
-    search: {
-        position: 'relative',
-        borderRadius: theme.shape.borderRadius,
-        backgroundColor: fade(theme.palette.common.white, 0.15),
-        '&:hover': {
-            backgroundColor: fade(theme.palette.common.white, 0.25),
-        },
-        marginLeft: 0,
-        width: '100%',
-    },
-    searchIcon: {
-        width: theme.spacing(7),
-        height: '100%',
-        position: 'absolute',
-        pointerEvents: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    inputRoot: {
-        color: 'inherit',
-        width: '100%'
-    },
-    inputInput: {
-        padding: theme.spacing(1, 1, 1, 7),
-        width: '100%',
-    },
 });
 
 type JobIdx = { [key: string]: JobStatus.AsObject };
@@ -59,26 +32,26 @@ interface JobListState {
     totalJobs: number
     sortCol?: string
     sortAscending: boolean
-    search?: string
     rowsPerPage: number
     page: number
+    search: FilterExpression[]
+    initialSearchString: string | undefined;
 }
 
 class JobListImpl extends React.Component<JobListProps, JobListState> {
 
     constructor(props: JobListProps) {
-        let search: string | undefined = window.location.pathname.substring("/job/".length+1);
-        if (search.length === 0) {
-            search = undefined;
-        }
+        const initialSearch = decodeURIComponent(window.location.pathname.substring("/jobs/".length));
 
+        
         super(props);
         this.state = {
             jobs: [],
             totalJobs: 0,
             sortCol: 'created',
             sortAscending: false,
-            search,
+            initialSearchString: initialSearch,
+            search: [],
             rowsPerPage: 50,
             page: 0
         };
@@ -86,7 +59,6 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
 
     async componentDidMount() {
         try {
-            this.update({});
             this.startListening();
         } catch (err) {
             alert(err);
@@ -130,38 +102,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         const req = new ListJobsRequest();
         req.setStart((state.page) * state.rowsPerPage);
         req.setLimit(state.rowsPerPage);
-
-        let query: any = {};
-        if (state.search) {
-            query._all = state.search;
-        }
-
-        let allFilter: FilterExpression[] = [];
-        if (query._all) {
-            const terms = ['name', 'owner', 'repo.repo', 'phase'].map(f => {
-                const tt = new FilterTerm();
-                tt.setField(f);
-                tt.setOperation(FilterOp.OP_CONTAINS);
-                tt.setValue(query._all);
-                return tt;
-            });
-            const tf = new FilterExpression();
-            tf.setTermsList(terms);
-            allFilter.push(tf);
-
-            delete query["_all"];
-        }
-
-        allFilter = allFilter.concat(Object.getOwnPropertyNames(query).filter(f => !f.startsWith("_")).map(f => {
-            const tf = new FilterExpression();
-            const tt = new FilterTerm();
-            tt.setField(f);
-            tt.setOperation(FilterOp.OP_CONTAINS);
-            tt.setValue(query[f]);
-            tf.setTermsList([tt]);
-            return tf;
-        }));
-        req.setFilterList(allFilter);
+        req.setFilterList(state.search);
 
         if (!!state.sortCol) {
             const oexp = new OrderExpression();
@@ -263,30 +204,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         ]
         const rows = this.state.jobs;
 
-        const debounceSearch = debounce((search?: string) => this.update({}), 500);
         const actions = <React.Fragment>
                 <Grid item xs={2}></Grid>
                 <Grid item xs={7}>
-                    <div className={classes.search}>
-                        <div className={classes.searchIcon}>
-                            <SearchIcon />
-                        </div>
-                        <InputBase
-                            placeholder="Search…"
-                            classes={{
-                                root: classes.inputRoot,
-                                input: classes.inputInput,
-                            }}
-                            inputProps={{ 'aria-label': 'search' }}
-                            onChange={e => {
-                                const search = e.target.value;
-                                this.update({ search });
-                                debounceSearch(undefined);
-                            }}
-                            onKeyPress={e => this.handleSearchKeyPress(e as any)}
-                            value={this.state.search}
-                        />
-                    </div>
+                    <SearchBox 
+                        onUpdate={e => this.update({ search: e })} 
+                        defaultValue={[this.state.initialSearchString].filter(e => !!e).map(e => e!)} />
                 </Grid>
                 <Grid item xs></Grid>
                 <Grid item>
