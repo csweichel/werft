@@ -308,7 +308,7 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 	if req.Logs != v1.ListenRequestLogs_LOGS_DISABLED {
 		wg.Add(1)
 
-		rd, err := srv.Logs.Read(ls.Context(), req.Name)
+		rd, err := srv.Logs.Read(req.Name)
 		if err != nil {
 			if err == store.ErrNotFound {
 				return status.Error(codes.NotFound, "not found")
@@ -316,6 +316,7 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 
 			return status.Error(codes.Internal, err.Error())
 		}
+		defer rd.Close()
 
 		go func() {
 			defer wg.Done()
@@ -408,7 +409,7 @@ func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.St
 		return nil, status.Error(codes.FailedPrecondition, "job is unstoppable phase")
 	}
 
-	err = srv.Executor.Stop(req.Name)
+	err = srv.Executor.Stop(req.Name, "job was stopped manually")
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

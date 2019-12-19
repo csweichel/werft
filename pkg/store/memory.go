@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"golang.org/x/xerrors"
 )
 
 // NewInMemoryLogStore provides a new log store which stores its logs in memory
@@ -100,7 +101,7 @@ func (lr *logSessionReader) Close() error {
 }
 
 // Place writes to this store
-func (s *inMemoryLogStore) Place(ctx context.Context, id string) (io.WriteCloser, error) {
+func (s *inMemoryLogStore) Open(id string) (io.WriteCloser, error) {
 	s.mu.Lock()
 	if _, ok := s.logs[id]; ok {
 		s.mu.Unlock()
@@ -118,8 +119,12 @@ func (s *inMemoryLogStore) Place(ctx context.Context, id string) (io.WriteCloser
 	return lg, nil
 }
 
+func (s *inMemoryLogStore) Write(id string) (io.Writer, error) {
+	return nil, xerrors.Errorf("not supported")
+}
+
 // Read reads from this store
-func (s *inMemoryLogStore) Read(ctx context.Context, id string) (io.ReadCloser, error) {
+func (s *inMemoryLogStore) Read(id string) (io.ReadCloser, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

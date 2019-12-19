@@ -265,7 +265,7 @@ func (js *Executor) monitorJobs() {
 			js.OnError(xerrors.Errorf("cannot watch jobs, monitor is shutting down: %w", err))
 			continue
 		}
-		log.Debug("connected to Kubernetes master")
+		log.Info("connected to Kubernetes master")
 
 		for evt := range incoming.ResultChan() {
 			if evt.Object == nil {
@@ -425,14 +425,14 @@ func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 }
 
 // Stop stops a job
-func (js *Executor) Stop(name string) error {
+func (js *Executor) Stop(name, reason string) error {
 	pod, err := js.getJobPod(name)
 	if err != nil {
 		return err
 	}
 
 	err = js.addAnnotation(pod.Name, map[string]string{
-		AnnotationFailed: "job was stopped manually",
+		AnnotationFailed: reason,
 	})
 	if err != nil {
 		return err

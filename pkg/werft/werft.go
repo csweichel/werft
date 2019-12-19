@@ -3,6 +3,7 @@ package werft
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -25,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes/scheme"
 )
 
 // Config configures the behaviour of the service
@@ -39,6 +41,11 @@ type Config struct {
 	DebugProxy string
 }
 
+type jobLog struct {
+	CancelExecutorListener context.CancelFunc
+	LogStore               io.Closer
+}
+
 // Service ties everything together
 type Service struct {
 	Logs     store.Logs
@@ -51,8 +58,8 @@ type Service struct {
 
 	Config Config
 
-	mu          sync.Mutex
-	logListener map[string]context.CancelFunc
+	mu          sync.RWMutex
+	logListener map[string]*jobLog
 
 	events emitter.Emitter
 }
@@ -71,34 +78,23 @@ func (srv *Service) Start() {
 		}
 	}
 	if srv.logListener == nil {
-		srv.logListener = make(map[string]context.CancelFunc)
+		srv.logListener = make(map[string]*jobLog)
 	}
 
 	srv.Executor.OnUpdate = func(pod *corev1.Pod, s *v1.JobStatus) {
 		log.WithField("status", s).Info("update")
 
-		out, err := srv.Logs.Place(context.TODO(), s.Name)
+		// ensure we have logging, e.g. reestablish joblog for unknown jobs (i.e. after restart)
+		srv.ensureLogging(s)
+
+		out, err := srv.Logs.Write(s.Name)
 		if err == nil {
 			pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
-			pw.WriteString("\n")
-			k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(pod, pw)
-			pw.WriteString("\n")
+			k8syaml.NewSerializer(k8syaml.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
 			pw.Flush()
-		}
 
-		if s.Phase == v1.JobPhase_PHASE_PREPARING {
-			srv.mu.Lock()
-			if _, alreadyListening := srv.logListener[s.Name]; !alreadyListening {
-				ctx, cancel := context.WithCancel(context.Background())
-				srv.logListener[s.Name] = cancel
-				go func() {
-					err := srv.listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name))
-					if err != nil && err != context.Canceled {
-						srv.OnError(err)
-					}
-				}()
-			}
-			srv.mu.Unlock()
+			jsonStatus, _ := json.Marshal(s)
+			fmt.Fprintf(out, "[werft:status] %s\n", jsonStatus)
 		}
 
 		// TODO make sure this runs only once, e.g. by improving the status computation s.t. we pass through starting
@@ -111,11 +107,15 @@ func (srv *Service) Start() {
 
 		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
 			srv.mu.Lock()
-			if srv.logListener == nil {
-				srv.logListener = make(map[string]context.CancelFunc)
-			}
-			if stopListening, ok := srv.logListener[s.Name]; ok {
-				stopListening()
+			if jl, ok := srv.logListener[s.Name]; ok {
+				if jl.CancelExecutorListener != nil {
+					jl.CancelExecutorListener()
+				}
+				if jl.LogStore != nil {
+					jl.LogStore.Close()
+				}
+
+				delete(srv.logListener, s.Name)
 			}
 			srv.mu.Unlock()
 
@@ -136,8 +136,66 @@ func (srv *Service) Start() {
 	}
 }
 
+func (srv *Service) ensureLogging(s *v1.JobStatus) {
+	if s.Phase > v1.JobPhase_PHASE_DONE {
+		return
+	}
+
+	allOk := func() bool {
+		jl, ok := srv.logListener[s.Name]
+		if !ok {
+			return false
+		}
+		if jl.CancelExecutorListener == nil {
+			return false
+		}
+
+		return true
+	}
+
+	srv.mu.RLock()
+	if allOk() {
+		srv.mu.RUnlock()
+		return
+	}
+	srv.mu.RUnlock()
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if allOk() {
+		return
+	}
+
+	jl, ok := srv.logListener[s.Name]
+
+	// make sure we have logging in place in general
+	if !ok {
+		logs, err := srv.Logs.Open(s.Name)
+		if err != nil {
+			log.WithError(err).WithField("name", s.Name).Error("cannot (re-)establish logs for this job")
+			return
+		}
+
+		jl = &jobLog{LogStore: logs}
+		srv.logListener[s.Name] = jl
+	}
+
+	// if we should be listening to the executor log, make sure we are
+	if jl.CancelExecutorListener == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		jl.CancelExecutorListener = cancel
+		go func() {
+			err := srv.listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name))
+			if err != nil && err != context.Canceled {
+				srv.OnError(err)
+				jl.CancelExecutorListener = nil
+			}
+		}()
+	}
+}
+
 func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader) error {
-	out, err := srv.Logs.Place(ctx, name)
+	out, err := srv.Logs.Write(name)
 	if err != nil {
 		return err
 	}
@@ -180,6 +238,7 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 			}
 		case err := <-errchan:
 			if err != nil {
+				srv.Executor.Stop(name, fmt.Sprintf("log infrastructure failure: %s", err.Error()))
 				return xerrors.Errorf("writing logs for %s: %v", name, err)
 			}
 		case <-ctx.Done():
@@ -213,16 +272,16 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 		srv.Jobs.Store(context.Background(), s)
 		<-srv.events.Emit("job", &s)
-
-		if logs != nil {
-			logs.Close()
-		}
 	}(&err)
 
-	logs, err = srv.Logs.Place(context.TODO(), name)
+	logs, err = srv.Logs.Open(name)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
 	}
+	srv.mu.Lock()
+	srv.logListener[name] = &jobLog{LogStore: logs}
+	srv.mu.Unlock()
+
 	fmt.Fprintln(logs, "[preparing|PHASE] job preparation")
 
 	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobYAML))

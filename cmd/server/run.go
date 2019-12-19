@@ -37,6 +37,7 @@ import (
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
+	"github.com/32leaves/werft/pkg/store/postgres"
 	"github.com/32leaves/werft/pkg/werft"
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/bradleyfalzon/ghinstallation"
@@ -106,11 +107,16 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		jobStore, err := store.NewSQLJobStore(db)
+		log.Info("making sure database schema is up to date")
+		err = postgres.Migrate(db)
 		if err != nil {
 			return err
 		}
-		nrGroups, err := store.NewSQLNumberGroup(db)
+		jobStore, err := postgres.NewJobStore(db)
+		if err != nil {
+			return err
+		}
+		nrGroups, err := postgres.NewNumberGroup(db)
 		if err != nil {
 			return err
 		}
@@ -145,8 +151,8 @@ var runCmd = &cobra.Command{
 		grpcServer := grpc.NewServer()
 		v1.RegisterWerftServiceServer(grpcServer, service)
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
-		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
-		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Service.DebugProxy)
+		go startGRPC(grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.GRPCPort))
+		go startWeb(service, grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.WebPort), cfg.Service.DebugProxy)
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

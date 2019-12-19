@@ -18,15 +18,20 @@ var (
 
 // Logs provides access to the logstore
 type Logs interface {
-	// Places a logfile in this store.
-	// This function does not return until the reader returns EOF.
-	Place(ctx context.Context, id string) (io.WriteCloser, error)
+	// Open places a logfile in this store.
+	// The caller is expected to close this writer when the task is complete.
+	// If the logfile is already open we'll return an error.
+	Open(id string) (io.WriteCloser, error)
+
+	// Write writes to a previously placed logfile.
+	// If the logfile is unknown, we'll return an error.
+	Write(id string) (io.Writer, error)
 
 	// Read retrieves a log file from this store.
 	// Returns ErrNotFound if the log file isn't found.
 	// Callers are supposed to close the reader once done.
 	// Reading from logs currently being written is supported.
-	Read(ctx context.Context, id string) (io.ReadCloser, error)
+	Read(id string) (io.ReadCloser, error)
 }
 
 // Jobs provides access to past jobs

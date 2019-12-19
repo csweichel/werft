@@ -1,13 +1,10 @@
 package store
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 )
 
@@ -32,59 +29,75 @@ func NewFileLogStore(base string) (*FileLogStore, error) {
 		Base:  base,
 		files: make(map[string]*file),
 	}
-	err := f.init()
-	if err != nil {
-		return nil, err
-	}
 
 	return f, nil
 }
 
-func (fs *FileLogStore) init() error {
-	logs, err := ioutil.ReadDir(fs.Base)
-	if err != nil {
-		return err
-	}
-
-	for _, l := range logs {
-		f := &file{
-			closed: true,
-			fn:     l.Name(),
-			cond:   sync.NewCond(&sync.Mutex{}),
-		}
-		f.Close()
-		fs.files[strings.TrimSuffix(l.Name(), ".log")] = f
-	}
-
-	return nil
-}
-
-// Place places a logfile in this store.
-func (fs *FileLogStore) Place(ctx context.Context, id string) (io.WriteCloser, error) {
+// Open places a logfile in this store and opens it for writing.
+func (fs *FileLogStore) Open(id string) (io.WriteCloser, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
 	if f, exists := fs.files[id]; exists {
+		if f.Closed() {
+			err := f.openForWriting(fs.Base)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		return f, nil
 	}
 
 	fn := fmt.Sprintf("%s.log", id)
-	fp, err := os.OpenFile(filepath.Join(fs.Base, fn), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f := &file{
+		closed: true,
+		fn:     fn,
+		fp:     nil,
+		cond:   sync.NewCond(&sync.Mutex{}),
+	}
+	err := f.openForWriting(fs.Base)
 	if err != nil {
 		return nil, err
-	}
-	f := &file{
-		fn:   fn,
-		fp:   fp,
-		cond: sync.NewCond(&sync.Mutex{}),
 	}
 	fs.files[id] = f
 	return f, nil
 }
 
+// Write provides write access to a previously placed file
+func (fs *FileLogStore) Write(id string) (io.Writer, error) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	f, exists := fs.files[id]
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	return f, nil
+}
+
+func (f *file) openForWriting(base string) error {
+	f.cond.L.Lock()
+	defer f.cond.L.Unlock()
+
+	fp, err := os.OpenFile(filepath.Join(base, f.fn), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	f.fp = fp
+	f.closed = false
+
+	return nil
+}
+
 func (f *file) Write(b []byte) (n int, err error) {
 	f.cond.L.Lock()
 	defer f.cond.L.Unlock()
+
+	if f.closed {
+		return 0, io.ErrClosedPipe
+	}
 
 	n, err = f.fp.Write(b)
 	if n > 0 {
@@ -119,13 +132,24 @@ func (f *file) Closed() bool {
 }
 
 // Read retrieves a log file from this store.
-func (fs *FileLogStore) Read(ctx context.Context, id string) (io.ReadCloser, error) {
+func (fs *FileLogStore) Read(id string) (io.ReadCloser, error) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
 	f, ok := fs.files[id]
 	if !ok {
-		return nil, ErrNotFound
+		fn := fmt.Sprintf("%s.log", id)
+		if _, err := os.Stat(filepath.Join(fs.Base, fn)); err != nil {
+			return nil, ErrNotFound
+		}
+
+		f = &file{
+			closed: true,
+			fn:     fn,
+			fp:     nil,
+			cond:   sync.NewCond(&sync.Mutex{}),
+		}
+		fs.files[id] = f
 	}
 
 	fp, err := os.OpenFile(filepath.Join(fs.Base, f.fn), os.O_RDONLY, 0644)
@@ -149,8 +173,7 @@ func (fr *fileReader) Read(p []byte) (n int, err error) {
 
 	// we're done reading the file for now
 	// check if we're actually done
-	if fr.f.Closed() {
-		err = io.EOF
+	if err == io.EOF && fr.f.Closed() {
 		return
 	}
 

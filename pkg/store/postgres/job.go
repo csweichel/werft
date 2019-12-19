@@ -1,4 +1,4 @@
-package store
+package postgres
 
 import (
 	"context"
@@ -7,52 +7,28 @@ import (
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/store"
 	"github.com/gogo/protobuf/jsonpb"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 )
 
 var jobSchema = `
-CREATE TABLE IF NOT EXISTS job_status (
-	id SERIAL PRIMARY KEY,
-	name varchar(255) NOT NULL UNIQUE,
-	data text NOT NULL,
-	owner varchar(255) NULL,
-	phase VARCHAR(255) NOT NULL,
-	repo_owner varchar(255) NULL,
-	repo_repo varchar(255) NULL,
-	repo_host varchar(255) NULL,
-	repo_ref varchar(255) NULL,
-	trigger_src varchar(255) NULL,
-	success int not null,
-	created int not null
-);
 
-CREATE TABLE IF NOT EXISTS annotations (
-	job_id INT NOT NULL,
-	name varchar(255) NOT NULL,
-	value text NULL,
-	CONSTRAINT job_annotation UNIQUE(job_id, name)
-);
 `
 
-// SQLJobStore stores jobs in a Postgres database
-type SQLJobStore struct {
+// JobStore stores jobs in a Postgres database
+type JobStore struct {
 	DB *sql.DB
 }
 
-// NewSQLJobStore creates a new SQL job store
-func NewSQLJobStore(db *sql.DB) (*SQLJobStore, error) {
-	_, err := db.Exec(jobSchema)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SQLJobStore{DB: db}, nil
+// NewJobStore creates a new SQL job store
+func NewJobStore(db *sql.DB) (*JobStore, error) {
+	return &JobStore{DB: db}, nil
 }
 
 // Store stores job information in the store.
-func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
+func (s *JobStore) Store(ctx context.Context, job v1.JobStatus) error {
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
 	}
@@ -117,11 +93,11 @@ func (s *SQLJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 }
 
 // Get retrieves a particular job bassd on its name.
-func (s *SQLJobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) {
+func (s *JobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) {
 	var data string
 	err := s.DB.QueryRow("SELECT data FROM job_status WHERE name = $1", name).Scan(&data)
 	if err == sql.ErrNoRows {
-		return nil, ErrNotFound
+		return nil, store.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -137,7 +113,7 @@ func (s *SQLJobStore) Get(ctx context.Context, name string) (*v1.JobStatus, erro
 }
 
 // Find searches for jobs based on their annotations. If filter is empty no filter is applied.
-func (s *SQLJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
+func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
 	fieldMap := map[string]string{
 		"name":       "name",
 		"owner":      "owner",

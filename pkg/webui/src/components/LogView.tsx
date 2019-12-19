@@ -126,12 +126,6 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
     }
 
     renderRaw() {
-        let rawLog = this.props.logs.map(c => c.getPayload());
-        if (!this.state.showKubeUpdates) {
-            rawLog = this.props.logs.filter(c => !c.getPayload().trim().startsWith("[werft:kubernetes]")).map(c => c.getPayload());
-        }
-        const rawContent = rawLog.join("");
-
         return <React.Fragment>
             <Grid container>
                 <Grid item>
@@ -151,7 +145,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                 </Grid>
             </Grid>
             <StickyScroll>
-                <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: rawContent}} />
+                <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: this.getRawLogs()}} />
             </StickyScroll>
         </React.Fragment>
     }
@@ -213,12 +207,17 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         </React.Fragment>
     }
 
-    protected downloadRawLogs() {
-        const rawLog = this.props.logs.map(c => c.getPayload());
-        const rawContent = rawLog.join("")
+    protected getRawLogs() {
+        let rawLog = this.props.logs.map(c => c.getPayload());
+        if (!this.state.showKubeUpdates) {
+            rawLog = this.props.logs.filter(c => !c.getPayload().trim().startsWith("[werft:kubernetes]")).map(c => c.getPayload());
+        }
+        return rawLog.join("");
+    }
 
+    protected downloadRawLogs() {
         var element = document.createElement('a');
-        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(rawContent));
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(this.getRawLogs()));
         element.setAttribute('download', (this.props.name || "werft-logs") + ".txt");
         element.style.display = 'none';
         document.body.appendChild(element);
