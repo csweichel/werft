@@ -8,7 +8,7 @@ import ReactTimeago from 'react-timeago';
 import WarningIcon from '@material-ui/icons/Warning';
 import DoneIcon from '@material-ui/icons/Done';
 import { ColorUnknown, ColorSuccess, ColorFailure } from './components/colors';
-import { debounce, phaseToString } from './components/util';
+import { phaseToString } from './components/util';
 import { SearchBox } from './components/SearchBox';
 
 

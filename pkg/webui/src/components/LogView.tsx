@@ -5,6 +5,7 @@ import { withStyles } from "@material-ui/styles";
 import { StickyScroll } from "./StickyScroll";
 import DoneIcon from "@material-ui/icons/Done";
 import ErrorIcon from "@material-ui/icons/Error";
+import { ColorFailure } from './colors';
 
 export const styles = (theme: Theme) =>
     createStyles({
@@ -167,8 +168,8 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
             { chunks.map((kv, i) => {
                 const chunk = kv[1];
                 if (isContent(chunk) && !chunk.name.startsWith("werft:")) { return (
-                    <ExpansionPanel key={kv[0]} /*defaultExpanded={i===chunks.length - 1}*/>
-                        <ExpansionPanelSummary className={classes.sectionHeader}>
+                    <ExpansionPanel key={kv[0]} defaultExpanded={chunk.status === "failed"}>
+                        <ExpansionPanelSummary className={classes.sectionHeader} style={chunk.status === "failed" ? { color: ColorFailure} : {}}>
                             { chunk.status === "done" && <DoneIcon /> }
                             { chunk.status === "failed" && <ErrorIcon /> }
                             { chunk.status === "running" && !this.props.finished && <CircularProgress style={{width:'24px', height:'24px'}} /> }

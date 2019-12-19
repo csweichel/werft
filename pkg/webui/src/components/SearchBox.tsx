@@ -110,13 +110,16 @@ class SearchBoxImpl extends React.Component<SearchBoxProps, SearchBoxState> {
                 expr.setTermsList([ tf ]);
                 return { expr: expr };
             }
-            if (chp.includes(" ")) {
-                const segs = chp.split(" ");
-                if (segs.length !== 3) {
-                    return { error: "invalid syntex" };
+
+            const includedOp = Object.getOwnPropertyNames(operations).find(op => chp.includes(op));
+            if (!!includedOp) {
+                const [l, r] = chp.split(includedOp);
+                let [ field, op, val ] = [ l.trim(), includedOp, r.trim() ];
+
+                if (field === "ref" || field === "branch") {
+                    field = "repo.ref";
                 }
 
-                const [ field, op, val ] = segs;
                 if (!validFields.includes(field)) {
                     return { error: "unknown field" }
                 }

@@ -70,6 +70,10 @@ var jobLogsCmd = &cobra.Command{
 }
 
 func pringLogSlice(slice *v1.LogSliceEvent) {
+	if slice.Name == "werft:kubernetes" || slice.Name == "werft:status" {
+		return
+	}
+
 	var tpl string
 	switch slice.Type {
 	case v1.LogSliceType_SLICE_PHASE:
