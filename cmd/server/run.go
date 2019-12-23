@@ -177,7 +177,20 @@ func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugPro
 		log.WithField("target", tgt).Debug("proxying to webui server")
 		webuiServer = httputil.NewSingleHostReverseProxy(tgt)
 	} else {
-		webuiServer = http.FileServer(rice.MustFindBox("../../pkg/webui/build").HTTPBox())
+		// WebUI is a single-page app, hence any path that does not resolve to a static file must result in /index.html.
+		// As a (rather crude) fix we intercept the response writer to find out if the FileServer returned an error. If so
+		// we return /index.html instead.
+		dws := http.FileServer(rice.MustFindBox("../../pkg/webui/build").HTTPBox())
+		webuiServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			dws.ServeHTTP(&interceptResponseWriter{
+				ResponseWriter: w,
+				errH: func(rw http.ResponseWriter, code int) {
+					r.URL.Path = "/"
+					rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+					dws.ServeHTTP(rw, r)
+				},
+			}, r)
+		})
 	}
 
 	grpcWebServer := grpcweb.WrapServer(grpcServer)
@@ -229,6 +242,27 @@ func grpcTrafficSplitter(fallback http.Handler, wrappedGrpc *grpcweb.WrappedGrpc
 			fallback.ServeHTTP(resp, req)
 		}
 	})
+}
+
+type interceptResponseWriter struct {
+	http.ResponseWriter
+	errH func(http.ResponseWriter, int)
+}
+
+func (w *interceptResponseWriter) WriteHeader(status int) {
+	if status >= http.StatusBadRequest {
+		w.errH(w.ResponseWriter, status)
+		w.errH = nil
+	} else {
+		w.ResponseWriter.WriteHeader(status)
+	}
+}
+
+func (w *interceptResponseWriter) Write(p []byte) (n int, err error) {
+	if w.errH == nil {
+		return len(p), nil
+	}
+	return w.ResponseWriter.Write(p)
 }
 
 func init() {

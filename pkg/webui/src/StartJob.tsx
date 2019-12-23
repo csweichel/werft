@@ -100,7 +100,11 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
                             const repo = s.toObject().repo!;
                             return (
 
-                            <ListItem key={i} button component="a" onClick={() => this.setState({active: s, targetRefRev: s.getRepo()!.getRevision()})}>
+                            <ListItem key={i} button component="a" onClick={() => this.setState({
+                                active: s, 
+                                useRef: !!s.getRepo()!.getRef(), 
+                                targetRefRev: s.getRepo()!.getRef() || s.getRepo()!.getRevision()
+                            })}>
                                 { this.state.active === s && <ListItemIcon><CheckIcon /></ListItemIcon> }
                                 <ListItemText primary={s.getName()} secondary={`${repo.owner}/${repo.repo}`} />
                             </ListItem>
@@ -111,7 +115,7 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
                             <Typography variant="h5">Arguments</Typography>
                             <List>
                                 <ListItem>
-                                    <Switch onChange={e => this.setState({useRef: e.target.checked})} />
+                                    <Switch defaultChecked={this.state.useRef} onChange={e => this.setState({useRef: e.target.checked})} />
                                     <TextField 
                                         className={classes.arg} 
                                         label={this.state.useRef ? "Ref" : "Revision"}

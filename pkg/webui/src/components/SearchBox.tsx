@@ -60,7 +60,6 @@ class SearchBoxImpl extends React.Component<SearchBoxProps, SearchBoxState> {
         console.log(this.props.defaultValue);
 
         if (!!this.props.defaultValue) {
-            debugger;
             this.updateChips(this.props.defaultValue);
         }
     }

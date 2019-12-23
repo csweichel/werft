@@ -31,7 +31,7 @@ func TestDefaultCutterSlice(t *testing.T) {
 				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_START},
 				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "Some other process"},
 				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "More output"},
-				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_END},
+				v1.LogSliceEvent{Name: "foobar", Type: v1.LogSliceType_SLICE_DONE},
 				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_CONTENT, Payload: "Cool beans"},
 				v1.LogSliceEvent{Name: "otherproc", Type: v1.LogSliceType_SLICE_ABANDONED},
 			},
