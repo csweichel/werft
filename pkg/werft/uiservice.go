@@ -113,6 +113,7 @@ func (uis *UIService) updateJobSpecs() error {
 					Host:     "github.com",
 					Owner:    repo.Owner,
 					Repo:     repo.Repo,
+					Ref:      repo.Ref,
 					Revision: repo.Revision,
 				},
 				Name:        jobName,

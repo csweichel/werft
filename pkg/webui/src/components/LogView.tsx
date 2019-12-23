@@ -49,7 +49,7 @@ interface Content {
     type: "content"
     name: string
     lines: string[]
-    status: "running" | "done" | "failed"
+    status: "running" | "done" | "failed" | "unknown"
 }
 
 function isContent(c: Chunk): c is Content {
@@ -73,7 +73,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         this.state = {
             chunks: new Map<string, Chunk>(),
             autoscroll: true,
-            showKubeUpdates: true,
+            showKubeUpdates: false,
         }
 
         this.updateChunks();
@@ -116,12 +116,21 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                 content.lines.push(le.getPayload());
                 chunks.set(id, content);
             } else if (le.getType() === LogSliceType.SLICE_PHASE) {
-                chunks.set("phase:"+le.getName(), {
+                const id = "phase:"+le.getName();
+                if (chunks.has(id)) {
+                    return;
+                }
+
+                chunks.set(id, {
                     type: "phase",
                     desc: le.getPayload(),
                     name: le.getName()
                 })
                 phase = le.getName();
+
+                Array.from(chunks.entries())
+                    .filter(([id, chunk]) => !id.startsWith(phase) && isContent(chunk) && chunk.status === "running")
+                    .forEach(([id, chunk]) => { console.log("ending", phase, id, chunk); (chunk as Content).status = "unknown"; chunks.set(id, chunk); })
             }
         });
     }
@@ -173,7 +182,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                             { chunk.status === "done" && <DoneIcon /> }
                             { chunk.status === "failed" && <ErrorIcon /> }
                             { chunk.status === "running" && !this.props.finished && <CircularProgress style={{width:'24px', height:'24px'}} /> }
-                            { chunk.status === "running" && this.props.finished && <DoneIcon style={{opacity:0.25}} /> }
+                            { ((chunk.status === "running" && this.props.finished) || chunk.status === "unknown") && <DoneIcon style={{opacity:0.25}} /> }
                             <span className={classes.sectionTitle}>{ chunk.name }</span>
                             <span dangerouslySetInnerHTML={{__html: chunk.lines[chunk.lines.length - 1]}}></span>
                         </ExpansionPanelSummary>
@@ -211,7 +220,10 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
     protected getRawLogs() {
         let rawLog = this.props.logs.map(c => c.getPayload());
         if (!this.state.showKubeUpdates) {
-            rawLog = this.props.logs.filter(c => !c.getPayload().trim().startsWith("[werft:kubernetes]")).map(c => c.getPayload());
+            rawLog = this.props.logs.filter(c => 
+                !c.getPayload().trim().startsWith("[werft:kubernetes]")
+                && !c.getPayload().trim().startsWith("[werft:status]")
+            ).map(c => c.getPayload());
         }
         return rawLog.join("");
     }
