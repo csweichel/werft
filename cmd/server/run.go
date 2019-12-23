@@ -69,6 +69,29 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
+		log.Info("connecting to database")
+		db, err := sql.Open("postgres", cfg.Storage.JobStore)
+		if err != nil {
+			return err
+		}
+		err = db.Ping()
+		if err != nil {
+			return err
+		}
+		log.Info("making sure database schema is up to date")
+		err = postgres.Migrate(db)
+		if err != nil {
+			return err
+		}
+		jobStore, err := postgres.NewJobStore(db)
+		if err != nil {
+			return err
+		}
+		nrGroups, err := postgres.NewNumberGroup(db)
+		if err != nil {
+			return err
+		}
+
 		var kubeConfig *rest.Config
 		if cfg.Kubernetes.Kubeconfig == "" {
 			kubeConfig, err = rest.InClusterConfig()
@@ -98,28 +121,6 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		log.Info("connecting to database")
-		db, err := sql.Open("postgres", cfg.Storage.JobStore)
-		if err != nil {
-			return err
-		}
-		err = db.Ping()
-		if err != nil {
-			return err
-		}
-		log.Info("making sure database schema is up to date")
-		err = postgres.Migrate(db)
-		if err != nil {
-			return err
-		}
-		jobStore, err := postgres.NewJobStore(db)
-		if err != nil {
-			return err
-		}
-		nrGroups, err := postgres.NewNumberGroup(db)
-		if err != nil {
-			return err
-		}
 		uiservice, err := werft.NewUIService(ghClient, cfg.Service.JobSpecRepos)
 		if err != nil {
 			return err

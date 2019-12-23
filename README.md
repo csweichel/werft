@@ -1,6 +1,6 @@
 [![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/32leaves/werft) 
 
-<center><img src="logo.png"></center>
+<center><img src="logo.png" width="200px"></center>
 
 ## Attribution
 
