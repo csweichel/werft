@@ -1,0 +1,26 @@
+{
+    "service": {
+        "webPort": 8080,
+        "grpcPort": 7777,
+        "baseURL": "https://werft.dev",
+        "jobSpecRepos": [
+            "32leaves/test-repo:werft"
+        ],
+        "workspaceNodePathPrefix": "/mnt/disks/ssd0/builds"
+    },
+    "kubernetes": {
+        "kubeconfig": "",
+        "preperationTimeout": "10m",
+        "totalTimeout": "60m"
+    },
+    "storage": {
+        "logsPath": "/tmp/logs",
+        "jobsConnectionString": "dbname=werft user=gitpod connect_timeout=5 sslmode=disable"
+    },
+    "github": {
+        "webhookSecret": "foobar",
+        "privateKeyPath": "testdata/example-app.pem",
+        "appID": 48144,
+        "installationID": 5647067
+    }
+}

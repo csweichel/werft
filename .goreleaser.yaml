@@ -1,0 +1,66 @@
+builds:
+- id: werft-server
+  main: server.go
+  binary: werft-server
+  env:
+  - CGO_ENABLED=0
+  ldflags:
+  - -s -w -X github.com/32leaves/werft/cmd/server.version={{.Version}}-{{.ShortCommit}}
+  hooks:
+    pre: ./prepare.sh
+- id: werft-client
+  env:
+  - CGO_ENABLED=0
+  main: client.go
+  binary: werft
+  flags:
+    - -tags=client
+  ldflags:
+  - -s -w -X github.com/32leaves/werft/cmd/client.version={{.Version}}-{{.ShortCommit}}
+archives:
+- id: werft
+  replacements:
+    darwin: Darwin
+    linux: Linux
+    386: i386
+    amd64: x86_64
+  builds:
+  - werft
+- id: werft-client
+  files:
+  - "none*"
+  builds:
+  - werft-client
+  replacements:
+    darwin: Darwin
+    linux: Linux
+    386: i386
+    amd64: x86_64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^page:'
+    - '^testdata:'
+release:
+  prerelease: auto
+dockers:
+  -
+    goos: linux
+    goarch: amd64
+    goarm: ''
+    binaries:
+    - werft
+    - werft-server
+    dockerfile: release.Dockerfile
+    image_templates:
+    - "csweichel/werft:{{ .Tag }}"
+    - "csweichel/werft:v{{ .Major }}"
+    - "csweichel/werft:v{{ .Major }}.{{ .Minor }}"
+    - "csweichel/werft:latest"
+    extra_files:
+    - README.md

@@ -44,7 +44,7 @@ func getMigrations(db *sql.DB) (source.Driver, error) {
 		return nil, err
 	}
 	migs := make(map[string]string)
-	err = box.Walk(".", func(path string, info os.FileInfo, err error) error {
+	err = box.Walk("", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
