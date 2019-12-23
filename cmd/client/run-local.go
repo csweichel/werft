@@ -195,4 +195,5 @@ func init() {
 
 	wd, _ := os.Getwd()
 	runLocalCmd.Flags().String("cwd", wd, "working directory")
+	runLocalCmd.Flags().StringP("job-file", "j", "", "start a particular job (defaults to the default job of the repo)")
 }
