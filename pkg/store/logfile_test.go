@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/32leaves/werft/pkg/store"
 )
@@ -40,35 +41,56 @@ func TestContinuousWriteReading(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	sync := make(chan struct{})
 	go func() {
 		defer wg.Done()
 
-		for _, l := range strings.Split(msg, "\n") {
+		lines := strings.Split(msg, "\n")
+		for i, l := range lines {
+			if i < len(lines)-1 {
+				l += "\n"
+			}
+
 			n, err := w.Write([]byte(l))
 			if err != nil {
-				t.Errorf("write error: %v", err)
-				return
+				panic(fmt.Errorf("write error: %v", err))
 			}
 			if n != len(l) {
-				t.Errorf("write error: %v", io.ErrShortWrite)
-				return
+				panic(fmt.Errorf("write error: %v", io.ErrShortWrite))
 			}
-			sync <- struct{}{}
+			time.Sleep(10 * time.Millisecond)
 		}
 		w.Close()
-		close(sync)
 	}()
 
-	read := bytes.NewBuffer(nil)
+	rbuf := bytes.NewBuffer(nil)
 	go func() {
 		defer wg.Done()
 
-		err := io.Copy(read, r)
+		_, err := io.Copy(rbuf, r)
 		if err != nil {
 			t.Errorf("cannot read log: %+v", err)
 			return
 		}
 	}()
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		panic("timeout")
+	}()
 	wg.Wait()
+
+	actual := rbuf.Bytes()
+	expected := []byte(msg)
+	if !bytes.Equal(actual, expected) {
+		for i, c := range actual {
+			if i >= len(expected) {
+				t.Errorf("read more than was written at byte %d: %v", i, c)
+				continue
+			}
+			if c != expected[i] {
+				t.Errorf("read difference at byte %d: %v !== %v", i, c, expected[i])
+			}
+		}
+		t.Errorf("did not read message back, but: %s", string(actual))
+	}
 }
