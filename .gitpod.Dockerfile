@@ -12,3 +12,6 @@ RUN curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
 RUN curl -L https://download.docker.com/linux/static/stable/x86_64/docker-19.03.5.tgz | tar xz && \
     mv docker/docker /usr/bin && \
     rm -rf docker
+
+RUN curl -o /usr/bin/k3s -L https://github.com/rancher/k3s/releases/download/v1.0.1/k3s && \
+    chmod +x /usr/bin/k3s
