@@ -60,8 +60,13 @@ func Execute() {
 }
 
 func init() {
+	werftHost := os.Getenv("WERFT_HOST")
+	if werftHost == "" {
+		werftHost = "localhost:7777"
+	}
+
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "en/disable verbose logging")
-	rootCmd.PersistentFlags().StringVar(&host, "host", "localhost:7777", "werft host to talk to")
+	rootCmd.PersistentFlags().StringVar(&host, "host", werftHost, "werft host to talk to (defaults to WERFT_HOST env var)")
 }
 
 func dial() *grpc.ClientConn {
