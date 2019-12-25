@@ -9,7 +9,7 @@
         "workspaceNodePathPrefix": "/mnt/disks/ssd0/builds"
     },
     "kubernetes": {
-        "kubeconfig": "",
+        "kubeconfig": "/home/gitpod/.kube/k3s.yaml",
         "preperationTimeout": "10m",
         "totalTimeout": "60m"
     },

@@ -1,5 +1,25 @@
 tasks:
-  - init: yarn --cwd pkg/webui
   - init: go get && go build ./... && go test ./...
+    command: |
+      sleep 10
+      echo CREATE DATABASE werft | psql -f -
+      mkdir /tmp/logs
+      unset PGHOSTADDR
+      go run server.go run testdata/in-gitpod-config.json --debug-webui-proxy http://localhost:3000
+  - init: yarn --cwd pkg/webui
+    command: yarn --cwd pkg/webui start
+    openMode: split-right
+  - command: k3s server --disable-agent
+    openMode: split-bottom
 image:
   file: .gitpod.Dockerfile
+ports:
+  - port: 6443
+  - port: 8080
+    onOpen: open-preview
+  - port: 2999-3001
+    onOpen: ignore
+
+vscode:
+  extensions:
+    - zxh404.vscode-proto3@0.3.0:4f1jn72vQA2/LVoVSSmMtQ==
