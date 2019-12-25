@@ -268,7 +268,9 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 			s.Metadata.Created = ptypes.TimestampNow()
 		}
 		s.Details = (*perr).Error()
-		logs.Write([]byte("\n[werft] FAILURE " + s.Details))
+		if logs != nil {
+			logs.Write([]byte("\n[werft] FAILURE " + s.Details))
+		}
 
 		srv.Jobs.Store(context.Background(), s)
 		<-srv.events.Emit("job", &s)

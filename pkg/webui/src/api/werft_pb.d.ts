@@ -203,6 +203,9 @@ export class FilterTerm extends jspb.Message {
   getOperation(): FilterOpMap[keyof FilterOpMap];
   setOperation(value: FilterOpMap[keyof FilterOpMap]): void;
 
+  getNegate(): boolean;
+  setNegate(value: boolean): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): FilterTerm.AsObject;
   static toObject(includeInstance: boolean, msg: FilterTerm): FilterTerm.AsObject;
@@ -218,6 +221,7 @@ export namespace FilterTerm {
     field: string,
     value: string,
     operation: FilterOpMap[keyof FilterOpMap],
+    negate: boolean,
   }
 }
 

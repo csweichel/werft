@@ -54,8 +54,11 @@ Available operators are:
   |=		  starts with
   =|          ends with
 
+Operators can be negated by prefixing them with !.
+
 For example:
   phase==running             finds all running jobs
+  owner!==webui              finds all jobs NOT owned by webui
   repo.repo|=werft           finds all jobs on repositories whose names begin with werft
   phase==done success==true  finds all successfully finished jobs
 		`,
@@ -130,8 +133,15 @@ func parseFilter(exprs []string) ([]*v1.FilterExpression, error) {
 		var (
 			op  v1.FilterOp
 			opn string
+			neg bool
 		)
 		for k, v := range ops {
+			if strings.Contains(expr, "!"+k) {
+				op = v
+				opn = "!" + k
+				neg = true
+				break
+			}
 			if strings.Contains(expr, k) {
 				op = v
 				opn = k
@@ -164,6 +174,7 @@ func parseFilter(exprs []string) ([]*v1.FilterExpression, error) {
 					Field:     field,
 					Value:     val,
 					Operation: op,
+					Negate:    neg,
 				},
 			},
 		}

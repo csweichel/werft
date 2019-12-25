@@ -1846,7 +1846,8 @@ proto.v1.FilterTerm.toObject = function(includeInstance, msg) {
   var f, obj = {
     field: jspb.Message.getFieldWithDefault(msg, 1, ""),
     value: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    operation: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    operation: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    negate: jspb.Message.getFieldWithDefault(msg, 4, false)
   };
 
   if (includeInstance) {
@@ -1894,6 +1895,10 @@ proto.v1.FilterTerm.deserializeBinaryFromReader = function(msg, reader) {
     case 3:
       var value = /** @type {!proto.v1.FilterOp} */ (reader.readEnum());
       msg.setOperation(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setNegate(value);
       break;
     default:
       reader.skipField();
@@ -1945,6 +1950,13 @@ proto.v1.FilterTerm.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getNegate();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
 };
 
 
@@ -1990,6 +2002,23 @@ proto.v1.FilterTerm.prototype.getOperation = function() {
 /** @param {!proto.v1.FilterOp} value */
 proto.v1.FilterTerm.prototype.setOperation = function(value) {
   jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional bool negate = 4;
+ * Note that Boolean fields may be set to 0/1 when serialized from a Java server.
+ * You should avoid comparisons like {@code val === true/false} in those cases.
+ * @return {boolean}
+ */
+proto.v1.FilterTerm.prototype.getNegate = function() {
+  return /** @type {boolean} */ (jspb.Message.getFieldWithDefault(this, 4, false));
+};
+
+
+/** @param {boolean} value */
+proto.v1.FilterTerm.prototype.setNegate = function(value) {
+  jspb.Message.setProto3BooleanField(this, 4, value);
 };
 
 

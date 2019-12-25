@@ -115,12 +115,18 @@ class SearchBoxImpl extends React.Component<SearchBoxProps, SearchBoxState> {
                 const [l, r] = chp.split(includedOp);
                 let [ field, op, val ] = [ l.trim(), includedOp, r.trim() ];
 
+                let negate: boolean = false;
+                if (field.endsWith("!")) {
+                    negate = true;
+                    field = field.substr(0, field.length - 1).trim();
+                }
+
                 if (field === "ref" || field === "branch") {
                     field = "repo.ref";
                 }
 
                 if (!validFields.includes(field)) {
-                    return { error: "unknown field" }
+                    return { error: `unknown field` }
                 }
                 if (operations[op] === undefined) {
                     return { error: "unknown operator" }
@@ -131,6 +137,7 @@ class SearchBoxImpl extends React.Component<SearchBoxProps, SearchBoxState> {
                 tf.setField(field);
                 tf.setOperation(operations[op]);
                 tf.setValue(val);
+                tf.setNegate(negate);
                 expr.setTermsList([ tf ]);
                 return { expr: expr };
             }
