@@ -12,7 +12,7 @@ import (
 	"github.com/32leaves/werft/pkg/reporef"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // UIService implements api/v1/WerftUIServer

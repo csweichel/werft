@@ -1,0 +1,20 @@
+werft:
+  baseURL: https://werft.com
+  workspaceNodePathPrefix: "/mnt/disks/ssd0/builds"
+  jobSpecRepos:
+  - 32leaves/test-repo:werft
+service:
+  webPort: 8080
+  grpcPort: 7777
+kubeconfig: "/Users/csweichel/.kube/config"
+executor:
+  preperationTimeout: 10m
+  totalTimeout: 60m
+storage:
+  logsPath: "/tmp/logs"
+  jobsConnectionString: dbname=werft user=postgres connect_timeout=5 sslmode=disable
+github:
+  webhookSecret: foobar
+  privateKeyPath: testdata/example-app.pem
+  appID: 48144
+  installationID: 5647067
