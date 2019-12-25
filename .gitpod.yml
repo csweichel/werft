@@ -1,5 +1,5 @@
 tasks:
+  - init: yarn --cwd pkg/webui
   - init: go get && go build ./... && go test ./...
-    command: go run
 image:
   file: .gitpod.Dockerfile
