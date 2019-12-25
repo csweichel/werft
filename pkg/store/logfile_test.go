@@ -1,7 +1,7 @@
 package store_test
 
 import (
-	"context"
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,11 +24,11 @@ func TestContinuousWriteReading(t *testing.T) {
 		t.Errorf("cannot create test store: %v", err)
 	}
 
-	w, err := s.Place(context.Background(), "foo")
+	w, err := s.Open("foo")
 	if err != nil {
 		t.Errorf("cannot place log: %v", err)
 	}
-	r, err := s.Read(context.Background(), "foo")
+	r, err := s.Read("foo")
 	if err != nil {
 		t.Errorf("cannot read log: %v", err)
 	}
@@ -59,20 +59,15 @@ func TestContinuousWriteReading(t *testing.T) {
 		w.Close()
 		close(sync)
 	}()
+
+	read := bytes.NewBuffer(nil)
 	go func() {
 		defer wg.Done()
 
-		buf := make([]byte, 1024)
-		for range sync {
-			n, err := r.Read(buf)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				t.Errorf("read error: %v", err)
-				return
-			}
-			fmt.Println(string(buf[:n]))
+		err := io.Copy(read, r)
+		if err != nil {
+			t.Errorf("cannot read log: %+v", err)
+			return
 		}
 	}()
 	wg.Wait()
