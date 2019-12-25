@@ -103,11 +103,8 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 	// reset the position in the file - important: otherwise the re-upload to the container fails
 	_, err = dfs.Seek(0, 0)
 
-	if len(configYAML) == 0 {
-		return status.Error(codes.InvalidArgument, "config YAML must not be empty")
-	}
-	if len(jobYAML) == 0 {
-		return status.Error(codes.InvalidArgument, "job YAML must not be empty")
+	if len(configYAML) == 0 && len(jobYAML) == 0 {
+		return status.Error(codes.InvalidArgument, "either config or job YAML must not be empty")
 	}
 
 	cp := &LocalContentProvider{

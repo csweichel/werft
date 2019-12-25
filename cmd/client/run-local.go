@@ -59,23 +59,33 @@ var runLocalCmd = &cobra.Command{
 
 		md, err := getLocalJobContext(workingdir, v1.JobTrigger(trigger))
 		if err != nil {
-			return xerrors.Errorf("cannot extract metadata: %w", err)
+			log.WithError(err).Warn("cannot extract local job context - continuing with default")
+			md = &v1.JobMetadata{
+				Owner: "local",
+				Repository: &v1.Repository{
+					Host:  "unknown",
+					Owner: "none",
+					Repo:  "none",
+				},
+			}
 		}
 
-		cfgPath, _ := flags.GetString("config-file")
-		cfgPath = strings.ReplaceAll(cfgPath, "$CWD", workingdir)
-		configYAML, err := ioutil.ReadFile(cfgPath)
-		if err != nil {
-			return xerrors.Errorf("cannot read config file: %w", err)
-		}
-
-		jobPath, _ := flags.GetString("job-file")
+		var configYAML []byte
+		jobPath, _ := cmd.Flags().GetString("job-file")
 		if jobPath == "" {
+			cfgPath, _ := flags.GetString("config-file")
+			cfgPath = strings.ReplaceAll(cfgPath, "$CWD", workingdir)
+			configYAML, err = ioutil.ReadFile(cfgPath)
+			if err != nil {
+				return xerrors.Errorf("cannot read config file: %w", err)
+			}
+
 			var cfg repoconfig.C
 			err = yaml.Unmarshal(configYAML, &cfg)
 			if err != nil {
 				return xerrors.Errorf("cannot unmarshal config: %w", err)
 			}
+
 			jobPath = cfg.DefaultJob
 		}
 		jobYAML, err := ioutil.ReadFile(jobPath)
