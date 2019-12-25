@@ -22,7 +22,7 @@ func TestDefaultCutterSlice(t *testing.T) {
 [foobar] Hello World this is a test
 [otherproc] Some other process
 [foobar] More output
-[foobar|EOF]
+[foobar|DONE]
 [otherproc] Cool beans
 			`,
 			[]v1.LogSliceEvent{
