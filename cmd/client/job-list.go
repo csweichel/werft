@@ -23,6 +23,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -36,7 +37,7 @@ var jobListCmd = &cobra.Command{
 	Short: "Lists and searches for jobs",
 	Long: `Lists and searches for jobs using search expressions in the form of "<key><op><value>":
 Available keys are:
-  name
+  name        name of the job
   trigger     one of push, manual, unkown
   owner       owner/originator of the job
   phase       one of unknown, preparing, starting, running, done
@@ -62,6 +63,25 @@ For example:
 		filter, err := parseFilter(args)
 		if err != nil {
 			return err
+		}
+
+		useLocalContext, _ := cmd.Flags().GetBool("local")
+		if useLocalContext {
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+
+			md, err := getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+			if err != nil {
+				return xerrors.Errorf("--local requires the current working directory to be a Git repo: %w", err)
+			}
+
+			filter = append(filter,
+				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.owner", Value: md.Repository.Owner}}},
+				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.repo", Value: md.Repository.Repo}}},
+				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: md.Repository.Ref}}},
+			)
 		}
 
 		orderExprs, _ := cmd.Flags().GetStringArray("order")
@@ -174,4 +194,5 @@ func init() {
 	jobListCmd.Flags().Uint("limit", 50, "limit the number of results")
 	jobListCmd.Flags().Uint("offset", 0, "return results starting later than zero")
 	jobListCmd.Flags().StringArray("order", []string{"name:desc"}, "order the result list by fields")
+	jobListCmd.Flags().BoolP("local", "l", false, "finds jobs matching the local Git context")
 }
