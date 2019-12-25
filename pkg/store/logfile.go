@@ -166,28 +166,28 @@ type fileReader struct {
 }
 
 func (fr *fileReader) Read(p []byte) (n int, err error) {
-	n, err = fr.fp.Read(p)
-	if err != io.EOF {
-		return
-	}
+	for {
+		n, err = fr.fp.Read(p)
+		if err != io.EOF {
+			return
+		}
 
-	// we're done reading the file for now
-	// check if we're actually done
-	if err == io.EOF && fr.f.Closed() {
-		return
-	}
+		// we're done reading the file for now
+		// check if we're actually done
+		if err == io.EOF && fr.f.Closed() {
+			return n, io.EOF
+		}
 
-	// if we did read something, return that
-	if n > 0 {
-		return n, nil
-	}
+		// if we did read something, return that
+		if n > 0 {
+			return n, nil
+		}
 
-	// we didn't read anything, so let's wait for more data to be written
-	fr.f.cond.L.Lock()
-	fr.f.cond.Wait()
-	fr.f.cond.L.Unlock()
-	n, err = fr.fp.Read(p)
-	return
+		// we didn't read anything, so let's wait for more data to be written
+		fr.f.cond.L.Lock()
+		fr.f.cond.Wait()
+		fr.f.cond.L.Unlock()
+	}
 }
 
 func (fr *fileReader) Close() error {
