@@ -32,10 +32,10 @@ import (
 // Config configures the behaviour of the service
 type Config struct {
 	// BaseURL is the URL this service is available on (e.g. https://werft.some-domain.com)
-	BaseURL string `json:"baseURL,omitempty"`
+	BaseURL string `yaml:"baseURL,omitempty"`
 
 	// WorkspaceNodePathPrefix is the location on the node where we place the builds
-	WorkspaceNodePathPrefix string `json:"workspaceNodePathPrefix,omitempty"`
+	WorkspaceNodePathPrefix string `yaml:"workspaceNodePathPrefix,omitempty"`
 
 	// Enables the webui debug proxy pointing to this address
 	DebugProxy string

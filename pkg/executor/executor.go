@@ -2,7 +2,6 @@ package executor
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -47,10 +46,10 @@ const (
 
 // Config configures the executor
 type Config struct {
-	Namespace       string    `json:"namespace"`
-	EventTraceLog   string    `json:"eventTraceLog,omitempty"`
-	JobPrepTimeout  *Duration `json:"preperationTimeout"`
-	JobTotalTimeout *Duration `json:"totalTimeout"`
+	Namespace       string    `yaml:"namespace"`
+	EventTraceLog   string    `yaml:"eventTraceLog,omitempty"`
+	JobPrepTimeout  *Duration `yaml:"preperationTimeout"`
+	JobTotalTimeout *Duration `yaml:"totalTimeout"`
 }
 
 // Duration is a JSON un-/marshallable type
@@ -58,31 +57,19 @@ type Duration struct {
 	time.Duration
 }
 
-// MarshalJSON produces a valid JSON representation of this duration
-func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
-}
-
-// UnmarshalJSON parses a duration from its JSON representation
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
+// UnmarshalYAML parses a duration from its JSON representation
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var v string
+	err := unmarshal(&v)
+	if err != nil {
 		return err
 	}
-	switch value := v.(type) {
-	case float64:
-		d.Duration = time.Duration(value)
-		return nil
-	case string:
-		var err error
-		d.Duration, err = time.ParseDuration(value)
-		if err != nil {
-			return err
-		}
-		return nil
-	default:
-		return errors.New("invalid duration")
+
+	d.Duration, err = time.ParseDuration(v)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // NewExecutor creates a new job center instance
@@ -344,9 +331,9 @@ func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Po
 	}
 
 	type eventTraceEntry struct {
-		Time   string             `json:"time"`
-		Status *werftv1.JobStatus `json:"status"`
-		Job    *corev1.Pod        `json:"job"`
+		Time   string             `yaml:"time"`
+		Status *werftv1.JobStatus `yaml:"status"`
+		Job    *corev1.Pod        `yaml:"job"`
 	}
 	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
 	// In fact we don't even want to react to it, hence the nolint.

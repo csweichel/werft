@@ -10,7 +10,7 @@ import (
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (

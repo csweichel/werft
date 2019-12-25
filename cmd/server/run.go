@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -46,6 +45,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -64,7 +64,7 @@ var runCmd = &cobra.Command{
 		}
 
 		var cfg Config
-		err = json.Unmarshal(fc, &cfg)
+		err = yaml.Unmarshal(fc, &cfg)
 		if err != nil {
 			return err
 		}
@@ -93,13 +93,13 @@ var runCmd = &cobra.Command{
 		}
 
 		var kubeConfig *rest.Config
-		if cfg.Kubernetes.Kubeconfig == "" {
+		if cfg.Kubeconfig == "" {
 			kubeConfig, err = rest.InClusterConfig()
 			if err != nil {
 				return err
 			}
 		} else {
-			kubeConfig, err = clientcmd.BuildConfigFromFlags("", cfg.Kubernetes.Kubeconfig)
+			kubeConfig, err = clientcmd.BuildConfigFromFlags("", cfg.Kubeconfig)
 			if err != nil {
 				return err
 			}
@@ -111,7 +111,7 @@ var runCmd = &cobra.Command{
 		}
 		ghClient := github.NewClient(&http.Client{Transport: ghtr})
 
-		execCfg := cfg.Kubernetes.Config
+		execCfg := cfg.Executor
 		if execCfg.Namespace == "" {
 			execCfg.Namespace = "default"
 		}
@@ -142,10 +142,10 @@ var runCmd = &cobra.Command{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
 			},
-			Config: cfg.Service.Config,
+			Config: cfg.Werft,
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
-			cfg.Service.Config.DebugProxy = val
+			cfg.Werft.DebugProxy = val
 		}
 		service.Start()
 
@@ -153,7 +153,7 @@ var runCmd = &cobra.Command{
 		v1.RegisterWerftServiceServer(grpcServer, service)
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
 		go startGRPC(grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.GRPCPort))
-		go startWeb(service, grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.WebPort), cfg.Service.DebugProxy)
+		go startWeb(service, grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -274,24 +274,22 @@ func init() {
 
 // Config configures the werft server
 type Config struct {
+	Werft   werft.Config `yaml:"werft"`
 	Service struct {
-		werft.Config
-		WebPort      int      `json:"webPort"`
-		GRPCPort     int      `json:"grpcPort"`
-		JobSpecRepos []string `json:"jobSpecRepos"`
+		WebPort      int      `yaml:"webPort"`
+		GRPCPort     int      `yaml:"grpcPort"`
+		JobSpecRepos []string `yaml:"jobSpecRepos"`
 	}
 	Storage struct {
-		LogStore string `json:"logsPath"`
-		JobStore string `json:"jobsConnectionString"`
-	} `json:"storage"`
-	Kubernetes struct {
-		executor.Config
-		Kubeconfig string `json:"kubeconfig,omitempty"`
-	} `json:"kubernetes,omitempty"`
-	GitHub struct {
-		WebhookSecret  string `json:"webhookSecret"`
-		PrivateKeyPath string `json:"privateKeyPath"`
-		InstallationID int64  `json:"installationID,omitempty"`
-		AppID          int64  `json:"appID"`
-	} `json:"github"`
+		LogStore string `yaml:"logsPath"`
+		JobStore string `yaml:"jobsConnectionString"`
+	} `yaml:"storage"`
+	Executor   executor.Config `yaml:"executor"`
+	Kubeconfig string          `yaml:"kubeconfig,omitempty"`
+	GitHub     struct {
+		WebhookSecret  string `yaml:"webhookSecret"`
+		PrivateKeyPath string `yaml:"privateKeyPath"`
+		InstallationID int64  `yaml:"installationID,omitempty"`
+		AppID          int64  `yaml:"appID"`
+	} `yaml:"github"`
 }
