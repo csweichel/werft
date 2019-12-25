@@ -134,6 +134,11 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 	for _, f := range filter {
 		var terms []string
 		for _, t := range f.Terms {
+			var not string
+			if t.Negate {
+				not = "NOT"
+			}
+
 			field, ok := fieldMap[t.Field]
 			if !ok {
 				return nil, 0, xerrors.Errorf("unknown field %s", t.Field)
@@ -154,7 +159,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 			default:
 				return nil, 0, xerrors.Errorf("unknown operation %v", t.Operation)
 			}
-			expr := fmt.Sprintf("%s %s", field, op)
+			expr := fmt.Sprintf("%s %s %s", not, field, op)
 			terms = append(terms, expr)
 			args = append(args, t.Value)
 		}
