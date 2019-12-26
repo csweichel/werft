@@ -1,11 +1,11 @@
 werft:
   baseURL: https://werft.dev
   workspaceNodePathPrefix: "/mnt/disks/ssd0/builds"
-  jobSpecRepos:
-  - 32leaves/test-repo:werft
 service:
   webPort: 8080
   grpcPort: 7777
+  jobSpecRepos:
+  - 32leaves/test-repo:werft
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"
 executor:
   preperationTimeout: 10m
@@ -18,3 +18,14 @@ github:
   privateKeyPath: testdata/example-app.pem
   appID: 48144
   installationID: 5647067
+plugins:
+  - name: "example"
+    type:
+    - integration
+    config:
+      emoji: 🚀
+    command:
+    - sh
+    - -c
+    - cd integrations/plugins/integration-example && go run main.go $*
+    - -s

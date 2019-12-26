@@ -35,6 +35,7 @@ import (
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
+	plugin "github.com/32leaves/werft/pkg/plugin/host"
 	"github.com/32leaves/werft/pkg/store"
 	"github.com/32leaves/werft/pkg/store/postgres"
 	"github.com/32leaves/werft/pkg/werft"
@@ -154,6 +155,17 @@ var runCmd = &cobra.Command{
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
 		go startGRPC(grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.GRPCPort))
 		go startWeb(service, grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
+
+		plugins, err := plugin.Start(cfg.Plugins, service)
+		if err != nil {
+			log.WithError(err).Fatal("cannot start plugins")
+		}
+		go func() {
+			for e := range plugins.Errchan {
+				log.WithError(e.Err).WithField("plugin", e.Reg.Name).Warn("plugin error")
+			}
+		}()
+		defer plugins.Stop()
 
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -292,4 +304,5 @@ type Config struct {
 		InstallationID int64  `yaml:"installationID,omitempty"`
 		AppID          int64  `yaml:"appID"`
 	} `yaml:"github"`
+	Plugins plugin.Config
 }

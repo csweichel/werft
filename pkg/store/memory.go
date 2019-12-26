@@ -195,11 +195,10 @@ func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpressi
 
 // MatchesFilter returns true if the annotations are matched by the filter
 func MatchesFilter(base *v1.JobMetadata, filter []*v1.FilterExpression) (matches bool) {
+	if len(filter) == 0 {
+		return true
+	}
 	if base == nil {
-		if len(filter) == 0 {
-			return true
-		}
-
 		return false
 	}
 
@@ -235,6 +234,10 @@ func MatchesFilter(base *v1.JobMetadata, filter []*v1.FilterExpression) (matches
 				tm = strings.HasSuffix(val, alt.Value)
 			case v1.FilterOp_OP_EXISTS:
 				tm = true
+			}
+
+			if alt.Negate {
+				tm = !tm
 			}
 
 			if tm {
