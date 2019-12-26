@@ -5,10 +5,10 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"strings"
 	"sync"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/filterexpr"
 	"golang.org/x/xerrors"
 )
 
@@ -184,71 +184,11 @@ func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus,
 func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
 	var res []v1.JobStatus
 	for _, js := range s.jobs {
-		if !MatchesFilter(js.Metadata, filter) {
+		if !filterexpr.MatchesFilter(&js, filter) {
 			continue
 		}
 
 		res = append(res, js)
 	}
 	return res, len(res), nil
-}
-
-// MatchesFilter returns true if the annotations are matched by the filter
-func MatchesFilter(base *v1.JobMetadata, filter []*v1.FilterExpression) (matches bool) {
-	if len(filter) == 0 {
-		return true
-	}
-	if base == nil {
-		return false
-	}
-
-	idx := map[string]string{
-		"owner":      base.Owner,
-		"repo.owner": base.Repository.Owner,
-		"repo.repo":  base.Repository.Repo,
-		"repo.host":  base.Repository.Host,
-		"repo.ref":   base.Repository.Ref,
-		"trigger":    strings.ToLower(strings.TrimPrefix("TRIGGER_", base.Trigger.String())),
-	}
-	for _, at := range base.Annotations {
-		idx["annotation."+at.Key] = at.Value
-	}
-
-	matches = true
-	for _, req := range filter {
-		var tm bool
-		for _, alt := range req.Terms {
-			val, ok := idx[alt.Value]
-			if !ok {
-				continue
-			}
-
-			switch alt.Operation {
-			case v1.FilterOp_OP_CONTAINS:
-				tm = strings.Contains(val, alt.Value)
-			case v1.FilterOp_OP_ENDS_WITH:
-				tm = strings.HasSuffix(val, alt.Value)
-			case v1.FilterOp_OP_EQUALS:
-				tm = val == alt.Value
-			case v1.FilterOp_OP_STARTS_WITH:
-				tm = strings.HasSuffix(val, alt.Value)
-			case v1.FilterOp_OP_EXISTS:
-				tm = true
-			}
-
-			if alt.Negate {
-				tm = !tm
-			}
-
-			if tm {
-				break
-			}
-		}
-
-		if !tm {
-			matches = false
-			break
-		}
-	}
-	return matches
 }

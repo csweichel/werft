@@ -82,7 +82,7 @@ func (srv *Service) Start() {
 	}
 
 	srv.Executor.OnUpdate = func(pod *corev1.Pod, s *v1.JobStatus) {
-		log.WithField("status", s).Info("update")
+		// log.WithField("status", s).Info("update")
 
 		// ensure we have logging, e.g. reestablish joblog for unknown jobs (i.e. after restart)
 		srv.ensureLogging(s)

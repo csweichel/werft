@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/filterexpr"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
 	termtohtml "github.com/buildkite/terminal-to-html"
@@ -268,7 +269,7 @@ func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.WerftService_Sub
 	evts := srv.events.On("job")
 	for evt := range evts {
 		job := evt.Args[0].(*v1.JobStatus)
-		if !store.MatchesFilter(job.Metadata, req.Filter) {
+		if !filterexpr.MatchesFilter(job, req.Filter) {
 			continue
 		}
 

@@ -29,3 +29,18 @@ plugins:
     - -c
     - cd integrations/plugins/integration-example && go run main.go $*
     - -s
+  - name: "webhook"
+    type:
+    - integration
+    config:
+      notifications:
+      - url: http://localhost:8081
+        contentType: application/json
+        filter: 
+        - phase==done
+        template: '{"text": "{{ .Name }} done"}'
+    command:
+    - sh
+    - -c
+    - cd integrations/plugins/webhook && go run main.go $*
+    - -s

@@ -1,4 +1,4 @@
-module github.com/32leaves/werft/integration-example-plugin
+module github.com/32leaves/werft/slack-plugin
 
 go 1.13
 

@@ -7,6 +7,7 @@ require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible
+	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/bradleyfalzon/ghinstallation v1.0.0
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
 	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484 // indirect

@@ -22,11 +22,11 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/filterexpr"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
@@ -63,7 +63,7 @@ For example:
   phase==done success==true  finds all successfully finished jobs
 		`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filter, err := parseFilter(args)
+		filter, err := filterexpr.Parse(args)
 		if err != nil {
 			return err
 		}
@@ -118,69 +118,6 @@ For example:
 {{ end }}
 `)
 	},
-}
-
-func parseFilter(exprs []string) ([]*v1.FilterExpression, error) {
-	ops := map[string]v1.FilterOp{
-		"==": v1.FilterOp_OP_EQUALS,
-		"~=": v1.FilterOp_OP_CONTAINS,
-		"|=": v1.FilterOp_OP_STARTS_WITH,
-		"=|": v1.FilterOp_OP_ENDS_WITH,
-	}
-
-	res := make([]*v1.FilterExpression, len(exprs))
-	for i, expr := range exprs {
-		var (
-			op  v1.FilterOp
-			opn string
-			neg bool
-		)
-		for k, v := range ops {
-			if strings.Contains(expr, "!"+k) {
-				op = v
-				opn = "!" + k
-				neg = true
-				break
-			}
-			if strings.Contains(expr, k) {
-				op = v
-				opn = k
-				break
-			}
-		}
-		if opn == "" {
-			return nil, xerrors.Errorf("invalid expression: missing operator")
-		}
-
-		segs := strings.Split(expr, opn)
-		field, val := segs[0], segs[1]
-		if field == "success" {
-			if val == "true" {
-				val = "1"
-			} else {
-				val = "0"
-			}
-		}
-		if field == "phase" {
-			phn := strings.ToUpper(fmt.Sprintf("PHASE_%s", val))
-			if _, ok := v1.JobPhase_value[phn]; !ok {
-				return nil, xerrors.Errorf("invalid phase: %s", val)
-			}
-		}
-
-		res[i] = &v1.FilterExpression{
-			Terms: []*v1.FilterTerm{
-				&v1.FilterTerm{
-					Field:     field,
-					Value:     val,
-					Operation: op,
-					Negate:    neg,
-				},
-			},
-		}
-	}
-
-	return res, nil
 }
 
 func parseOrder(exprs []string) ([]*v1.OrderExpression, error) {

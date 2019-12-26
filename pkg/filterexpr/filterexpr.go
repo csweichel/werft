@@ -1,0 +1,137 @@
+package filterexpr
+
+import (
+	"fmt"
+	"strings"
+
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"golang.org/x/xerrors"
+)
+
+// ErrMissingOp indicates that the expression was not complete
+var ErrMissingOp = fmt.Errorf("missing operator")
+
+// Parse parses a list of expressions
+func Parse(exprs []string) ([]*v1.FilterExpression, error) {
+	ops := map[string]v1.FilterOp{
+		"==": v1.FilterOp_OP_EQUALS,
+		"~=": v1.FilterOp_OP_CONTAINS,
+		"|=": v1.FilterOp_OP_STARTS_WITH,
+		"=|": v1.FilterOp_OP_ENDS_WITH,
+	}
+
+	res := make([]*v1.FilterExpression, len(exprs))
+	for i, expr := range exprs {
+		var (
+			op  v1.FilterOp
+			opn string
+			neg bool
+		)
+		for k, v := range ops {
+			if strings.Contains(expr, "!"+k) {
+				op = v
+				opn = "!" + k
+				neg = true
+				break
+			}
+			if strings.Contains(expr, k) {
+				op = v
+				opn = k
+				break
+			}
+		}
+		if opn == "" {
+			return nil, ErrMissingOp
+		}
+
+		segs := strings.Split(expr, opn)
+		field, val := segs[0], segs[1]
+		if field == "success" {
+			if val == "true" {
+				val = "1"
+			} else {
+				val = "0"
+			}
+		}
+		if field == "phase" {
+			phn := strings.ToUpper(fmt.Sprintf("PHASE_%s", val))
+			if _, ok := v1.JobPhase_value[phn]; !ok {
+				return nil, xerrors.Errorf("invalid phase: %s", val)
+			}
+		}
+
+		res[i] = &v1.FilterExpression{
+			Terms: []*v1.FilterTerm{
+				&v1.FilterTerm{
+					Field:     field,
+					Value:     val,
+					Operation: op,
+					Negate:    neg,
+				},
+			},
+		}
+	}
+
+	return res, nil
+}
+
+// MatchesFilter returns true if the annotations are matched by the filter
+func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches bool) {
+	if len(filter) == 0 {
+		return true
+	}
+	if js == nil {
+		return false
+	}
+
+	idx := map[string]string{
+		"owner":      js.Metadata.Owner,
+		"repo.owner": js.Metadata.Repository.Owner,
+		"repo.repo":  js.Metadata.Repository.Repo,
+		"repo.host":  js.Metadata.Repository.Host,
+		"repo.ref":   js.Metadata.Repository.Ref,
+		"trigger":    strings.ToLower(strings.TrimPrefix("TRIGGER_", js.Metadata.Trigger.String())),
+		"phase":      strings.ToLower(strings.TrimPrefix(js.Phase.String(), "PHASE_")),
+	}
+	for _, at := range js.Metadata.Annotations {
+		idx["annotation."+at.Key] = at.Value
+	}
+
+	matches = true
+	for _, req := range filter {
+		var tm bool
+		for _, alt := range req.Terms {
+			val, ok := idx[alt.Field]
+			if !ok {
+				continue
+			}
+
+			switch alt.Operation {
+			case v1.FilterOp_OP_CONTAINS:
+				tm = strings.Contains(val, alt.Value)
+			case v1.FilterOp_OP_ENDS_WITH:
+				tm = strings.HasSuffix(val, alt.Value)
+			case v1.FilterOp_OP_EQUALS:
+				tm = val == alt.Value
+			case v1.FilterOp_OP_STARTS_WITH:
+				tm = strings.HasSuffix(val, alt.Value)
+			case v1.FilterOp_OP_EXISTS:
+				tm = true
+			}
+
+			if alt.Negate {
+				tm = !tm
+			}
+
+			if tm {
+				break
+			}
+		}
+
+		if !tm {
+			matches = false
+			break
+		}
+	}
+	return matches
+}

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -17,7 +16,6 @@ type Config struct {
 }
 
 func main() {
-	fmt.Println(os.Args)
 	plugin.Serve(&Config{},
 		plugin.WithIntegrationPlugin(&integrationPlugin{}),
 	)
