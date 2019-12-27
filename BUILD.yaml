@@ -3,6 +3,7 @@ packages:
   type: go
   deps:
   - pkg/webui:rice
+  - pkg/store/postgres:rice
   srcs:
   - "**/*.go"
   - "go.mod"
@@ -15,10 +16,22 @@ packages:
     buildFlags:
     - -tags
     - server
+- name: plugin-client-lib
+  type: go
+  config:
+    packaging: library
+  srcs:
+  - "pkg/plugin/client/*.go"
+  - "pkg/plugin/common/*.go"
+  - "pkg/filterexpr/*.go"
+  - "pkg/api/**/*.go"
+  - "go.mod"
+  - "go.sum"
 - name: server-docker
   type: docker
   deps:
   - :server
+  - integrations/plugins/webhook:app
   config:
     dockerfile: "server.Dockerfile"
 - name: client
