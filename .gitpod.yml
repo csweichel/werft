@@ -5,6 +5,7 @@ tasks:
       echo CREATE DATABASE werft | psql -f -
       mkdir /tmp/logs
       unset PGHOSTADDR
+      gp await-port 3000
       go run server.go run testdata/in-gitpod-config.yaml --debug-webui-proxy http://localhost:3000
   - init: yarn --cwd pkg/webui
     command: yarn --cwd pkg/webui start
