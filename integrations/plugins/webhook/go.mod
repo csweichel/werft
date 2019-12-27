@@ -1,4 +1,4 @@
-module github.com/32leaves/werft/slack-plugin
+module github.com/32leaves/werft/webhook-plugin
 
 go 1.13
 
