@@ -32,9 +32,14 @@ packages:
   deps:
   - :server
   - integrations/plugins/webhook:app
+  argdeps:
+  - version
   config:
     dockerfile: "server.Dockerfile"
-- name: client
+    image:
+    - csweichel/werft:${version}
+    # - csweichel/werft:latest
+- name: client-linux-amd64
   type: go
   srcs:
   - "**/*.go"
@@ -42,13 +47,80 @@ packages:
   - "go.sum"
   env:
   - CGO_ENABLED=0
+  - GOOS=linux
+  - GOARCH=amd64
   config:
     dontTest: true
     buildFlags:
     - -tags
     - client
+- name: nonesense-darwin
+  type: generic
+- name: client-darwin-amd64
+  type: go
+  deps:
+  - :nonesense-darwin
+  srcs:
+  - "**/*.go"
+  - "go.mod"
+  - "go.sum"
+  env:
+  - CGO_ENABLED=0
+  - GOOS=darwin
+  - GOARCH=amd64
+  config:
+    dontTest: true
+    buildFlags:
+    - -tags
+    - client
+- name: changelog
+  type: generic
+  srcs:
+  - ".git/**/*"
+  config:
+    commands:
+    # - ["git", "describe", "--exact-match", "HEAD"]
+    - 
+      - sh
+      - -c
+      - |
+        latest=$(git describe --tags `git rev-list --tags --max-count=1`)
+        comparison="$latest..HEAD"
+        if [ -z "$latest" ]; then comparison=""; fi
+        git log $comparison --oneline --no-merges > changelog.txt
+        git rev-parse --abbrev-ref HEAD > version.txt
+        echo "Version: $(cat version.txt)"
+        echo Changelog:
+        cat changelog.txt
+- name: release
+  type: generic
+  deps:
+  - :client-darwin-amd64
+  - :client-linux-amd64
+  - :server-docker
+  - :changelog
+  argdeps:
+  - version
+  config:
+    commands:
+    -
+      - sh
+      - -c
+      - |
+        echo "## Server Docker images" >> desc.txt
+        echo "<pre>$(cat server-docker/imgnames.txt)</pre>" >> desc.txt
+        echo >> desc.txt
+        echo "## Changelog" >> desc.txt
+        cat changelog/changelog.txt >> desc.txt
+    - ["mkdir", "dist"]
+    - ["mv", "client-darwin-amd64/werft", "dist/werft-client-darwin-amd64"]
+    - ["mv", "client-linux-amd64/werft", "dist/werft-client-linux-amd64"]
+    - ["sh", "-c", "cd dist; for i in $(ls); do echo tar cvvfz $i.tar.gz $i; done | sh"]
+    - ["sh", "-c", "curl -L https://github.com/c4milo/github-release/releases/download/v1.1.0/github-release_v1.1.0_linux_amd64.tar.gz | tar xz"]
+    - ["sh", "-c", "./github-release 32leaves/werft ${version} master \"$(cat desc.txt)\" 'dist/*.tar.gz'"]
 - name: all
   type: generic
   deps:
-  - :client
+  - :client-darwin-amd64
+  - :client-linux-amd64
   - :server
