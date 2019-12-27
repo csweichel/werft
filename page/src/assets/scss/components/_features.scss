@@ -6,60 +6,51 @@
 
 /* Features */
 
-	.features {
-		@include vendor('display', 'flex');
-		@include vendor('flex-wrap', 'wrap');
-		@include vendor('justify-content', 'center');
-		width: calc(100% + #{_size(element-margin)});
-		margin: 0 0 (_size(element-margin) * 1.5) (_size(element-margin) * -1);
-		padding: 0;
-		list-style: none;
+.features {
+    width: calc(100% + #{_size(element-margin)});
+    margin: 0 0 (_size(element-margin) * 1.5) (_size(element-margin) * -1);
+    padding: 0;
+    list-style: none;
 
-        p {
-            text-align: justify;
+    p {
+        text-align: justify;
+    }
+
+    li {
+        width: 100%;
+        margin-left: _size(element-margin);
+        margin-bottom: (_size(element-margin) * 1.5);
+        padding: 0;
+
+        > :last-child {
+            margin-bottom: 0;
         }
 
+        display: flex;
+    }
+    
+    .highlight {
+        width: 30%;
+        min-width: 20vw;
+        margin-right: 1em;
+
+        img {
+            width: 100%;
+        }
+    }
+
+    .details {
+        width: 65%;
+    }
+
+    @include breakpoint(medium) {
+        li {
+            width: calc(100% - #{_size(element-margin)});
+            flex-direction: column;
+        }
         .highlight {
-            width: calc(#{((100% / 7) * 3)} - #{_size(element-margin)});
-            display: block;
-            float: left;
-            margin-right: 1em;
+            width: 100%;
+            min-width: 100%;
         }
-
-		li {
-			// width: calc(#{(100% / 3)} - #{_size(element-margin)});
-			margin-left: _size(element-margin);
-			margin-bottom: (_size(element-margin) * 1.5);
-			padding: 0;
-
-			> :last-child {
-				margin-bottom: 0;
-			}
-		}
-
-		@include breakpoint(medium) {
-			li {
-				width: calc(#{(100% / 2)} - #{_size(element-margin)});
-
-				&:nth-child(3) {
-					margin-top: (_size(element-margin) * 1.5);
-				}
-			}
-		}
-
-		@include breakpoint(small) {
-			width: 100%;
-			margin: 0 0 _size(element-margin) 0;
-
-			li {
-				width: 100%;
-				margin-left: 0;
-				margin-top: _size(element-margin);
-
-				&:nth-child(2),
-				&:nth-child(3) {
-					margin-top: _size(element-margin);
-				}
-			}
-		}
-	}
+    }
+}
