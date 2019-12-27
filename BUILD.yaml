@@ -38,7 +38,7 @@ packages:
     dockerfile: "server.Dockerfile"
     image:
     - csweichel/werft:${version}
-    # - csweichel/werft:latest
+    - csweichel/werft:latest
 - name: client-linux-amd64
   type: go
   srcs:
