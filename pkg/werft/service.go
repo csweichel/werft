@@ -115,9 +115,12 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 		Clientset:  srv.Executor.Client,
 	}
 
+	// Note: for local jobs we DO NOT store the job yaml as we cannot replay those jobs anyways.
+	//       The context upload is a one time thing and hence prevent job replay.
+
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
 	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
-	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML)
+	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false)
 
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
@@ -132,9 +135,9 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
 func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
 	ghclient := srv.GitHub.Client
-	if req.Token != "" {
+	if req.GithubToken != "" {
 		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: req.Token},
+			&oauth2.Token{AccessToken: req.GithubToken},
 		)
 		tc := oauth2.NewClient(ctx, ts)
 		ghclient = github.NewClient(tc)
@@ -152,7 +155,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		Owner:    md.Repository.Owner,
 		Repo:     md.Repository.Repo,
 		Revision: md.Repository.Revision,
-		Token:    req.Token,
+		Token:    req.GithubToken,
 		Client:   ghclient,
 	}
 
@@ -190,18 +193,72 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		name = fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, name)
 		t, err := srv.Groups.Next(name)
 		if err != nil {
-			srv.OnError(err)
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 
 		name = fmt.Sprintf("%s.%d", name, t)
 	}
 
-	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML)
+	// We do not store the GitHub token of the request and hence can only restart those with default auth
+	canReplay := req.GithubToken == ""
+
+	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	log.WithField("status", jobStatus).Info(("started new local job"))
+	log.WithField("status", jobStatus).Info(("started new GitHub job"))
+	return &v1.StartJobResponse{
+		Status: jobStatus,
+	}, nil
+}
+
+// StartFromPreviousJob starts a new job based on an old one
+func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromPreviousJobRequest) (*v1.StartJobResponse, error) {
+	oldJobStatus, err := srv.Jobs.Get(ctx, req.PreviousJob)
+	if err == store.ErrNotFound {
+		return nil, status.Error(codes.NotFound, "job spec not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	jobYAML, err := srv.Jobs.GetJobSpec(req.PreviousJob)
+	if err == store.ErrNotFound {
+		return nil, status.Error(codes.NotFound, "job spec not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	name := req.PreviousJob
+	if strings.Contains(name, ".") {
+		segs := strings.Split(name, ".")
+		name = strings.Join(segs[0:len(segs)-1], ".")
+	}
+	nr, err := srv.Groups.Next(name)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	name = fmt.Sprintf("%s.%d", name, nr)
+
+	md := oldJobStatus.Metadata
+	cp := &GitHubContentProvider{
+		Owner:    md.Repository.Owner,
+		Repo:     md.Repository.Repo,
+		Revision: md.Repository.Revision,
+		Token:    req.GithubToken,
+		Client:   srv.GitHub.Client,
+	}
+
+	// We do not store the GitHub token of the request and hence can only restart those with default auth
+	canReplay := req.GithubToken == ""
+
+	jobStatus, err := srv.RunJob(ctx, name, *oldJobStatus.Metadata, cp, jobYAML, canReplay)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	log.WithField("name", req.PreviousJob).WithField("old-name", name).Info(("started new job from an old one"))
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil

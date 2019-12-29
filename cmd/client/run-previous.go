@@ -1,4 +1,5 @@
-// +build !client
+package cmd
+
 // Copyright © 2019 Christian Weichel
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,16 +20,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
-
 import (
-	cmd "github.com/32leaves/werft/cmd/server"
+	"context"
+	"fmt"
 
-	_ "github.com/32leaves/werft/pkg/webui"
-	_ "github.com/lib/pq"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	cmd.Execute()
+// runPreviousJobCmd represents the triggerRemote command
+var runPreviousJobCmd = &cobra.Command{
+	Use:   "previous <old-job-name>",
+	Short: "starts a job from a previous one",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		flags := cmd.Parent().PersistentFlags()
+
+		conn := dial()
+		defer conn.Close()
+		client := v1.NewWerftServiceClient(conn)
+
+		token, _ := cmd.Flags().GetString("token")
+		req := &v1.StartFromPreviousJobRequest{
+			PreviousJob: args[0],
+			GithubToken: token,
+		}
+
+		ctx := context.Background()
+		resp, err := client.StartFromPreviousJob(ctx, req)
+		if err != nil {
+			return err
+		}
+		fmt.Println(resp.Status.Name)
+
+		follow, _ := flags.GetBool("follow")
+		if follow {
+			err = followJob(client, resp.Status.Name)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	runCmd.AddCommand(runPreviousJobCmd)
+
+	runPreviousJobCmd.Flags().String("token", "", "Token to use for authorization against GitHub")
 }

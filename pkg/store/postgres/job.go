@@ -13,10 +13,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var jobSchema = `
-
-`
-
 // JobStore stores jobs in a Postgres database
 type JobStore struct {
 	DB *sql.DB
@@ -234,4 +230,37 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 	}
 
 	return result, total, nil
+}
+
+// StoreJobSpec stores job information in the store.
+func (s *JobStore) StoreJobSpec(name string, data []byte) error {
+	_, err := s.DB.Query(`
+		INSERT
+		INTO   job_spec (name, data)
+		VALUES          ($1  , $2  ) 
+		ON CONFLICT (name) DO UPDATE 
+			SET data = $2
+		`,
+		name,
+		data,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetJobSpec retrieves a particular job bassd on its name.
+func (s *JobStore) GetJobSpec(name string) ([]byte, error) {
+	var data []byte
+	err := s.DB.QueryRow("SELECT data FROM job_spec WHERE name = $1", name).Scan(&data)
+	if err == sql.ErrNoRows {
+		return nil, store.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }

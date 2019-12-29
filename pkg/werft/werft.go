@@ -248,7 +248,7 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 }
 
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte) (status *v1.JobStatus, err error) {
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool) (status *v1.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr == nil {
@@ -276,6 +276,14 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		<-srv.events.Emit("job", &s)
 	}(&err)
 
+	if canReplay {
+		// save job yaml
+		err = srv.Jobs.StoreJobSpec(name, jobYAML)
+		if err != nil {
+			log.WithError(err).Warn("cannot store job YAML - job will not be replayable")
+		}
+	}
+
 	logs, err = srv.Logs.Open(name)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
@@ -297,14 +305,12 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 
+	// we have to use the Kubernetes YAML decoder to decode the podspec
 	var jobspec repoconfig.JobSpec
 	err = yaml.NewYAMLOrJSONDecoder(bytes.NewReader(buf.Bytes()), 4096).Decode(&jobspec)
-	// err = yaml.Unmarshal(buf.Bytes(), &jobspec)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
-
-	// we have to use the Kubernetes YAML decoder to decode the podspec
 
 	podspec := jobspec.Pod
 	if podspec == nil {
@@ -345,7 +351,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	pw.Flush()
 
 	// schedule/start job
-	status, err = srv.Executor.Start(*podspec, metadata, executor.WithName(name))
+	status, err = srv.Executor.Start(*podspec, metadata, executor.WithName(name), executor.WithCanReplay(canReplay))
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}

@@ -49,8 +49,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	_ "github.com/lib/pq"
 )
 
 // runCmd represents the run command
@@ -59,6 +57,10 @@ var runCmd = &cobra.Command{
 	Short: "Starts the werft server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if v, _ := cmd.Flags().GetBool("verbose"); v {
+			log.SetLevel(log.DebugLevel)
+		}
+
 		fc, err := ioutil.ReadFile(args[0])
 		if err != nil {
 			return err
@@ -282,6 +284,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 
 	runCmd.Flags().String("debug-webui-proxy", "", "proxies the web UI to this address")
+	runCmd.Flags().Bool("verbose", false, "enable verbose debug output")
 }
 
 // Config configures the werft server

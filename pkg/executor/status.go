@@ -51,12 +51,14 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		}
 	}
 
+	_, canReplay := obj.Annotations[AnnotationCanReplay]
 	status = &v1.JobStatus{
 		Name:     name,
 		Metadata: &md,
 		Phase:    v1.JobPhase_PHASE_UNKNOWN,
 		Conditions: &v1.JobConditions{
-			Success: true,
+			Success:   true,
+			CanReplay: canReplay,
 		},
 		Results: results,
 	}
