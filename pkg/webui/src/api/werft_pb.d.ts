@@ -106,8 +106,8 @@ export class StartGitHubJobRequest extends jspb.Message {
   getJobYaml_asB64(): string;
   setJobYaml(value: Uint8Array | string): void;
 
-  getToken(): string;
-  setToken(value: string): void;
+  getGithubToken(): string;
+  setGithubToken(value: string): void;
 
   getJobCase(): StartGitHubJobRequest.JobCase;
   serializeBinary(): Uint8Array;
@@ -125,13 +125,37 @@ export namespace StartGitHubJobRequest {
     metadata?: JobMetadata.AsObject,
     jobName: string,
     jobYaml: Uint8Array | string,
-    token: string,
+    githubToken: string,
   }
 
   export enum JobCase {
     JOB_NOT_SET = 0,
     JOB_NAME = 2,
     JOB_YAML = 3,
+  }
+}
+
+export class StartFromPreviousJobRequest extends jspb.Message {
+  getPreviousJob(): string;
+  setPreviousJob(value: string): void;
+
+  getGithubToken(): string;
+  setGithubToken(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StartFromPreviousJobRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: StartFromPreviousJobRequest): StartFromPreviousJobRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StartFromPreviousJobRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StartFromPreviousJobRequest;
+  static deserializeBinaryFromReader(message: StartFromPreviousJobRequest, reader: jspb.BinaryReader): StartFromPreviousJobRequest;
+}
+
+export namespace StartFromPreviousJobRequest {
+  export type AsObject = {
+    previousJob: string,
+    githubToken: string,
   }
 }
 
@@ -585,6 +609,9 @@ export class JobConditions extends jspb.Message {
   getFailureCount(): number;
   setFailureCount(value: number): void;
 
+  getCanReplay(): boolean;
+  setCanReplay(value: boolean): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): JobConditions.AsObject;
   static toObject(includeInstance: boolean, msg: JobConditions): JobConditions.AsObject;
@@ -599,6 +626,7 @@ export namespace JobConditions {
   export type AsObject = {
     success: boolean,
     failureCount: number,
+    canReplay: boolean,
   }
 }
 

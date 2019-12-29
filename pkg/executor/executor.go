@@ -42,6 +42,9 @@ const (
 
 	// AnnotationResults stores JSON encoded list of a job results
 	AnnotationResults = "werft.sh/results"
+
+	// AnnotationCanReplay stores if this job can be replayed
+	AnnotationCanReplay = "werft.sh/canReplay"
 )
 
 // Config configures the executor
@@ -124,6 +127,7 @@ type startOptions struct {
 	Modifier    []func(*corev1.Pod)
 	Annotations map[string]string
 	Mutex       string
+	CanReplay   bool
 }
 
 // StartOpt configures a job at startup
@@ -169,6 +173,13 @@ func WithMutex(name string) StartOpt {
 	}
 }
 
+// WithCanReplay configures the if the job can be replayed
+func WithCanReplay(canReplay bool) StartOpt {
+	return func(opts *startOptions) {
+		opts.CanReplay = canReplay
+	}
+}
+
 // Start starts a new job
 func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
 	opts := startOptions{
@@ -181,6 +192,9 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	annotations := make(map[string]string)
 	for key, val := range opts.Annotations {
 		annotations[fmt.Sprintf("%s/%s", UserDataAnnotationPrefix, key)] = val
+	}
+	if opts.CanReplay {
+		annotations[AnnotationCanReplay] = "true"
 	}
 
 	metadata.Created = ptypes.TimestampNow()

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest } from './api/werft_pb';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
@@ -10,6 +10,7 @@ import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typ
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
+import ReplayIcon from '@material-ui/icons/Replay';
 import { ColorUnknown, ColorFailure, ColorSuccess } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 import * as moment from 'moment';
@@ -136,6 +137,13 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                         </IconButton>
                     </Tooltip>
                 }
+                { !!job && job.phase === JobPhase.PHASE_DONE && job.conditions!.canReplay &&
+                    <Tooltip title="Replay">
+                        <IconButton color="inherit" onClick={() => this.replay()}>
+                            <ReplayIcon />
+                        </IconButton>
+                    </Tooltip>
+                }
                 <Tooltip title="Back">
                     <IconButton color="inherit" onClick={() => window.location.href = "/jobs"}>
                         <CloseIcon />
@@ -200,6 +208,24 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }
 
             alert(err);
+        });
+    }
+
+    protected replay() {
+        const job = this.state.status;
+        if (!job) {
+            return;
+        }
+
+        const req = new StartFromPreviousJobRequest();
+        req.setPreviousJob(job.name);
+        this.props.client.startFromPreviousJob(req, (err, ok) => {
+            if (err) {
+                alert(err);
+                return;
+            }
+
+            window.location.href = "/job/" + ok!.getStatus()!.getName();
         });
     }
 

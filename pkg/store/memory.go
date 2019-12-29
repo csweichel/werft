@@ -146,13 +146,15 @@ func (s *inMemoryLogStore) Read(id string) (io.ReadCloser, error) {
 // NewInMemoryJobStore creates a new in-memory job store
 func NewInMemoryJobStore() Jobs {
 	return &inMemoryJobStore{
-		jobs: make(map[string]v1.JobStatus),
+		jobs:  make(map[string]v1.JobStatus),
+		specs: make(map[string][]byte),
 	}
 }
 
 type inMemoryJobStore struct {
-	jobs map[string]v1.JobStatus
-	mu   sync.RWMutex
+	jobs  map[string]v1.JobStatus
+	specs map[string][]byte
+	mu    sync.RWMutex
 }
 
 // Store stores job information in the store.
@@ -182,13 +184,34 @@ func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus,
 
 // Searches for jobs based on their annotations
 func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var res []v1.JobStatus
 	for _, js := range s.jobs {
 		if !filterexpr.MatchesFilter(&js, filter) {
 			continue
 		}
-
 		res = append(res, js)
 	}
 	return res, len(res), nil
+}
+
+func (s *inMemoryJobStore) StoreJobSpec(name string, data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.specs[name] = data
+	return nil
+}
+
+func (s *inMemoryJobStore) GetJobSpec(name string) (data []byte, err error) {
+	s.mu.RLock()
+	s.mu.RUnlock()
+
+	data, ok := s.specs[name]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return data, nil
 }

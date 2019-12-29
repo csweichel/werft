@@ -28,6 +28,15 @@ WerftService.StartGitHubJob = {
   responseType: werft_pb.StartJobResponse
 };
 
+WerftService.StartFromPreviousJob = {
+  methodName: "StartFromPreviousJob",
+  service: WerftService,
+  requestStream: false,
+  responseStream: false,
+  requestType: werft_pb.StartFromPreviousJobRequest,
+  responseType: werft_pb.StartJobResponse
+};
+
 WerftService.ListJobs = {
   methodName: "ListJobs",
   service: WerftService,
@@ -126,6 +135,37 @@ WerftServiceClient.prototype.startGitHubJob = function startGitHubJob(requestMes
     callback = arguments[1];
   }
   var client = grpc.unary(WerftService.StartGitHubJob, {
+    request: requestMessage,
+    host: this.serviceHost,
+    metadata: metadata,
+    transport: this.options.transport,
+    debug: this.options.debug,
+    onEnd: function (response) {
+      if (callback) {
+        if (response.status !== grpc.Code.OK) {
+          var err = new Error(response.statusMessage);
+          err.code = response.status;
+          err.metadata = response.trailers;
+          callback(err, null);
+        } else {
+          callback(null, response.message);
+        }
+      }
+    }
+  });
+  return {
+    cancel: function () {
+      callback = null;
+      client.close();
+    }
+  };
+};
+
+WerftServiceClient.prototype.startFromPreviousJob = function startFromPreviousJob(requestMessage, metadata, callback) {
+  if (arguments.length === 2) {
+    callback = arguments[1];
+  }
+  var client = grpc.unary(WerftService.StartFromPreviousJob, {
     request: requestMessage,
     host: this.serviceHost,
     metadata: metadata,

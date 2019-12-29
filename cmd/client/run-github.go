@@ -72,8 +72,8 @@ var runGithubCmd = &cobra.Command{
 
 		token, _ := cmd.Flags().GetString("token")
 		req := &v1.StartGitHubJobRequest{
-			Metadata: md,
-			Token:    token,
+			Metadata:    md,
+			GithubToken: token,
 		}
 
 		jobname, _ := cmd.Flags().GetString("job-name")
