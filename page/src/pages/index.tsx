@@ -103,7 +103,7 @@ class Index extends React.Component<{}, IndexState> {
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -124,7 +124,7 @@ class Index extends React.Component<{}, IndexState> {
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -144,7 +144,7 @@ class Index extends React.Component<{}, IndexState> {
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -164,7 +164,7 @@ class Index extends React.Component<{}, IndexState> {
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -201,7 +201,7 @@ Use "werft [command] --help" for more information about a command.`}</SyntaxHigh
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -228,7 +228,7 @@ Use "werft [command] --help" for more information about a command.`}</SyntaxHigh
                                 </p>
                                 <ul className="actions">
                                     <li>
-                                        <Link to="/generic" className="button">Learn More</Link>
+                                        <a href="https://github.com/32leaves/werft" className="button">Learn More</a>
                                     </li>
                                 </ul>
                             </div>
@@ -256,9 +256,7 @@ werft run local -j .werft/hello-world.yaml`}
                     <footer className="major">
                         <ul className="actions">
                             <li>
-                                <Link to="/generic" className="button special">
-                                    Learn More
-                            </Link>
+                                <a href="https://github.com/32leaves/werft" className="button spec">Learn More</a>
                             </li>
                         </ul>
                     </footer>
