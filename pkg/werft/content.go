@@ -29,7 +29,7 @@ type ContentProvider interface {
 	// InitContainer builds the container that will initialize the job content.
 	// The VolumeMount for /workspace is added by the caller.
 	// Name and ImagePullPolicy will be overwriten.
-	InitContainer() corev1.Container
+	InitContainer() (*corev1.Container, error)
 
 	// Serve provides additional services required during initialization.
 	// This function is expected to return immediately.
@@ -52,12 +52,12 @@ type LocalContentProvider struct {
 }
 
 // InitContainer builds the container that will initialize the job content.
-func (lcp *LocalContentProvider) InitContainer() corev1.Container {
-	return corev1.Container{
+func (lcp *LocalContentProvider) InitContainer() (*corev1.Container, error) {
+	return &corev1.Container{
 		Image:      "alpine:latest",
 		Command:    []string{"sh", "-c", "while [ ! -f /workspace/.ready ]; do [ -f /workspace/.failed ] && exit 1; sleep 1; done"},
 		WorkingDir: "/workspace",
-	}
+	}, nil
 }
 
 // Serve provides additional services required during initialization.
@@ -159,7 +159,7 @@ type GitHubContentProvider struct {
 	Repo     string
 	Revision string
 	Client   *github.Client
-	Token    string
+	Auth     GitCredentialHelper
 }
 
 // Download provides access to a single file
@@ -170,27 +170,33 @@ func (gcp *GitHubContentProvider) Download(ctx context.Context, path string) (io
 }
 
 // InitContainer builds the container that will initialize the job content.
-func (gcp *GitHubContentProvider) InitContainer() corev1.Container {
+func (gcp *GitHubContentProvider) InitContainer() (*corev1.Container, error) {
+	var (
+		user string
+		pass string
+		err  error
+	)
+	if gcp.Auth != nil {
+		user, pass, err = gcp.Auth(context.Background())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	cloneCmd := "git clone"
-	if gcp.Token != "" {
-		cloneCmd = "git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHTOKEN; echo password=x-oauth-basic'\""
+	if user != "" || pass != "" {
+		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=%s; echo password=%s'\"", user, pass)
 	}
 	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, gcp.Owner, gcp.Repo, gcp.Revision)
 
-	return corev1.Container{
+	return &corev1.Container{
 		Image: "alpine/git:latest",
-		Env: []corev1.EnvVar{
-			corev1.EnvVar{
-				Name:  "GHTOKEN",
-				Value: gcp.Token,
-			},
-		},
 		Command: []string{
 			"sh", "-c",
 			cloneCmd,
 		},
 		WorkingDir: "/workspace",
-	}
+	}, nil
 }
 
 // Serve provides additional services required during initialization.

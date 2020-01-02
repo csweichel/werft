@@ -134,13 +134,17 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
 func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
-	ghclient := srv.GitHub.Client
+	var (
+		ghclient = srv.GitHub.Client
+		gitauth  = srv.GitHub.Auth
+	)
 	if req.GithubToken != "" {
 		ts := oauth2.StaticTokenSource(
 			&oauth2.Token{AccessToken: req.GithubToken},
 		)
 		tc := oauth2.NewClient(ctx, ts)
 		ghclient = github.NewClient(tc)
+		gitauth = fixedOAuthTokenGitCreds(req.GithubToken)
 	}
 
 	md := req.Metadata
@@ -155,8 +159,8 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		Owner:    md.Repository.Owner,
 		Repo:     md.Repository.Repo,
 		Revision: md.Repository.Revision,
-		Token:    req.GithubToken,
 		Client:   ghclient,
+		Auth:     gitauth,
 	}
 
 	jobYAML := req.GetJobYaml()
@@ -241,13 +245,18 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	}
 	name = fmt.Sprintf("%s.%d", name, nr)
 
+	gitauth := srv.GitHub.Auth
+	if req.GithubToken != "" {
+		gitauth = fixedOAuthTokenGitCreds(req.GithubToken)
+	}
+
 	md := oldJobStatus.Metadata
 	cp := &GitHubContentProvider{
 		Owner:    md.Repository.Owner,
 		Repo:     md.Repository.Repo,
 		Revision: md.Repository.Revision,
-		Token:    req.GithubToken,
 		Client:   srv.GitHub.Client,
+		Auth:     gitauth,
 	}
 
 	// We do not store the GitHub token of the request and hence can only restart those with default auth
@@ -470,4 +479,10 @@ func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.St
 	}
 
 	return &v1.StopJobResponse{}, nil
+}
+
+func fixedOAuthTokenGitCreds(tkn string) GitCredentialHelper {
+	return func(ctx context.Context) (user string, pass string, err error) {
+		return tkn, "x-oauth-basic", nil
+	}
 }

@@ -21,6 +21,7 @@ package cmd
 // THE SOFTWARE.
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
@@ -144,6 +145,15 @@ var runCmd = &cobra.Command{
 			GitHub: werft.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
+				Auth: func(ctx context.Context) (user string, pass string, err error) {
+					tkn, err := ghtr.Token(ctx)
+					if err != nil {
+						return
+					}
+					user = "x-access-token"
+					pass = tkn
+					return
+				},
 			},
 			Config: cfg.Werft,
 		}

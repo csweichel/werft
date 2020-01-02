@@ -64,10 +64,14 @@ type Service struct {
 	events emitter.Emitter
 }
 
+// GitCredentialHelper can authenticate provide authentication credentials for a repository
+type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
+
 // GitHubSetup sets up the access to GitHub
 type GitHubSetup struct {
 	WebhookSecret []byte
 	Client        *github.Client
+	Auth          GitCredentialHelper
 }
 
 // Start sets up everything to run this werft instance, including executor config
@@ -328,7 +332,12 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 			},
 		},
 	})
-	cpinit := cp.InitContainer()
+
+	initcontainer, err := cp.InitContainer()
+	if err != nil {
+		return nil, xerrors.Errorf("cannot produce init container: %w", err)
+	}
+	cpinit := *initcontainer
 	cpinit.Name = "werft-checkout"
 	cpinit.ImagePullPolicy = corev1.PullIfNotPresent
 	cpinit.VolumeMounts = append(cpinit.VolumeMounts, corev1.VolumeMount{
