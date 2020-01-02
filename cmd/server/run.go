@@ -144,6 +144,7 @@ var runCmd = &cobra.Command{
 			GitHub: werft.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
+				TokenSource:   ghtr.Token,
 			},
 			Config: cfg.Werft,
 		}
