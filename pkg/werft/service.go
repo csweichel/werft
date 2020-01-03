@@ -178,7 +178,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
-			tplpath = repoCfg.TemplatePath(req.Metadata.Trigger)
+			tplpath = repoCfg.TemplatePath(req.Metadata)
 			jobSpecName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
 		}
 		in, err := cp.Download(ctx, tplpath)

@@ -2,22 +2,65 @@ package repoconfig
 
 import (
 	werftv1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/32leaves/werft/pkg/filterexpr"
 	corev1 "k8s.io/api/core/v1"
 )
 
 // C is the struct we expect to find in the repo root which configures how we build things
 type C struct {
-	DefaultJob string `yaml:"defaultJob"`
+	DefaultJob string          `yaml:"defaultJob"`
+	Rules      []*JobStartRule `yaml:"rules"`
+}
+
+// JobStartRule determines if a job will be started
+type JobStartRule struct {
+	Path string                      `yaml:"path"`
+	Expr []*werftv1.FilterExpression `yaml:"matchesAll"`
+}
+
+// UnmarshalYAML unmarshals the filter expressions
+func (r *JobStartRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var rawJobStartRule struct {
+		Path string           `yaml:"path"`
+		Expr []JobStartRuleOr `yaml:"matchesAll"`
+	}
+	err := unmarshal(&rawJobStartRule)
+	if err != nil {
+		return err
+	}
+
+	r.Path = rawJobStartRule.Path
+	for _, expr := range rawJobStartRule.Expr {
+		terms, err := filterexpr.Parse(expr.Or)
+		if err != nil {
+			return err
+		}
+		r.Expr = append(r.Expr, &werftv1.FilterExpression{Terms: terms})
+	}
+
+	return nil
+}
+
+// JobStartRuleOr contains an "OR'ed" list of conditions which have to match for a job to run
+type JobStartRuleOr struct {
+	Or []string `yaml:"or"`
 }
 
 // TemplatePath returns the path to the job template in the repo
-func (rc *C) TemplatePath(trigger werftv1.JobTrigger) string {
+func (rc *C) TemplatePath(md *werftv1.JobMetadata) string {
+	js := &werftv1.JobStatus{Metadata: md}
+	for _, rule := range rc.Rules {
+		if filterexpr.MatchesFilter(js, rule.Expr) {
+			return rule.Path
+		}
+	}
+
 	return rc.DefaultJob
 }
 
 // ShouldRun determines based on the repo config if the job should run
-func (rc *C) ShouldRun(trigger werftv1.JobTrigger) bool {
-	return true
+func (rc *C) ShouldRun(md *werftv1.JobMetadata) bool {
+	return rc.TemplatePath(md) != ""
 }
 
 // JobSpec is the format of the files we expect to find when starting jobs

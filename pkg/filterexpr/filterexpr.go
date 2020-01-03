@@ -12,7 +12,7 @@ import (
 var ErrMissingOp = fmt.Errorf("missing operator")
 
 // Parse parses a list of expressions
-func Parse(exprs []string) ([]*v1.FilterExpression, error) {
+func Parse(exprs []string) ([]*v1.FilterTerm, error) {
 	ops := map[string]v1.FilterOp{
 		"==": v1.FilterOp_OP_EQUALS,
 		"~=": v1.FilterOp_OP_CONTAINS,
@@ -20,7 +20,7 @@ func Parse(exprs []string) ([]*v1.FilterExpression, error) {
 		"=|": v1.FilterOp_OP_ENDS_WITH,
 	}
 
-	res := make([]*v1.FilterExpression, len(exprs))
+	res := make([]*v1.FilterTerm, len(exprs))
 	for i, expr := range exprs {
 		var (
 			op  v1.FilterOp
@@ -45,7 +45,7 @@ func Parse(exprs []string) ([]*v1.FilterExpression, error) {
 		}
 
 		segs := strings.Split(expr, opn)
-		field, val := segs[0], segs[1]
+		field, val := strings.TrimSpace(segs[0]), strings.TrimSpace(segs[1])
 		if field == "success" {
 			if val == "true" {
 				val = "1"
@@ -60,15 +60,11 @@ func Parse(exprs []string) ([]*v1.FilterExpression, error) {
 			}
 		}
 
-		res[i] = &v1.FilterExpression{
-			Terms: []*v1.FilterTerm{
-				&v1.FilterTerm{
-					Field:     field,
-					Value:     val,
-					Operation: op,
-					Negate:    neg,
-				},
-			},
+		res[i] = &v1.FilterTerm{
+			Field:     field,
+			Value:     val,
+			Operation: op,
+			Negate:    neg,
 		}
 	}
 
@@ -85,13 +81,18 @@ func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches boo
 	}
 
 	idx := map[string]string{
-		"owner":      js.Metadata.Owner,
-		"repo.owner": js.Metadata.Repository.Owner,
-		"repo.repo":  js.Metadata.Repository.Repo,
-		"repo.host":  js.Metadata.Repository.Host,
-		"repo.ref":   js.Metadata.Repository.Ref,
-		"trigger":    strings.ToLower(strings.TrimPrefix("TRIGGER_", js.Metadata.Trigger.String())),
-		"phase":      strings.ToLower(strings.TrimPrefix(js.Phase.String(), "PHASE_")),
+		"phase": strings.ToLower(strings.TrimPrefix(js.Phase.String(), "PHASE_")),
+	}
+	if js.Metadata != nil {
+		idx["owner"] = js.Metadata.Owner
+		idx["trigger"] = strings.ToLower(strings.TrimPrefix("TRIGGER_", js.Metadata.Trigger.String()))
+		if js.Metadata.Repository != nil {
+			idx["repo.owner"] = js.Metadata.Repository.Owner
+			idx["repo.repo"] = js.Metadata.Repository.Repo
+			idx["repo.host"] = js.Metadata.Repository.Host
+			idx["repo.ref"] = js.Metadata.Repository.Ref
+			idx["repo.rev"] = js.Metadata.Repository.Revision
+		}
 	}
 	for _, at := range js.Metadata.Annotations {
 		idx["annotation."+at.Key] = at.Value
