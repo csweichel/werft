@@ -151,8 +151,13 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	if md.Repository.Revision == "" && md.Repository.Ref != "" {
 		md.Repository.Revision, _, err = ghclient.Repositories.GetCommitSHA1(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Ref, "")
 		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
 		}
+	}
+
+	_, _, err = ghclient.Repositories.GetCommit(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Revision)
+	if err != nil {
+		return nil, translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
 	}
 
 	var cp = &GitHubContentProvider{
@@ -215,6 +220,18 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
+}
+
+func translateGitHubToGRPCError(err error, rev, ref string) error {
+	if gherr, ok := err.(*github.ErrorResponse); ok && gherr.Response.StatusCode == 422 {
+		msg := fmt.Sprintf("revision %s", rev)
+		if ref != "" {
+			msg = fmt.Sprintf("ref %s (revision %s)", ref, rev)
+		}
+		return status.Error(codes.NotFound, fmt.Sprintf("%s not found", msg))
+	}
+
+	return status.Error(codes.Internal, err.Error())
 }
 
 // StartFromPreviousJob starts a new job based on an old one

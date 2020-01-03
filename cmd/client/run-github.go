@@ -30,6 +30,8 @@ import (
 	"github.com/32leaves/werft/pkg/reporef"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // runGithubCmd represents the triggerRemote command
@@ -102,6 +104,10 @@ var runGithubCmd = &cobra.Command{
 		ctx := context.Background()
 		resp, err := client.StartGitHubJob(ctx, req)
 		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				return xerrors.Errorf("%s. Are all changes pushed to origin?", err.Error())
+			}
+
 			return err
 		}
 		fmt.Println(resp.Status.Name)
