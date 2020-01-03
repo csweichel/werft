@@ -473,7 +473,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.v1.JobResult = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.v1.JobResult.repeatedFields_, null);
 };
 goog.inherits(proto.v1.JobResult, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -4686,6 +4686,13 @@ proto.v1.JobConditions.prototype.setCanReplay = function(value) {
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.v1.JobResult.repeatedFields_ = [4];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -4717,7 +4724,8 @@ proto.v1.JobResult.toObject = function(includeInstance, msg) {
   var f, obj = {
     type: jspb.Message.getFieldWithDefault(msg, 1, ""),
     payload: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 3, "")
+    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    channelsList: jspb.Message.getRepeatedField(msg, 4)
   };
 
   if (includeInstance) {
@@ -4765,6 +4773,10 @@ proto.v1.JobResult.deserializeBinaryFromReader = function(msg, reader) {
     case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setDescription(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addChannels(value);
       break;
     default:
       reader.skipField();
@@ -4816,6 +4828,13 @@ proto.v1.JobResult.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getChannelsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      4,
+      f
+    );
+  }
 };
 
 
@@ -4861,6 +4880,38 @@ proto.v1.JobResult.prototype.getDescription = function() {
 /** @param {string} value */
 proto.v1.JobResult.prototype.setDescription = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * repeated string channels = 4;
+ * @return {!Array<string>}
+ */
+proto.v1.JobResult.prototype.getChannelsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+};
+
+
+/** @param {!Array<string>} value */
+proto.v1.JobResult.prototype.setChannelsList = function(value) {
+  jspb.Message.setField(this, 4, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ */
+proto.v1.JobResult.prototype.addChannels = function(value, opt_index) {
+  jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ */
+proto.v1.JobResult.prototype.clearChannelsList = function() {
+  this.setChannelsList([]);
 };
 
 

@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	werftGithubContext = "continunous-integration/werft"
+	werftGithubContext       = "continunous-integration/werft"
+	werftResultGithubContext = "continunous-integration/werft/result"
 
 	// annotationStatusUpdate is set on jobs whoose status needs to be updated on GitHub.
 	// This is set only on jobs created through GitHub events.
@@ -22,14 +23,14 @@ var (
 )
 
 func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
-	var needsStatusUpdate bool
+	var wantsUpdate bool
 	for _, a := range job.Metadata.Annotations {
 		if a.Key == annotationStatusUpdate {
-			needsStatusUpdate = true
+			wantsUpdate = true
 			break
 		}
 	}
-	if !needsStatusUpdate {
+	if !wantsUpdate {
 		return nil
 	}
 
@@ -37,7 +38,6 @@ func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
 		state string
 		desc  string
 	)
-
 	switch job.Phase {
 	case v1.JobPhase_PHASE_PREPARING, v1.JobPhase_PHASE_STARTING, v1.JobPhase_PHASE_RUNNING:
 		state = "pending"
@@ -63,6 +63,42 @@ func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
 	_, _, err := srv.GitHub.Client.Repositories.CreateStatus(ctx, job.Metadata.Repository.Owner, job.Metadata.Repository.Repo, job.Metadata.Repository.Revision, ghstatus)
 	if err != nil {
 		return err
+	}
+
+	// update all result statuses
+	var idx int
+	for _, r := range job.Results {
+		var ok bool
+		for _, c := range r.Channels {
+			if c == "github" {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			continue
+		}
+
+		resultURL := url
+		if r.Type == "url" {
+			resultURL = r.Payload
+		}
+		success := "success"
+		ghcontext := fmt.Sprintf("%s-%03d", werftResultGithubContext, idx)
+		_, _, err := srv.GitHub.Client.Repositories.CreateStatus(ctx,
+			job.Metadata.Repository.Owner,
+			job.Metadata.Repository.Repo,
+			job.Metadata.Repository.Revision,
+			&github.RepoStatus{
+				State:       &success,
+				TargetURL:   &resultURL,
+				Description: &r.Description,
+				Context:     &ghcontext,
+			},
+		)
+		if err != nil {
+			log.WithError(err).WithField("job", job.Name).Warn("cannot update result status")
+		}
 	}
 
 	return nil

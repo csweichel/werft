@@ -229,13 +229,29 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 				continue
 			}
 
-			segs := strings.Fields(evt.Payload)
-			payload, desc := segs[0], strings.Join(segs[1:], " ")
-			res := &v1.JobResult{
-				Type:        strings.TrimSpace(evt.Name),
-				Payload:     payload,
-				Description: desc,
+			var res *v1.JobResult
+			var body struct {
+				P string   `json:"payload"`
+				C []string `json:"channels"`
+				D string   `json:"description"`
 			}
+			if err := json.Unmarshal([]byte(evt.Payload), &body); err == nil {
+				res = &v1.JobResult{
+					Type:        strings.TrimSpace(evt.Name),
+					Payload:     body.P,
+					Description: body.D,
+					Channels:    body.C,
+				}
+			} else {
+				segs := strings.Fields(evt.Payload)
+				payload, desc := segs[0], strings.Join(segs[1:], " ")
+				res = &v1.JobResult{
+					Type:        strings.TrimSpace(evt.Name),
+					Payload:     payload,
+					Description: desc,
+				}
+			}
+
 			err := srv.Executor.RegisterResult(name, res)
 			if err != nil {
 				log.WithError(err).WithField("name", name).WithField("res", res).Warn("cannot record job result")

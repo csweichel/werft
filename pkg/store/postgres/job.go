@@ -128,6 +128,10 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 		args      []interface{}
 	)
 	for _, f := range filter {
+		if len(f.Terms) == 0 {
+			continue
+		}
+
 		var terms []string
 		for _, t := range f.Terms {
 			var not string
@@ -159,6 +163,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 			terms = append(terms, expr)
 			args = append(args, t.Value)
 		}
+
 		expr := fmt.Sprintf("(%s)", strings.Join(terms, " OR "))
 		whereExps = append(whereExps, expr)
 	}
