@@ -165,8 +165,8 @@ var runCmd = &cobra.Command{
 		grpcServer := grpc.NewServer()
 		v1.RegisterWerftServiceServer(grpcServer, service)
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
-		go startGRPC(grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.GRPCPort))
-		go startWeb(service, grpcServer, fmt.Sprintf("localhost:%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
+		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
+		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
 
 		plugins, err := plugin.Start(cfg.Plugins, service)
 		if err != nil {
