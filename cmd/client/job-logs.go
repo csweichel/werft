@@ -22,24 +22,51 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 )
 
 // jobLogsCmd represents the list command
 var jobLogsCmd = &cobra.Command{
-	Use:   "logs <name>",
+	Use:   "logs [name]",
 	Short: "Listens to the log output of a job",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
-
 		ctx := context.Background()
+
+		var name string
+		if len(args) == 0 {
+			filter, err := getLocalContextJobFilter()
+			if err != nil {
+				return err
+			}
+
+			resp, err := client.ListJobs(ctx, &v1.ListJobsRequest{
+				Filter: filter,
+				Order: []*v1.OrderExpression{&v1.OrderExpression{
+					Field:     "created",
+					Ascending: false,
+				}},
+			})
+			if err != nil {
+				return err
+			}
+			if len(resp.Result) == 0 {
+				return xerrors.Errorf("no job found - please specify job name")
+			}
+
+			name = resp.Result[0].Name
+			fmt.Printf("showing logs of \033[34m\033[1m%s\t\033\033[0m\n", name)
+		}
+
 		resp, err := client.Listen(ctx, &v1.ListenRequest{
-			Name:    args[0],
+			Name:    name,
 			Logs:    v1.ListenRequestLogs_LOGS_RAW,
 			Updates: true,
 		})

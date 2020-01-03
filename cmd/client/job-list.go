@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -73,21 +72,12 @@ For example:
 
 		useLocalContext, _ := cmd.Flags().GetBool("local")
 		if useLocalContext {
-			wd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-
-			md, err := getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+			lf, err := getLocalContextJobFilter()
 			if err != nil {
 				return xerrors.Errorf("--local requires the current working directory to be a Git repo: %w", err)
 			}
 
-			filter = append(filter,
-				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.owner", Value: md.Repository.Owner}}},
-				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.repo", Value: md.Repository.Repo}}},
-				&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: md.Repository.Ref}}},
-			)
+			filter = append(filter, lf...)
 		}
 
 		orderExprs, _ := cmd.Flags().GetStringArray("order")
