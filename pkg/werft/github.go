@@ -123,6 +123,11 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	}
 	flatname = strings.ToLower(strings.ReplaceAll(flatname, "/", "-"))
 
+	trigger := v1.JobTrigger_TRIGGER_PUSH
+	if event.Deleted != nil && *event.Deleted {
+		trigger = v1.JobTrigger_TRIGGER_DELETED
+	}
+
 	metadata := v1.JobMetadata{
 		Owner: *event.Pusher.Name,
 		Repository: &v1.Repository{
@@ -131,7 +136,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 			Ref:      *event.Ref,
 			Revision: rev,
 		},
-		Trigger: v1.JobTrigger_TRIGGER_PUSH,
+		Trigger: trigger,
 		Annotations: []*v1.Annotation{
 			&v1.Annotation{
 				Key:   annotationStatusUpdate,
