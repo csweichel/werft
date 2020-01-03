@@ -5353,8 +5353,9 @@ proto.v1.ListenRequestLogs = {
  */
 proto.v1.JobTrigger = {
   TRIGGER_UNKNOWN: 0,
-  TRIGGER_PUSH: 1,
-  TRIGGER_MANUAL: 2
+  TRIGGER_MANUAL: 1,
+  TRIGGER_PUSH: 2,
+  TRIGGER_DELETED: 3
 };
 
 /**

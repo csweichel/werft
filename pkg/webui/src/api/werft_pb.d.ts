@@ -743,8 +743,9 @@ export const ListenRequestLogs: ListenRequestLogsMap;
 
 export interface JobTriggerMap {
   TRIGGER_UNKNOWN: 0;
-  TRIGGER_PUSH: 1;
-  TRIGGER_MANUAL: 2;
+  TRIGGER_MANUAL: 1;
+  TRIGGER_PUSH: 2;
+  TRIGGER_DELETED: 3;
 }
 
 export const JobTrigger: JobTriggerMap;
