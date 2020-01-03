@@ -629,6 +629,11 @@ export class JobResult extends jspb.Message {
   getDescription(): string;
   setDescription(value: string): void;
 
+  clearChannelsList(): void;
+  getChannelsList(): Array<string>;
+  setChannelsList(value: Array<string>): void;
+  addChannels(value: string, index?: number): string;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): JobResult.AsObject;
   static toObject(includeInstance: boolean, msg: JobResult): JobResult.AsObject;
@@ -644,6 +649,7 @@ export namespace JobResult {
     type: string,
     payload: string,
     description: string,
+    channelsList: Array<string>,
   }
 }
 

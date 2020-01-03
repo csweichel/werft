@@ -202,6 +202,7 @@ message JobResult {
     string type = 1;
     string payload = 2;
     string description = 3;
+    repeated string channels = 4;
 }
 
 message LogSliceEvent {
