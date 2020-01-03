@@ -78,22 +78,16 @@ var runGithubCmd = &cobra.Command{
 			GithubToken: token,
 		}
 
-		jobname, _ := cmd.Flags().GetString("job-name")
-		jobPath, _ := flags.GetString("job-file")
-		if jobname != "" && jobPath != "" {
-			return xerrors.Errorf("cannot specify both: job name and job path")
-		} else if jobname != "" {
-			req.Job = &v1.StartGitHubJobRequest_JobName{
-				JobName: jobname,
-			}
-		} else if jobPath != "" {
-			fc, err := ioutil.ReadFile(jobPath)
+		req.JobPath, _ = cmd.Flags().GetString("remote-job-path")
+		if fn, _ := flags.GetString("job-file"); fn != "" {
+			fc, err := ioutil.ReadFile(fn)
 			if err != nil {
 				return err
 			}
 
-			req.Job = &v1.StartGitHubJobRequest_JobYaml{
-				JobYaml: fc,
+			req.JobYaml = fc
+			if req.JobPath == "" {
+				req.JobPath = fn
 			}
 		}
 
@@ -128,5 +122,5 @@ func init() {
 	runCmd.AddCommand(runGithubCmd)
 
 	runGithubCmd.Flags().String("token", "", "Token to use for authorization against GitHub")
-	runGithubCmd.Flags().StringP("job-name", "j", "", "start a particular job (defaults to the default job of the repo)")
+	runGithubCmd.Flags().String("remote-job-path", "", "start the job at that path in the repo (defaults to the default job of the repo)")
 }

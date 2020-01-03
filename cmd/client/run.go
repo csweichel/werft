@@ -144,7 +144,7 @@ func followJob(client v1.WerftServiceClient, name string) error {
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.PersistentFlags().String("job-file", "", "location of the job file (defaults to the default job in the werft config)")
+	runCmd.PersistentFlags().StringP("job-file", "j", "", "location of the job file (defaults to the default job in the werft config)")
 	runCmd.PersistentFlags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
 	runCmd.PersistentFlags().String("trigger", "manual", "job trigger. One of push, manual")
 	runCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")

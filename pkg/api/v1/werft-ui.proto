@@ -14,8 +14,9 @@ message ListJobSpecsRequest{}
 message ListJobSpecsResponse {
     Repository repo = 1;
     string name = 2;
-    string description = 3;
-    repeated DesiredAnnotation arguments = 4;
+    string path = 3;
+    string description = 4;
+    repeated DesiredAnnotation arguments = 5;
 }
 
 // DesiredAnnotation describes an annotation a job should have

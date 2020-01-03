@@ -168,19 +168,20 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		Auth:     gitauth,
 	}
 
-	jobYAML := req.GetJobYaml()
-	jobSpecName := "custom"
+	var (
+		jobYAML = req.JobYaml
+		tplpath = req.JobPath
+		jobSpecName = "custom"
+	)
 	if jobYAML == nil {
-		jobSpecName = req.GetJobName()
-		tplpath := fmt.Sprintf(".werft/%s.yaml", jobSpecName)
-		if jobSpecName == "" {
+		if tplpath == "" {
 			repoCfg, err := getRepoCfg(ctx, cp)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			tplpath = repoCfg.TemplatePath(req.Metadata)
-			jobSpecName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
 		}
+
 		in, err := cp.Download(ctx, tplpath)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
@@ -191,15 +192,19 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}
+	if tplpath != "" {
+		jobSpecName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
+	}
 
-	// acquire job number
-	name := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
-	if name == "" {
-		// we did not compute a sensible flatname - use moniker
-		name = moniker.New().NameSep("-")
-	} else {
-		// we have a flatname but must use the number group
-		name = fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, name)
+	// build job name
+	refname := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
+	if refname == "" {
+		// we did not compute a sensible refname - use moniker
+		refname = moniker.New().NameSep("-")
+	}
+	name := fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname)
+	if refname != "" {
+		// we have a valid refname, hence need to acquire job number
 		t, err := srv.Groups.Next(name)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())

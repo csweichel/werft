@@ -201,7 +201,7 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
         md.setAnnotationsList(annotations);
 
         const req = new StartGitHubJobRequest();
-        req.setJobName(j.getName());
+        req.setJobPath(j.getPath());
         req.setMetadata(md);
         
         this.props.client.startGitHubJob(req, (err, ok) => {

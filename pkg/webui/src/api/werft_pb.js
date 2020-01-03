@@ -95,7 +95,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.v1.StartGitHubJobRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.v1.StartGitHubJobRequest.oneofGroups_);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
 goog.inherits(proto.v1.StartGitHubJobRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -1116,32 +1116,6 @@ proto.v1.StartJobResponse.prototype.hasStatus = function() {
 
 
 
-/**
- * Oneof group definitions for this message. Each group defines the field
- * numbers belonging to that group. When of these fields' value is set, all
- * other fields in the group are cleared. During deserialization, if multiple
- * fields are encountered for a group, only the last value seen will be kept.
- * @private {!Array<!Array<number>>}
- * @const
- */
-proto.v1.StartGitHubJobRequest.oneofGroups_ = [[2,3]];
-
-/**
- * @enum {number}
- */
-proto.v1.StartGitHubJobRequest.JobCase = {
-  JOB_NOT_SET: 0,
-  JOB_NAME: 2,
-  JOB_YAML: 3
-};
-
-/**
- * @return {proto.v1.StartGitHubJobRequest.JobCase}
- */
-proto.v1.StartGitHubJobRequest.prototype.getJobCase = function() {
-  return /** @type {proto.v1.StartGitHubJobRequest.JobCase} */(jspb.Message.computeOneofCase(this, proto.v1.StartGitHubJobRequest.oneofGroups_[0]));
-};
-
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -1172,7 +1146,7 @@ proto.v1.StartGitHubJobRequest.prototype.toObject = function(opt_includeInstance
 proto.v1.StartGitHubJobRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     metadata: (f = msg.getMetadata()) && proto.v1.JobMetadata.toObject(includeInstance, f),
-    jobName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    jobPath: jspb.Message.getFieldWithDefault(msg, 2, ""),
     jobYaml: msg.getJobYaml_asB64(),
     githubToken: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
@@ -1218,7 +1192,7 @@ proto.v1.StartGitHubJobRequest.deserializeBinaryFromReader = function(msg, reade
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setJobName(value);
+      msg.setJobPath(value);
       break;
     case 3:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
@@ -1265,15 +1239,15 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
       proto.v1.JobMetadata.serializeBinaryToWriter
     );
   }
-  f = /** @type {string} */ (jspb.Message.getField(message, 2));
-  if (f != null) {
+  f = message.getJobPath();
+  if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = /** @type {!(string|Uint8Array)} */ (jspb.Message.getField(message, 3));
-  if (f != null) {
+  f = message.getJobYaml_asU8();
+  if (f.length > 0) {
     writer.writeBytes(
       3,
       f
@@ -1323,34 +1297,17 @@ proto.v1.StartGitHubJobRequest.prototype.hasMetadata = function() {
 
 
 /**
- * optional string job_name = 2;
+ * optional string job_path = 2;
  * @return {string}
  */
-proto.v1.StartGitHubJobRequest.prototype.getJobName = function() {
+proto.v1.StartGitHubJobRequest.prototype.getJobPath = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /** @param {string} value */
-proto.v1.StartGitHubJobRequest.prototype.setJobName = function(value) {
-  jspb.Message.setOneofField(this, 2, proto.v1.StartGitHubJobRequest.oneofGroups_[0], value);
-};
-
-
-/**
- * Clears the field making it undefined.
- */
-proto.v1.StartGitHubJobRequest.prototype.clearJobName = function() {
-  jspb.Message.setOneofField(this, 2, proto.v1.StartGitHubJobRequest.oneofGroups_[0], undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.v1.StartGitHubJobRequest.prototype.hasJobName = function() {
-  return jspb.Message.getField(this, 2) != null;
+proto.v1.StartGitHubJobRequest.prototype.setJobPath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
@@ -1389,24 +1346,7 @@ proto.v1.StartGitHubJobRequest.prototype.getJobYaml_asU8 = function() {
 
 /** @param {!(string|Uint8Array)} value */
 proto.v1.StartGitHubJobRequest.prototype.setJobYaml = function(value) {
-  jspb.Message.setOneofField(this, 3, proto.v1.StartGitHubJobRequest.oneofGroups_[0], value);
-};
-
-
-/**
- * Clears the field making it undefined.
- */
-proto.v1.StartGitHubJobRequest.prototype.clearJobYaml = function() {
-  jspb.Message.setOneofField(this, 3, proto.v1.StartGitHubJobRequest.oneofGroups_[0], undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.v1.StartGitHubJobRequest.prototype.hasJobYaml = function() {
-  return jspb.Message.getField(this, 3) != null;
+  jspb.Message.setProto3BytesField(this, 3, value);
 };
 
 

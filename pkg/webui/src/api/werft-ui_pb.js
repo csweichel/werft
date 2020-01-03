@@ -184,7 +184,7 @@ proto.v1.ListJobSpecsRequest.serializeBinaryToWriter = function(message, writer)
  * @private {!Array<number>}
  * @const
  */
-proto.v1.ListJobSpecsResponse.repeatedFields_ = [4];
+proto.v1.ListJobSpecsResponse.repeatedFields_ = [5];
 
 
 
@@ -217,7 +217,8 @@ proto.v1.ListJobSpecsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     repo: (f = msg.getRepo()) && werft_pb.Repository.toObject(includeInstance, f),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    path: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
     argumentsList: jspb.Message.toObjectList(msg.getArgumentsList(),
     proto.v1.DesiredAnnotation.toObject, includeInstance)
   };
@@ -267,9 +268,13 @@ proto.v1.ListJobSpecsResponse.deserializeBinaryFromReader = function(msg, reader
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setPath(value);
       break;
     case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDescription(value);
+      break;
+    case 5:
       var value = new proto.v1.DesiredAnnotation;
       reader.readMessage(value,proto.v1.DesiredAnnotation.deserializeBinaryFromReader);
       msg.addArguments(value);
@@ -318,17 +323,24 @@ proto.v1.ListJobSpecsResponse.serializeBinaryToWriter = function(message, writer
       f
     );
   }
-  f = message.getDescription();
+  f = message.getPath();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
+  f = message.getDescription();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
   f = message.getArgumentsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      4,
+      5,
       f,
       proto.v1.DesiredAnnotation.serializeBinaryToWriter
     );
@@ -385,33 +397,48 @@ proto.v1.ListJobSpecsResponse.prototype.setName = function(value) {
 
 
 /**
- * optional string description = 3;
+ * optional string path = 3;
  * @return {string}
  */
-proto.v1.ListJobSpecsResponse.prototype.getDescription = function() {
+proto.v1.ListJobSpecsResponse.prototype.getPath = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /** @param {string} value */
-proto.v1.ListJobSpecsResponse.prototype.setDescription = function(value) {
+proto.v1.ListJobSpecsResponse.prototype.setPath = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * repeated DesiredAnnotation arguments = 4;
+ * optional string description = 4;
+ * @return {string}
+ */
+proto.v1.ListJobSpecsResponse.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.v1.ListJobSpecsResponse.prototype.setDescription = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated DesiredAnnotation arguments = 5;
  * @return {!Array<!proto.v1.DesiredAnnotation>}
  */
 proto.v1.ListJobSpecsResponse.prototype.getArgumentsList = function() {
   return /** @type{!Array<!proto.v1.DesiredAnnotation>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.v1.DesiredAnnotation, 4));
+    jspb.Message.getRepeatedWrapperField(this, proto.v1.DesiredAnnotation, 5));
 };
 
 
 /** @param {!Array<!proto.v1.DesiredAnnotation>} value */
 proto.v1.ListJobSpecsResponse.prototype.setArgumentsList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 4, value);
+  jspb.Message.setRepeatedWrapperField(this, 5, value);
 };
 
 
@@ -421,7 +448,7 @@ proto.v1.ListJobSpecsResponse.prototype.setArgumentsList = function(value) {
  * @return {!proto.v1.DesiredAnnotation}
  */
 proto.v1.ListJobSpecsResponse.prototype.addArguments = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 4, opt_value, proto.v1.DesiredAnnotation, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.v1.DesiredAnnotation, opt_index);
 };
 
 

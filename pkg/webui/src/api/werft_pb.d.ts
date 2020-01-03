@@ -94,13 +94,9 @@ export class StartGitHubJobRequest extends jspb.Message {
   getMetadata(): JobMetadata | undefined;
   setMetadata(value?: JobMetadata): void;
 
-  hasJobName(): boolean;
-  clearJobName(): void;
-  getJobName(): string;
-  setJobName(value: string): void;
+  getJobPath(): string;
+  setJobPath(value: string): void;
 
-  hasJobYaml(): boolean;
-  clearJobYaml(): void;
   getJobYaml(): Uint8Array | string;
   getJobYaml_asU8(): Uint8Array;
   getJobYaml_asB64(): string;
@@ -109,7 +105,6 @@ export class StartGitHubJobRequest extends jspb.Message {
   getGithubToken(): string;
   setGithubToken(value: string): void;
 
-  getJobCase(): StartGitHubJobRequest.JobCase;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
   static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
@@ -123,15 +118,9 @@ export class StartGitHubJobRequest extends jspb.Message {
 export namespace StartGitHubJobRequest {
   export type AsObject = {
     metadata?: JobMetadata.AsObject,
-    jobName: string,
+    jobPath: string,
     jobYaml: Uint8Array | string,
     githubToken: string,
-  }
-
-  export enum JobCase {
-    JOB_NOT_SET = 0,
-    JOB_NAME = 2,
-    JOB_YAML = 3,
   }
 }
 

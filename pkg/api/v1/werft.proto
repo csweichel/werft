@@ -51,10 +51,8 @@ message StartJobResponse {
 
 message StartGitHubJobRequest {
     JobMetadata metadata = 1;
-    oneof job {
-        string job_name = 2;
-        bytes job_yaml = 3;
-    };
+    string job_path = 2;
+    bytes job_yaml = 3;
     string github_token = 4;
 }
 

@@ -29,6 +29,9 @@ export class ListJobSpecsResponse extends jspb.Message {
   getName(): string;
   setName(value: string): void;
 
+  getPath(): string;
+  setPath(value: string): void;
+
   getDescription(): string;
   setDescription(value: string): void;
 
@@ -51,6 +54,7 @@ export namespace ListJobSpecsResponse {
   export type AsObject = {
     repo?: werft_pb.Repository.AsObject,
     name: string,
+    path: string,
     description: string,
     argumentsList: Array<DesiredAnnotation.AsObject>,
   }

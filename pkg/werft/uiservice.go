@@ -117,6 +117,7 @@ func (uis *UIService) updateJobSpecs() error {
 					Revision: repo.Revision,
 				},
 				Name:        jobName,
+				Path:        f.GetPath(),
 				Description: jobspec.Desc,
 				Arguments:   args,
 			}
