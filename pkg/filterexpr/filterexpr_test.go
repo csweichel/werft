@@ -12,21 +12,22 @@ import (
 func TestValidBasics(t *testing.T) {
 	tests := []struct {
 		Input  string
-		Result *v1.FilterExpression
+		Result *v1.FilterTerm
 		Error  string
 	}{
-		{"foo==bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: false}}}, ""},
-		{"foo!==bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}, ""},
-		{"foo~=bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: false}}}, ""},
-		{"foo!~=bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: true}}}, ""},
-		{"foo|=bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: false}}}, ""},
-		{"foo!|=bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: true}}}, ""},
-		{"foo=|bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: false}}}, ""},
-		{"foo!=|bar", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: true}}}, ""},
-		{"success==true", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: false}}}, ""},
-		{"success==false", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: false}}}, ""},
-		{"success!==true", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}, ""},
-		{"success!==false", &v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}, ""},
+		{"foo==bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"foo!==bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"foo~=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: false}, ""},
+		{"foo!~=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: true}, ""},
+		{"foo|=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: false}, ""},
+		{"foo!|=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: true}, ""},
+		{"foo=|bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: false}, ""},
+		{"foo!=|bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: true}, ""},
+		{"success==true", &v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"success==false", &v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"success!==true", &v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"success!==false", &v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"trim == whitespace", &v1.FilterTerm{Field: "trim", Value: "whitespace", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
 		{"foo", nil, filterexpr.ErrMissingOp.Error()},
 		{"phase==blabla", nil, "invalid phase: blabla"},
 	}

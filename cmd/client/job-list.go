@@ -63,9 +63,12 @@ For example:
   phase==done success==true  finds all successfully finished jobs
 		`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filter, err := filterexpr.Parse(args)
+		filterterms, err := filterexpr.Parse(args)
 		if err != nil {
 			return err
+		}
+		filter := []*v1.FilterExpression{
+			&v1.FilterExpression{Terms: filterterms},
 		}
 
 		useLocalContext, _ := cmd.Flags().GetBool("local")

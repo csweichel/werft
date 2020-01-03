@@ -112,15 +112,23 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	ctx := context.Background()
 	rev := *event.After
 
-	ref := strings.TrimPrefix(*event.Ref, "refs/heads/")
-	flatname := strings.ToLower(strings.ReplaceAll(ref, "/", "-"))
+	// the ref is something like refs/heads/ or refs/tags/ ... we want to strip those prefixes
+	flatname := *event.Ref
+	if strings.HasPrefix(flatname, "refs/") {
+		flatname = strings.TrimPrefix(flatname, "refs/")
+		i := strings.IndexRune(flatname, '/')
+		if i > -1 {
+			flatname = flatname[i:]
+		}
+	}
+	flatname = strings.ToLower(strings.ReplaceAll(flatname, "/", "-"))
 
 	metadata := v1.JobMetadata{
 		Owner: *event.Pusher.Name,
 		Repository: &v1.Repository{
 			Owner:    *event.Repo.Owner.Name,
 			Repo:     *event.Repo.Name,
-			Ref:      ref,
+			Ref:      *event.Ref,
 			Revision: rev,
 		},
 		Trigger: v1.JobTrigger_TRIGGER_PUSH,
@@ -145,7 +153,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	}
 
 	// check if we need to build/do anything
-	if !repoCfg.ShouldRun(metadata.Trigger) {
+	if !repoCfg.ShouldRun(&metadata) {
 		return
 	}
 
