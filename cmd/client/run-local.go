@@ -30,13 +30,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/paulbellamy/ratecounter"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v3"
 )
 
 // runLocalCmd represents the triggerLocal command
@@ -73,20 +71,7 @@ var runLocalCmd = &cobra.Command{
 		var configYAML []byte
 		jobPath, _ := cmd.Flags().GetString("job-file")
 		if jobPath == "" {
-			cfgPath, _ := flags.GetString("config-file")
-			cfgPath = strings.ReplaceAll(cfgPath, "$CWD", workingdir)
-			configYAML, err = ioutil.ReadFile(cfgPath)
-			if err != nil {
-				return xerrors.Errorf("cannot read config file: %w", err)
-			}
-
-			var cfg repoconfig.C
-			err = yaml.Unmarshal(configYAML, &cfg)
-			if err != nil {
-				return xerrors.Errorf("cannot unmarshal config: %w", err)
-			}
-
-			jobPath = cfg.DefaultJob
+			return xerrors.Errorf("missing job file")
 		}
 		jobYAML, err := ioutil.ReadFile(jobPath)
 		if err != nil {
