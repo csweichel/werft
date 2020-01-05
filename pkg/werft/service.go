@@ -169,8 +169,8 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	var (
-		jobYAML = req.JobYaml
-		tplpath = req.JobPath
+		jobYAML     = req.JobYaml
+		tplpath     = req.JobPath
 		jobSpecName = "custom"
 	)
 	if jobYAML == nil {
