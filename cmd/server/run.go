@@ -232,7 +232,7 @@ func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugPro
 	log.WithField("addr", addr).Info("serving werft web service")
 	err := http.ListenAndServe(addr, mux)
 	if err != nil {
-		srv.OnError(err)
+		log.WithField("addr", addr).WithError(err).Warn("cannot serve web service")
 	}
 }
 

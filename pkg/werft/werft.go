@@ -54,7 +54,6 @@ type Service struct {
 	Executor *executor.Executor
 	Cutter   logcutter.Cutter
 	GitHub   GitHubSetup
-	OnError  func(err error)
 
 	Config Config
 
@@ -76,11 +75,6 @@ type GitHubSetup struct {
 
 // Start sets up everything to run this werft instance, including executor config
 func (srv *Service) Start() {
-	if srv.OnError == nil {
-		srv.OnError = func(err error) {
-			log.WithError(err).Error("service error")
-		}
-	}
 	if srv.logListener == nil {
 		srv.logListener = make(map[string]*jobLog)
 	}
@@ -127,12 +121,12 @@ func (srv *Service) Start() {
 		}
 		err = srv.Jobs.Store(context.Background(), *s)
 		if err != nil {
-			srv.OnError(xerrors.Errorf("cannot store job %s: %v", s.Name, err))
+			log.WithError(err).WithField("name", s.Name).Warn("cannot store job")
 		}
 
 		err = srv.updateGitHubStatus(s)
 		if err != nil {
-			srv.OnError(xerrors.Errorf("cannot update GitHub status for %s: %v", s.Name, err))
+			log.WithError(err).WithField("name", s.Name).Warn("cannot update GitHub status")
 		}
 
 		// tell our Listen subscribers about this change
@@ -191,7 +185,7 @@ func (srv *Service) ensureLogging(s *v1.JobStatus) {
 		go func() {
 			err := srv.listenToLogs(ctx, s.Name, srv.Executor.Logs(s.Name))
 			if err != nil && err != context.Canceled {
-				srv.OnError(err)
+				log.WithError(err).WithField("name", s.Name).Error("cannot listen to job logs")
 				jl.CancelExecutorListener = nil
 			}
 		}()

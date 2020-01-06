@@ -93,7 +93,6 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 	}
 
 	return &Executor{
-		OnError:  func(err error) {},
 		OnUpdate: func(pod *corev1.Pod, status *werftv1.JobStatus) {},
 
 		Config:     config,
@@ -104,9 +103,6 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 
 // Executor starts and watches jobs running in Kubernetes
 type Executor struct {
-	// OnError is called if something goes wrong with the continuous operation of the executor
-	OnError func(err error)
-
 	// OnUpdate is called when the status of a job changes.
 	// Beware: this function can be called several times with the same status.
 	OnUpdate func(pod *corev1.Pod, status *werftv1.JobStatus)
@@ -263,7 +259,7 @@ func (js *Executor) monitorJobs() {
 			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
 		})
 		if err != nil {
-			js.OnError(xerrors.Errorf("cannot watch jobs, monitor is shutting down: %w", err))
+			log.WithError(err).Error("cannot watch jobs, monitor is shutting down")
 			continue
 		}
 		log.Info("connected to Kubernetes master")
@@ -291,14 +287,14 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 	status, err := getStatus(obj)
 	js.writeEventTraceLog(status, obj)
 	if err != nil {
-		js.OnError(err)
+		log.WithError(err).WithField("name", obj.Name).Error("cannot compute status")
 		return
 	}
 
 	js.OnUpdate(obj, status)
 	err = js.actOnUpdate(status, obj)
 	if err != nil {
-		js.OnError(err)
+		log.WithError(err).WithField("name", obj.Name).Error("cannot act on status update")
 		return
 	}
 }
@@ -313,8 +309,10 @@ func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) erro
 			PropagationPolicy:  &policy,
 		})
 		if err != nil {
-			return err
+			log.WithError(err).WithField("name", obj.Name).Error("cannot delete job pod")
 		}
+
+		// TODO: clean up workspace content
 
 		return nil
 	}
@@ -368,20 +366,20 @@ func (js *Executor) doHousekeeping() {
 			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
 		})
 		if err != nil {
-			js.OnError(xerrors.Errorf("cannot perform housekeeping: %w", err))
+			log.WithError(err).Warn("cannot perform housekeeping")
 			continue
 		}
 
 		for _, pod := range pods.Items {
 			status, err := getStatus(&pod)
 			if err != nil {
-				js.OnError(xerrors.Errorf("cannot perform housekeeping on %s: %w", pod.Name, err))
+				log.WithError(err).WithField("name", pod.Name).Warn("cannot perform housekeeping")
 				continue
 			}
 
 			created, err := ptypes.Timestamp(status.Metadata.Created)
 			if err != nil {
-				js.OnError(xerrors.Errorf("cannot perform housekeeping on %s: %w", pod.Name, err))
+				log.WithError(err).WithField("name", pod.Name).Warn("cannot perform housekeeping")
 				continue
 			}
 
