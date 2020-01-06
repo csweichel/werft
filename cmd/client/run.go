@@ -52,7 +52,7 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 	}
 	repo.Revision = strings.TrimSpace(string(revision))
 
-	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd = exec.Command("git", "rev-parse", "--symbolic-full-name", "HEAD")
 	cmd.Dir = wd
 	ref, err := cmd.Output()
 	if err != nil {

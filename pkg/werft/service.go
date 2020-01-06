@@ -197,7 +197,11 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	// build job name
-	refname := strings.ToLower(strings.ReplaceAll(md.Repository.Ref, "/", "-"))
+	refname := md.Repository.Ref
+	refname = strings.TrimPrefix(refname, "refs/heads/")
+	refname = strings.TrimPrefix(refname, "refs/tags/")
+	refname = strings.ReplaceAll(refname, "/", "-")
+	refname = strings.ToLower(refname)
 	if refname == "" {
 		// we did not compute a sensible refname - use moniker
 		refname = moniker.New().NameSep("-")
