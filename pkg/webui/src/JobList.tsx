@@ -58,11 +58,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
     }
 
     async componentDidMount() {
-        try {
-            this.startListening();
-        } catch (err) {
-            alert(err);
-        }
+        this.startListening();
     }
 
     protected startListening() {
@@ -89,7 +85,8 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             });
             evts.on('status', console.warn);
         } catch (err) {
-            alert(err);
+            console.warn(err);
+            setTimeout(() => this.startListening(), 1200);
         }
     }
 

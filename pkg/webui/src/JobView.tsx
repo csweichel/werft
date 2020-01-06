@@ -93,11 +93,19 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         req.setName(this.props.jobName);
         try {
             const resp = await new Promise<GetJobResponse>((resolve, reject) => this.props.client.getJob(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
-            this.setState({ status: resp.getResult()!.toObject() });
+            const res = resp.getResult()!;
+            this.setState({ status: res.toObject() });
         } catch (err) {
             this.setState({error: err});
             return;
         }
+        
+        this.listenForJobUpdates();
+        this.listenForNewJobs();
+    }
+
+    protected listenForJobUpdates() {
+        console.log("listening for updates to this job");
 
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
@@ -106,20 +114,39 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         }
         lreq.setUpdates(true);
         lreq.setName(this.props.jobName);
-        const evts = this.props.client.listen(lreq);
-        this.disposables.push(() => evts.cancel());
-        
-        let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
-        evts.on('data', h => {
-            if (h.hasUpdate()) {
-                this.setState({ status: h.getUpdate()!.toObject() });
-            } else if (h.hasSlice()) {
-                const log = this.logCache;
-                log.push(h.getSlice()!);
-                updateLogState(log);
-            }
-        });
-        evts.on('end', console.log);
+
+        try {
+            const evts = this.props.client.listen(lreq);
+            this.disposables.push(() => evts.cancel());
+            
+            let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
+            evts.on('data', h => {
+                if (h.hasUpdate()) {
+                    this.setState({ status: h.getUpdate()!.toObject() });
+                } else if (h.hasSlice()) {
+                    const log = this.logCache;
+                    log.push(h.getSlice()!);
+                    updateLogState(log);
+                }
+            });
+            evts.on('end', status => {
+                if (!status) {
+                    return;
+                }
+                // 0 === grpc.Code.OK
+                if (status.code === 0) {
+                    return;
+                }
+
+                setTimeout(() => this.listenForJobUpdates(), 1000);
+            });
+        } catch (err) {
+            setTimeout(() => this.listenForJobUpdates(), 1000);
+        }
+    }
+
+    protected listenForNewJobs() {
+        console.log("listening for newer jobs");
 
         const nameTerm = new FilterTerm();
         nameTerm.setField("name");
@@ -153,25 +180,39 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             this.setState({ newerJob: newJob.toObject() });
         });
 
-        const ureq = new SubscribeRequest();
-        ureq.addFilter(nufilter);
-        const newJobEvts = this.props.client.subscribe(ureq);
-        this.disposables.push(() => newJobEvts.cancel());
-        newJobEvts.on('data', h => {
-            if (!h || !h.getResult()) {
-                return;
-            }
-            const r = h.getResult();
-            if (!r) {
-                return;
-            }
-            if (r.getName() === this.props.jobName) {
-                return;
-            }
+        try {
+            const ureq = new SubscribeRequest();
+            ureq.addFilter(nufilter);
+            const newJobEvts = this.props.client.subscribe(ureq);
+            this.disposables.push(() => newJobEvts.cancel());
+            newJobEvts.on('data', h => {
+                if (!h || !h.getResult()) {
+                    return;
+                }
+                const r = h.getResult();
+                if (!r) {
+                    return;
+                }
+                if (r.getName() === this.props.jobName) {
+                    return;
+                }
 
-            this.setState({ newerJob: r.toObject() });
-        });
-        newJobEvts.on('end', console.log);
+                this.setState({ newerJob: r.toObject() });
+            });
+            newJobEvts.on('end', status => {
+                if (!status) {
+                    return;
+                }
+                // 0 === grpc.Code.OK
+                if (status.code === 0) {
+                    return;
+                }
+
+                setTimeout(() => this.listenForNewJobs(), 1000);
+            });
+        } catch (err) {
+            setTimeout(() => this.listenForNewJobs(), 1000);
+        }
     }
 
     componentWillUnmount() {
