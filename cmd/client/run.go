@@ -190,7 +190,7 @@ func printLogSliceWithPrefix(prefix string, slice *v1.LogSliceEvent) {
 	case v1.LogSliceType_SLICE_FAIL:
 		fmt.Printf("[%s%s|FAIL] %s\n", prefix, slice.Name, slice.Payload)
 	case v1.LogSliceType_SLICE_RESULT:
-		fmt.Printf("[%s%s|RESULT] %s\n", prefix, slice.Name, slice.Payload)
+		fmt.Printf("[%s|RESULT] %s\n", slice.Name, slice.Payload)
 	}
 }
 
