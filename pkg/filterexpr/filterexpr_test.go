@@ -67,6 +67,11 @@ func TestMatchesFilter(t *testing.T) {
 			[]*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS}}}},
 			true,
 		},
+		{
+			&v1.JobStatus{Metadata: md, Name: "foobar.1"},
+			[]*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "name", Value: "foobar", Operation: v1.FilterOp_OP_STARTS_WITH}}}},
+			true,
+		},
 	}
 
 	for idx, test := range tests {

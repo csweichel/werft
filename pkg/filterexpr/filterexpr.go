@@ -81,6 +81,7 @@ func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches boo
 	}
 
 	idx := map[string]string{
+		"name":  js.Name,
 		"phase": strings.ToLower(strings.TrimPrefix(js.Phase.String(), "PHASE_")),
 	}
 	if js.Metadata != nil {
@@ -115,7 +116,7 @@ func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches boo
 			case v1.FilterOp_OP_EQUALS:
 				tm = val == alt.Value
 			case v1.FilterOp_OP_STARTS_WITH:
-				tm = strings.HasSuffix(val, alt.Value)
+				tm = strings.HasPrefix(val, alt.Value)
 			case v1.FilterOp_OP_EXISTS:
 				tm = true
 			}

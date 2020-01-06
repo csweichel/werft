@@ -1,19 +1,21 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest } from './api/werft_pb';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, ListJobsRequest, OrderExpression } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
 import { ResultView } from './components/ResultView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typography, Button } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typography, Button, Snackbar, SnackbarContent } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
 import ReplayIcon from '@material-ui/icons/Replay';
-import { ColorUnknown, ColorFailure, ColorSuccess } from './components/colors';
+import InfoIcon from '@material-ui/icons/Info';
+import { ColorUnknown, ColorFailure, ColorSuccess, ColorRunning } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 import * as moment from 'moment';
+import clsx from 'clsx';
 
 const styles = (theme: Theme) => createStyles({
     main: {
@@ -37,6 +39,24 @@ const styles = (theme: Theme) => createStyles({
     },
     infobar: {
         paddingBottom: "1em"
+    },
+    newJobInfo: {
+        backgroundColor: ColorRunning,
+    },
+    snackbarIcon: {
+        fontSize: 20,
+    },
+    snackbarIconVariant: {
+        opacity: 0.9,
+        marginRight: theme.spacing(1),
+    },
+    snackbarMessage: {
+        margin: '-8px 0px',
+        display: 'flex',
+        alignItems: 'center',
+    },
+    snackbarLink: {
+        color: 'white'
     }
 });
 
@@ -51,10 +71,12 @@ interface JobViewState {
     showDetails: boolean;
     log: LogSliceEvent[];
     error?: any;
+    newerJob?: JobStatus.AsObject
 }
 
 class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     protected logCache: LogSliceEvent[] = [];
+    protected disposables: (()=>void)[] = [];
 
     constructor(props: JobViewProps) {
         super(props);
@@ -85,6 +107,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         lreq.setUpdates(true);
         lreq.setName(this.props.jobName);
         const evts = this.props.client.listen(lreq);
+        this.disposables.push(() => evts.cancel());
         
         let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
         evts.on('data', h => {
@@ -97,10 +120,63 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }
         });
         evts.on('end', console.log);
+
+        const nameTerm = new FilterTerm();
+        nameTerm.setField("name");
+        nameTerm.setOperation(FilterOp.OP_STARTS_WITH);
+        nameTerm.setValue(this.props.jobName.split(".")[0]);
+        const nufilter = new FilterExpression();
+        nufilter.addTerms(nameTerm);
+
+        const greq = new ListJobsRequest();
+        greq.setFilterList([nufilter]);
+        greq.setLimit(1);
+        greq.setOrderList([ (() => {
+            const e = new OrderExpression();
+            e.setField("created");
+            e.setAscending(false);
+            return e;
+        })() ]);
+        this.props.client.listJobs(greq, (err, resp) => {
+            if (!resp) {
+                return;
+            }
+            const results = resp.getResultList();
+            if (!results) {
+                return;
+            }
+            const newJob = results[0];
+            if (newJob.getName() === this.props.jobName) {
+                return;
+            }
+
+            this.setState({ newerJob: newJob.toObject() });
+        });
+
+        const ureq = new SubscribeRequest();
+        ureq.addFilter(nufilter);
+        const newJobEvts = this.props.client.subscribe(ureq);
+        this.disposables.push(() => newJobEvts.cancel());
+        newJobEvts.on('data', h => {
+            if (!h || !h.getResult()) {
+                return;
+            }
+            const r = h.getResult();
+            if (!r) {
+                return;
+            }
+            if (r.getName() === this.props.jobName) {
+                return;
+            }
+
+            this.setState({ newerJob: r.toObject() });
+        });
+        newJobEvts.on('end', console.log);
     }
 
     componentWillUnmount() {
-        window.removeEventListener("keydown", returnToJobList)
+        window.removeEventListener("keydown", returnToJobList);
+        this.disposables.forEach(d => d());
     }
 
     render() {
@@ -109,7 +185,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         let finished = true;
         if (this.state.status && this.state.status.conditions) {
             if (this.state.status.phase !== JobPhase.PHASE_DONE) {
-                color = '#A3B2BD';
+                color = ColorRunning;
                 finished = false;
             } else if (this.state.status.conditions.success) {
                 color = ColorSuccess;
@@ -173,6 +249,25 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 </Grid>
             </Toolbar>;
         }
+
+        const snackbar = (
+            <Snackbar open={!!this.state.newerJob} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                <SnackbarContent 
+                    className={classes.newJobInfo}
+                    aria-describedby="client-snackbar"
+                    message={
+                        <span id="client-snackbar" className={classes.snackbarMessage}>
+                            <InfoIcon className={clsx(classes.snackbarIcon, classes.snackbarIconVariant)} />
+                            { this.state.newerJob && <p>This is not the latest job that ran with this context: <a className={classes.snackbarLink} href={`/job/${this.state.newerJob.name}`}>{this.state.newerJob.name}</a> is newer.</p> }
+                        </span>
+                    }
+                    action={[
+                        <IconButton key="close" aria-label="close" color="inherit" onClick={() => this.setState({ newerJob: undefined })}>
+                            <CloseIcon className={classes.snackbarIcon} />
+                        </IconButton>,
+                    ]} />
+            </Snackbar>
+        );
         
         if (!!this.state.error) {
             return <main className={classes.mainError}>
@@ -188,6 +283,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
+                { snackbar }
                 { this.state.status && this.state.status.details }
                 { (this.props.view === "logs" || this.props.view === "raw-logs") &&
                     <LogView name={this.state.status && this.state.status.name} logs={this.state.log} failed={failed} raw={this.props.view === "raw-logs"} finished={finished} />
