@@ -59,6 +59,7 @@ var runGithubCmd = &cobra.Command{
 				Repository: repo,
 			}
 		}
+		addUserAnnotations(cmd, md)
 
 		triggerName, _ := flags.GetString("trigger")
 		trigger, ok := v1.JobTrigger_value[fmt.Sprintf("TRIGGER_%s", strings.ToUpper(triggerName))]

@@ -67,6 +67,7 @@ var runLocalCmd = &cobra.Command{
 				},
 			}
 		}
+		addUserAnnotations(cmd, md)
 
 		var configYAML []byte
 		jobPath, _ := cmd.Flags().GetString("job-file")

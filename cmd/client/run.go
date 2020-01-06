@@ -159,6 +159,17 @@ func followJob(client v1.WerftServiceClient, name string) error {
 	}
 }
 
+// adds the annotations from --annotation to the metadata
+func addUserAnnotations(cmd *cobra.Command, md *v1.JobMetadata) {
+	annotations, _ := runCmd.PersistentFlags().GetStringToString("annotations")
+	for k, v := range annotations {
+		md.Annotations = append(md.Annotations, &v1.Annotation{
+			Key:   k,
+			Value: v,
+		})
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(runCmd)
 
@@ -166,4 +177,5 @@ func init() {
 	runCmd.PersistentFlags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
 	runCmd.PersistentFlags().String("trigger", "manual", "job trigger. One of push, manual")
 	runCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")
+	runCmd.PersistentFlags().StringToStringP("annotations", "a", map[string]string{}, "adds an annotation to the job")
 }

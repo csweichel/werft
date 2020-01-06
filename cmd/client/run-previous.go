@@ -36,6 +36,11 @@ var runPreviousJobCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flags := cmd.Parent().PersistentFlags()
 
+		annotations, _ := flags.GetStringToString("annotations")
+		if len(annotations) > 0 {
+			return fmt.Errorf("--annotation is not supported when replaying a previous job")
+		}
+
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
