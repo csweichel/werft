@@ -22,6 +22,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -125,7 +126,7 @@ func configureRepoFromOrigin(repo *v1.Repository, origin string) error {
 	return nil
 }
 
-func followJob(client v1.WerftServiceClient, name string) error {
+func followJob(client v1.WerftServiceClient, name, prefix string) error {
 	ctx := context.Background()
 	logs, err := client.Listen(ctx, &v1.ListenRequest{
 		Name:    name,
@@ -154,7 +155,11 @@ func followJob(client v1.WerftServiceClient, name string) error {
 			}
 		}
 		if data := msg.GetSlice(); data != nil {
-			pringLogSlice(data)
+			if prefix == "" {
+				pringLogSlice(data)
+			} else {
+				printLogSliceWithPrefix(prefix, data)
+			}
 		}
 	}
 }
@@ -170,6 +175,25 @@ func addUserAnnotations(cmd *cobra.Command, md *v1.JobMetadata) {
 	}
 }
 
+func printLogSliceWithPrefix(prefix string, slice *v1.LogSliceEvent) {
+	if slice.Name == "werft:kubernetes" || slice.Name == "werft:status" {
+		return
+	}
+
+	switch slice.Type {
+	case v1.LogSliceType_SLICE_PHASE:
+		fmt.Printf("[%s%s|PHASE] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_CONTENT:
+		fmt.Printf("[%s%s] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_DONE:
+		fmt.Printf("[%s%s|DONE] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_FAIL:
+		fmt.Printf("[%s%s|FAIL] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_RESULT:
+		fmt.Printf("[%s%s|RESULT] %s\n", prefix, slice.Name, slice.Payload)
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(runCmd)
 
@@ -178,4 +202,5 @@ func init() {
 	runCmd.PersistentFlags().String("trigger", "manual", "job trigger. One of push, manual")
 	runCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")
 	runCmd.PersistentFlags().StringToStringP("annotations", "a", map[string]string{}, "adds an annotation to the job")
+	runCmd.PersistentFlags().String("follow-with-prefix", "", "prints the log output with a prefix and disbales colors - useful for starting jobs from within jobs")
 }

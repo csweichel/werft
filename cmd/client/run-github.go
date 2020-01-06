@@ -59,6 +59,9 @@ var runGithubCmd = &cobra.Command{
 				Repository: repo,
 			}
 		}
+		if err != nil {
+			return err
+		}
 		addUserAnnotations(cmd, md)
 
 		triggerName, _ := flags.GetString("trigger")
@@ -108,8 +111,9 @@ var runGithubCmd = &cobra.Command{
 		fmt.Println(resp.Status.Name)
 
 		follow, _ := flags.GetBool("follow")
-		if follow {
-			err = followJob(client, resp.Status.Name)
+		withPrefix, _ := flags.GetString("follow-with-prefix")
+		if follow || withPrefix != "" {
+			err = followJob(client, resp.Status.Name, withPrefix)
 			if err != nil {
 				return err
 			}
