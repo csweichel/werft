@@ -44,3 +44,15 @@ plugins:
     - -c
     - cd integrations/plugins/webhook && go run main.go $*
     - -s
+  - name: "cron"
+    type:
+    - integration
+    config:
+      tasks:
+      - spec: "@every 1m"
+        repo: github.com/32leaves/test-repo:werft
+    command:
+    - sh
+    - -c
+    - cd integrations/plugins/cron && go run main.go $*
+    - -s

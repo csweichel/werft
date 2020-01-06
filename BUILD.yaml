@@ -24,6 +24,7 @@ packages:
   - "pkg/plugin/client/*.go"
   - "pkg/plugin/common/*.go"
   - "pkg/filterexpr/*.go"
+  - "pkg/reporef/*.go"
   - "pkg/api/**/*.go"
   - "go.mod"
   - "go.sum"
@@ -32,6 +33,7 @@ packages:
   deps:
   - :server
   - integrations/plugins/webhook:app
+  - integrations/plugins/cron:app
   argdeps:
   - version
   config:
