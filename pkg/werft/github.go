@@ -167,6 +167,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	metadata := v1.JobMetadata{
 		Owner: *event.Pusher.Name,
 		Repository: &v1.Repository{
+			Host:     "github.com",
 			Owner:    *event.Repo.Owner.Name,
 			Repo:     *event.Repo.Name,
 			Ref:      *event.Ref,
