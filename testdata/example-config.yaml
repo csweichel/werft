@@ -1,11 +1,11 @@
 werft:
   baseURL: https://werft.com
   workspaceNodePathPrefix: "/mnt/disks/ssd0/builds"
-  jobSpecRepos:
-  - 32leaves/test-repo:werft
 service:
   webPort: 8080
   grpcPort: 7777
+  jobSpecRepos:
+  - 32leaves/test-repo:werft
 kubeconfig: "/Users/csweichel/.kube/config"
 executor:
   preperationTimeout: 10m

@@ -95,7 +95,7 @@ func (ll *logListener) Start() {
 
 			for _, c := range statuses {
 				if c.State.Running != nil {
-					ll.tail(pod.Name, c.Name)
+					go ll.tail(pod.Name, c.Name)
 				}
 			}
 		case watch.Deleted:
@@ -105,7 +105,7 @@ func (ll *logListener) Start() {
 
 			for _, c := range statuses {
 				if c.State.Terminated != nil {
-					ll.stopTailing(pod.Name, c.Name)
+					go ll.stopTailing(pod.Name, c.Name)
 				}
 			}
 		}
@@ -113,8 +113,10 @@ func (ll *logListener) Start() {
 }
 
 func (ll *logListener) tail(pod, container string) {
+	var once sync.Once
+
 	ll.mu.Lock()
-	defer ll.mu.Unlock()
+	defer once.Do(ll.mu.Unlock)
 
 	id := fmt.Sprintf("%s/%s", pod, container)
 	_, ok := ll.listener[id]
@@ -122,6 +124,8 @@ func (ll *logListener) tail(pod, container string) {
 		// we're already listening
 		return
 	}
+
+	log.WithField("id", id).Debug("tailing container")
 
 	// we have to start listenting
 	req := ll.Clientset.CoreV1().Pods(ll.Namespace).GetLogs(pod, &corev1.PodLogOptions{
@@ -135,17 +139,16 @@ func (ll *logListener) tail(pod, container string) {
 		return
 	}
 	ll.listener[id] = logs
+	once.Do(ll.mu.Unlock)
 
 	// forward the logs line by line to ensure we don't mix the output of different conainer
-	go func() {
-		scanner := bufio.NewScanner(logs)
-		for scanner.Scan() {
-			line := scanner.Text()
-			ll.inmu.Lock()
-			ll.in.Write([]byte(line + "\n"))
-			ll.inmu.Unlock()
-		}
-	}()
+	scanner := bufio.NewScanner(logs)
+	for scanner.Scan() {
+		line := scanner.Text()
+		ll.inmu.Lock()
+		ll.in.Write([]byte(line + "\n"))
+		ll.inmu.Unlock()
+	}
 }
 
 func (ll *logListener) stopTailing(pod, container string) {
@@ -155,9 +158,11 @@ func (ll *logListener) stopTailing(pod, container string) {
 	id := fmt.Sprintf("%s/%s", pod, container)
 	stp, ok := ll.listener[id]
 	if !ok {
-		// we're already listening
+		// we're not listening
 		return
 	}
+
+	log.WithField("id", id).Debug("stopped tailing container")
 
 	stp.Close()
 	delete(ll.listener, id)
