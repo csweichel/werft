@@ -112,7 +112,7 @@ func (srv *Service) HandleGithubWebhook(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		srv.OnError(*err)
+		log.WithError(*err).Warn("GitHub webhook error")
 		http.Error(w, (*err).Error(), http.StatusInternalServerError)
 	}(&err)
 
@@ -202,7 +202,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 		Metadata: &metadata,
 	})
 	if err != nil {
-		srv.OnError(err)
+		log.WithError(err).Warn("GitHub webhook error")
 	}
 }
 
