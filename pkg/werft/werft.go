@@ -29,6 +29,12 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+var (
+	// annotationCleanupJob is set on jobs which cleanup after an actual user-started job.
+	// These kind of jobs are not stored in the database and do not propagate through the system.
+	annotationCleanupJob = "cleanupJob"
+)
+
 // Config configures the behaviour of the service
 type Config struct {
 	// BaseURL is the URL this service is available on (e.g. https://werft.some-domain.com)
@@ -80,7 +86,17 @@ func (srv *Service) Start() {
 	}
 
 	srv.Executor.OnUpdate = func(pod *corev1.Pod, s *v1.JobStatus) {
-		// log.WithField("status", s).Info("update")
+		var isCleanupJob bool
+		for _, annotation := range s.Metadata.Annotations {
+			if annotation.Key == annotationCleanupJob {
+				isCleanupJob = true
+				break
+			}
+		}
+		// We ignore all status updates from cleanup jobs - they are not user triggered and we do not want them polluting the system.
+		if isCleanupJob {
+			return
+		}
 
 		// ensure we have logging, e.g. reestablish joblog for unknown jobs (i.e. after restart)
 		srv.ensureLogging(s)
@@ -112,6 +128,7 @@ func (srv *Service) Start() {
 				if jl.LogStore != nil {
 					jl.LogStore.Close()
 				}
+				srv.cleanupJobWorkspace(s)
 
 				delete(srv.logListener, s.Name)
 			}
@@ -382,6 +399,57 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	return status, nil
+}
+
+// cleanupWorkspace starts a cleanup job for a previously run job
+func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
+	name := s.Name
+	md := v1.JobMetadata{
+		Owner:      s.Metadata.Owner,
+		Repository: s.Metadata.Repository,
+		Trigger:    v1.JobTrigger_TRIGGER_UNKNOWN,
+		Created:    ptypes.TimestampNow(),
+		Annotations: []*v1.Annotation{
+			&v1.Annotation{
+				Key:   annotationCleanupJob,
+				Value: "true",
+			},
+		},
+	}
+	nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
+	httype := corev1.HostPathDirectoryOrCreate
+	podspec := corev1.PodSpec{
+		Volumes: []corev1.Volume{
+			corev1.Volume{
+				Name: "werft-workspace",
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: nodePath,
+						Type: &httype,
+					},
+				},
+			},
+		},
+		Containers: []corev1.Container{
+			corev1.Container{
+				Name:       "cleanup",
+				Image:      "alpine:latest",
+				Command:    []string{"sh", "-c", "rm -rf *"},
+				WorkingDir: "/workspace",
+				VolumeMounts: []corev1.VolumeMount{
+					corev1.VolumeMount{
+						Name:      "werft-workspace",
+						MountPath: "/workspace",
+					},
+				},
+			},
+		},
+		RestartPolicy: corev1.RestartPolicyOnFailure,
+	}
+	_, err := srv.Executor.Start(podspec, md, executor.WithCanReplay(false), executor.WithBackoff(3), executor.WithName(fmt.Sprintf("cleanup-%s", name)))
+	if err != nil {
+		log.WithError(err).WithField("name", name).Error("cannot start cleanup job")
+	}
 }
 
 type templateObj struct {
