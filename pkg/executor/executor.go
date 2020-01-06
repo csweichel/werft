@@ -259,7 +259,8 @@ func (js *Executor) monitorJobs() {
 			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
 		})
 		if err != nil {
-			log.WithError(err).Error("cannot watch jobs, monitor is shutting down")
+			log.WithError(err).Error("cannot watch jobs - retrying")
+			<-time.After(1 * time.Second)
 			continue
 		}
 		log.Info("connected to Kubernetes master")
