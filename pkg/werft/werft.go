@@ -383,7 +383,20 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 	// dump podspec into logs
 	pw := textio.NewPrefixWriter(logs, "[werft:template] ")
-	k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *podspec}, pw)
+	redactedSpec := podspec.DeepCopy()
+	for ci, c := range redactedSpec.InitContainers {
+		for ei, e := range c.Env {
+			log.WithField("conts", strings.Contains(strings.ToLower(e.Name), "secret")).WithField("name", e.Name).Debug("redacting")
+			if !strings.Contains(strings.ToLower(e.Name), "secret") {
+				continue
+			}
+
+			e.Value = "[redacted]"
+			c.Env[ei] = e
+			redactedSpec.InitContainers[ci] = c
+		}
+	}
+	k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *redactedSpec}, pw)
 	pw.Flush()
 
 	// schedule/start job
@@ -397,7 +410,6 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	if err != nil {
 		return nil, err
 	}
-
 	return status, nil
 }
 

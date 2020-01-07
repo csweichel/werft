@@ -185,7 +185,7 @@ func (gcp *GitHubContentProvider) InitContainer() (*corev1.Container, error) {
 
 	cloneCmd := "git clone"
 	if user != "" || pass != "" {
-		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=%s; echo password=%s'\"", user, pass)
+		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
 	}
 	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, gcp.Owner, gcp.Repo, gcp.Revision)
 
@@ -194,6 +194,16 @@ func (gcp *GitHubContentProvider) InitContainer() (*corev1.Container, error) {
 		Command: []string{
 			"sh", "-c",
 			cloneCmd,
+		},
+		Env: []corev1.EnvVar{
+			corev1.EnvVar{
+				Name:  "GHUSER_SECRET",
+				Value: user,
+			},
+			corev1.EnvVar{
+				Name:  "GHPASS_SECRET",
+				Value: pass,
+			},
 		},
 		WorkingDir: "/workspace",
 	}, nil
