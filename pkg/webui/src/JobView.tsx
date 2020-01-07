@@ -77,12 +77,13 @@ interface JobViewState {
 class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     protected logCache: LogSliceEvent[] = [];
     protected disposables: (()=>void)[] = [];
+    protected disconnected: boolean = false;
 
     constructor(props: JobViewProps) {
         super(props);
         this.state = {
             showDetails: true,
-            log: []
+            log: [],
         };
     }
 
@@ -126,9 +127,12 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 if (h.hasUpdate()) {
                     this.setState({ status: h.getUpdate()!.toObject() });
                 } else if (h.hasSlice()) {
-                    const log = this.logCache;
-                    log.push(h.getSlice()!);
-                    updateLogState(log);
+                    if (this.disconnected) {
+                        this.logCache = [];
+                        this.disconnected = false;
+                    }
+                    this.logCache.push(h.getSlice()!);
+                    updateLogState(this.logCache);
                 }
             });
             evts.on('end', status => {
@@ -140,9 +144,11 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     return;
                 }
 
+                this.disconnected = true
                 setTimeout(() => this.listenForJobUpdates(), 1000);
             });
         } catch (err) {
+            this.disconnected = true;
             setTimeout(() => this.listenForJobUpdates(), 1000);
         }
     }
