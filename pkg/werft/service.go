@@ -390,13 +390,19 @@ func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1
 // Listen listens to logs
 func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServer) error {
 	// TOOD: if one of the listeners fails, all have to fail
+	job, err := srv.Jobs.Get(ls.Context(), req.Name)
+	if err == store.ErrNotFound {
+		return status.Errorf(codes.NotFound, "%s not found", req.Name)
+	}
 
 	var (
 		wg      sync.WaitGroup
-		errchan = make(chan error, 2)
+		logwg   sync.WaitGroup
+		errchan = make(chan error)
 	)
 	if req.Logs != v1.ListenRequestLogs_LOGS_DISABLED {
 		wg.Add(1)
+		logwg.Add(1)
 
 		rd, err := srv.Logs.Read(req.Name)
 		if err != nil {
@@ -406,10 +412,11 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 
 			return status.Error(codes.Internal, err.Error())
 		}
-		defer rd.Close()
 
 		go func() {
+			defer rd.Close()
 			defer wg.Done()
+			defer logwg.Done()
 
 			cutter := logcutter.DefaultCutter
 			if req.Logs == v1.ListenRequestLogs_LOGS_UNSLICED {
@@ -421,7 +428,6 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 				select {
 				case evt := <-evts:
 					if evt == nil {
-						log.Debug("logs finished")
 						return
 					}
 					if req.Logs == v1.ListenRequestLogs_LOGS_HTML {
@@ -454,6 +460,19 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 		go func() {
 			defer wg.Done()
 
+			if job.Phase == v1.JobPhase_PHASE_DONE {
+				// The job we're listening on is already done. To provide the same behaviour as if the job were still running,
+				// we first have to dump out all the logs and then send the one final status update.
+				logwg.Wait()
+
+				ls.Send(&v1.ListenResponse{
+					Content: &v1.ListenResponse_Update{
+						Update: job,
+					},
+				})
+				return
+			}
+
 			evts := srv.events.On("job")
 			for evt := range evts {
 				if len(evt.Args) == 0 {
@@ -476,13 +495,13 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 		}()
 	}
 
-	select {
-	case err := <-errchan:
-		return err
-	default:
-	}
-	wg.Wait()
-	return nil
+	go func() {
+		wg.Wait()
+		errchan <- nil
+	}()
+
+	err = <-errchan
+	return err
 }
 
 // StopJob stops a running job

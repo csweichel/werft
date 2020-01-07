@@ -38,7 +38,6 @@ export interface LogViewProps extends WithStyles<typeof styles> {
 }
 
 export interface LogViewState {
-    chunks: Map<string, Chunk>;
     autoscroll: boolean;
     showKubeUpdates: boolean;
 }
@@ -67,11 +66,13 @@ function isPhase(c: Chunk): c is Phase {
 }
 
 class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
-    
+    protected readonly chunks: Map<string, Chunk>;
+
     constructor(props: LogViewProps) {
         super(props);
+
+        this.chunks = new Map<string, Chunk>();
         this.state = {
-            chunks: new Map<string, Chunk>(),
             autoscroll: true,
             showKubeUpdates: false,
         }
@@ -80,57 +81,72 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
     }
 
     protected updateChunks() {
-        let chunks = this.state.chunks;
-        let icCount = new Map<string, number>();
-        let phase = "default"
+        let chunks = this.chunks;
+        chunks.clear();
 
-        this.props.logs.forEach(le => {
+        let phase = "default"
+        this.props.logs.forEach((le, idx) => {
             const id = phase + ":" + le.getName();
             const type = le.getType();
 
-            if (type === LogSliceType.SLICE_START) {
-                icCount.set(le.getName(), 0);
-            } else if (type === LogSliceType.SLICE_FAIL || type === LogSliceType.SLICE_DONE) {
-                const content = (chunks.get(id) || { 
-                    type: "content",
-                    name: le.getName(),
-                    lines: [],
-                    status: "running"
-                }) as Content;
-                content.status = type === LogSliceType.SLICE_FAIL ? "failed" : "done";
-                chunks.set(id, content);
-            } else if (le.getType() === LogSliceType.SLICE_CONTENT) {
-                const content = (chunks.get(id) || { 
-                    type: "content",
-                    name: le.getName(),
-                    lines: [],
-                    status: "running"
-                 }) as Content;
+            switch (type) {
+                case LogSliceType.SLICE_PHASE: {
+                    const id = "phase:"+le.getName();
+                    if (chunks.has(id)) {
+                        return;
+                    }
 
-                const icc = (icCount.get(id) || 0) + 1;
-                icCount.set(id, icc);
-                if (icc <= content.lines.length) {
-                    return
+                    chunks.set(id, {
+                        type: "phase",
+                        desc: le.getPayload(),
+                        name: le.getName()
+                    })
+                    phase = le.getName();
+
+                    Array.from(chunks.entries())
+                        .filter(([id, chunk]) => !id.startsWith(phase) && isContent(chunk) && chunk.status === "running")
+                        .forEach(([id, chunk]) => { 
+                            (chunk as Content).status = "unknown"; 
+                            chunks.set(id, chunk); 
+                        });
+                    break;
                 }
 
-                content.lines.push(le.getPayload());
-                chunks.set(id, content);
-            } else if (le.getType() === LogSliceType.SLICE_PHASE) {
-                const id = "phase:"+le.getName();
-                if (chunks.has(id)) {
-                    return;
+                case LogSliceType.SLICE_START: {
+                    if (phase === "default") {
+                        debugger;
+                    }
+                    chunks.set(id, {
+                        type: "content",
+                        name: le.getName(),
+                        lines: [],
+                        status: "running",
+                    });
+                    break;
                 }
 
-                chunks.set(id, {
-                    type: "phase",
-                    desc: le.getPayload(),
-                    name: le.getName()
-                })
-                phase = le.getName();
+                case LogSliceType.SLICE_CONTENT: {
+                    const chunk = chunks.get(id) as Content;
+                    if (!!chunk) {
+                        chunk.lines.push(le.getPayload());
+                    }
+                    break;
+                }
 
-                Array.from(chunks.entries())
-                    .filter(([id, chunk]) => !id.startsWith(phase) && isContent(chunk) && chunk.status === "running")
-                    .forEach(([id, chunk]) => { console.log("ending", phase, id, chunk); (chunk as Content).status = "unknown"; chunks.set(id, chunk); })
+                case LogSliceType.SLICE_DONE: {
+                    const chunk = chunks.get(id) as Content;
+                    if (!!chunk) {
+                        chunk.status = 'done';
+                    }
+                    break;
+                }
+                case LogSliceType.SLICE_FAIL: {
+                    const chunk = chunks.get(id) as Content;
+                    if (!!chunk) {
+                        chunk.status = 'failed';
+                    }
+                    break;
+                }
             }
         });
     }
@@ -142,7 +158,6 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                     <FormControlLabel label={<span className={this.props.classes.kubeUpdatesLabel}>Show Kubernetes Updates</span>} control={
                         <Switch checked={this.state.showKubeUpdates} onChange={e => {
                             this.setState({showKubeUpdates: e.target.checked});
-                            console.log(this.state);
                         }} />
                     } />
                 </Grid>
@@ -162,7 +177,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
 
     renderSliced() {
         this.updateChunks();
-        const chunks = Array.from(this.state.chunks.entries());
+        const chunks = Array.from(this.chunks.entries());
         const classes = this.props.classes;
         
         const phases = chunks.map(c => c[1]).filter(c => isPhase(c));

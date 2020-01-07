@@ -106,7 +106,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 
     protected listenForJobUpdates() {
         console.log("listening for updates to this job");
-
+        
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
         if (this.props.view === "raw-logs") {
@@ -119,7 +119,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             const evts = this.props.client.listen(lreq);
             this.disposables.push(() => evts.cancel());
             
-            let updateLogState = debounce((l: LogSliceEvent[]) => this.setState({log: l}), 200);
+            let updateLogState = debounce((l: LogSliceEvent[]) => {
+                this.setState({log: l});
+            }, 200);
             evts.on('data', h => {
                 if (h.hasUpdate()) {
                     this.setState({ status: h.getUpdate()!.toObject() });

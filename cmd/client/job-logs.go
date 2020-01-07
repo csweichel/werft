@@ -23,6 +23,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
@@ -63,6 +64,8 @@ var jobLogsCmd = &cobra.Command{
 
 			name = resp.Result[0].Name
 			fmt.Printf("showing logs of \033[34m\033[1m%s\t\033\033[0m\n", name)
+		} else {
+			name = args[0]
 		}
 
 		resp, err := client.Listen(ctx, &v1.ListenRequest{
@@ -85,6 +88,10 @@ var jobLogsCmd = &cobra.Command{
 
 			update := msg.GetUpdate()
 			if update != nil && update.Phase == v1.JobPhase_PHASE_DONE {
+				if !update.Conditions.Success {
+					os.Exit(-1)
+				}
+
 				return nil
 			}
 			if update != nil {

@@ -410,6 +410,12 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	if err != nil {
 		return nil, err
 	}
+
+	err = srv.Jobs.Store(ctx, *status)
+	if err != nil {
+		log.WithError(err).WithField("name", name).Warn("cannot store job status")
+	}
+
 	return status, nil
 }
 
