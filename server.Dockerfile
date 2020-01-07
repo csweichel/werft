@@ -2,7 +2,7 @@
 FROM alpine:latest
 
 COPY integrations-plugins-webhook--app/webhook-plugin /app/plugins/werft-plugin-webhook
-COPY integrations-plugins-cron--app/cron-plugin /app/plugins/werft-cron-webhook
+COPY integrations-plugins-cron--app/cron-plugin /app/plugins/werft-plugin-cron
 ENV PATH=$PATH:/app/plugins
 
 COPY server/werft /app/werft
