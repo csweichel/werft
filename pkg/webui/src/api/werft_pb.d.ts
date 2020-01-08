@@ -105,6 +105,11 @@ export class StartGitHubJobRequest extends jspb.Message {
   getGithubToken(): string;
   setGithubToken(value: string): void;
 
+  getSideload(): Uint8Array | string;
+  getSideload_asU8(): Uint8Array;
+  getSideload_asB64(): string;
+  setSideload(value: Uint8Array | string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
   static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
@@ -121,6 +126,7 @@ export namespace StartGitHubJobRequest {
     jobPath: string,
     jobYaml: Uint8Array | string,
     githubToken: string,
+    sideload: Uint8Array | string,
   }
 }
 

@@ -64,7 +64,7 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 	cmd = exec.Command("git", "config", "--global", "user.name")
 	user, err := cmd.Output()
 	if err != nil {
-		return nil, xerrors.Errorf("cannot get gloval git user: %w", err)
+		return nil, xerrors.Errorf("cannot get global git user: %w", err)
 	}
 
 	cmd = exec.Command("git", "config", "--get", "remote.origin.url")

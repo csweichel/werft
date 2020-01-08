@@ -1148,7 +1148,8 @@ proto.v1.StartGitHubJobRequest.toObject = function(includeInstance, msg) {
     metadata: (f = msg.getMetadata()) && proto.v1.JobMetadata.toObject(includeInstance, f),
     jobPath: jspb.Message.getFieldWithDefault(msg, 2, ""),
     jobYaml: msg.getJobYaml_asB64(),
-    githubToken: jspb.Message.getFieldWithDefault(msg, 4, "")
+    githubToken: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    sideload: msg.getSideload_asB64()
   };
 
   if (includeInstance) {
@@ -1201,6 +1202,10 @@ proto.v1.StartGitHubJobRequest.deserializeBinaryFromReader = function(msg, reade
     case 4:
       var value = /** @type {string} */ (reader.readString());
       msg.setGithubToken(value);
+      break;
+    case 5:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setSideload(value);
       break;
     default:
       reader.skipField();
@@ -1257,6 +1262,13 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
   if (f.length > 0) {
     writer.writeString(
       4,
+      f
+    );
+  }
+  f = message.getSideload_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      5,
       f
     );
   }
@@ -1362,6 +1374,45 @@ proto.v1.StartGitHubJobRequest.prototype.getGithubToken = function() {
 /** @param {string} value */
 proto.v1.StartGitHubJobRequest.prototype.setGithubToken = function(value) {
   jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional bytes sideload = 5;
+ * @return {!(string|Uint8Array)}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getSideload = function() {
+  return /** @type {!(string|Uint8Array)} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * optional bytes sideload = 5;
+ * This is a type-conversion wrapper around `getSideload()`
+ * @return {string}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getSideload_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getSideload()));
+};
+
+
+/**
+ * optional bytes sideload = 5;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getSideload()`
+ * @return {!Uint8Array}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getSideload_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getSideload()));
+};
+
+
+/** @param {!(string|Uint8Array)} value */
+proto.v1.StartGitHubJobRequest.prototype.setSideload = function(value) {
+  jspb.Message.setProto3BytesField(this, 5, value);
 };
 
 

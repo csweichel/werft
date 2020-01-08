@@ -54,6 +54,7 @@ message StartGitHubJobRequest {
     string job_path = 2;
     bytes job_yaml = 3;
     string github_token = 4;
+    bytes sideload = 5; 
 }
 
 message StartFromPreviousJobRequest {

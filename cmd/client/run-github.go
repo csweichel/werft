@@ -21,9 +21,15 @@ package cmd
 // THE SOFTWARE.
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -34,10 +40,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const maxSideloadSizeBytes = 3 * 1024 * 1024
+
 // runGithubCmd represents the triggerRemote command
 var runGithubCmd = &cobra.Command{
 	Use:   "github [<owner>/<repo>(:ref | @revision)]",
-	Short: "starts a job from a remore repository",
+	Short: "starts a job from a remote repository",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flags := cmd.Parent().PersistentFlags()
@@ -95,6 +103,15 @@ var runGithubCmd = &cobra.Command{
 			}
 		}
 
+		sideload, _ := cmd.Flags().GetStringArray("sideload")
+		if len(sideload) > 0 {
+			sd, err := compileSideload(sideload)
+			if err != nil {
+				return err
+			}
+			req.Sideload = sd
+		}
+
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
@@ -123,9 +140,68 @@ var runGithubCmd = &cobra.Command{
 	},
 }
 
+func compileSideload(files []string) ([]byte, error) {
+	res := bytes.NewBuffer(nil)
+	gw := gzip.NewWriter(res)
+	tw := tar.NewWriter(gw)
+
+	for _, fn := range files {
+		src, tgt := fn, fn
+		if strings.Contains(src, ":") {
+			segs := strings.Split(src, ":")
+			src, tgt = segs[0], segs[1]
+		}
+
+		if filepath.IsAbs(tgt) {
+			return nil, xerrors.Errorf("cannot sideload using absolute filepaths")
+		}
+		if strings.Contains(tgt, "../") {
+			return nil, xerrors.Errorf("files must be relative current working directory (i.e. no ../ in path)")
+		}
+
+		f, err := os.OpenFile(src, os.O_RDONLY, 0600)
+		if err != nil {
+			return nil, xerrors.Errorf("cannot sideload %s: %w", src, err)
+		}
+		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil {
+			return nil, xerrors.Errorf("cannot sideload %s: %w", src, err)
+		}
+		if int64(res.Len())+stat.Size() > maxSideloadSizeBytes {
+			return nil, xerrors.Errorf("maximum sideload size (%d bytes) exceeded at file \"%s\"", maxSideloadSizeBytes, src)
+		}
+
+		err = tw.WriteHeader(&tar.Header{
+			Name:    tgt,
+			Size:    stat.Size(),
+			Mode:    int64(stat.Mode()),
+			ModTime: stat.ModTime(),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("cannot sideload %s: %w", src, err)
+		}
+		_, err = io.Copy(tw, f)
+		if err != nil {
+			return nil, xerrors.Errorf("cannot sideload %s: %w", src, err)
+		}
+	}
+	err := tw.Close()
+	if err != nil {
+		return nil, err
+	}
+	err = gw.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return res.Bytes(), nil
+}
+
 func init() {
 	runCmd.AddCommand(runGithubCmd)
 
 	runGithubCmd.Flags().String("token", "", "Token to use for authorization against GitHub")
 	runGithubCmd.Flags().String("remote-job-path", "", "start the job at that path in the repo (defaults to the default job of the repo)")
+	runGithubCmd.Flags().StringArrayP("sideload", "s", []string{}, "sideload files overwriting/adding to the Git working copy")
 }
