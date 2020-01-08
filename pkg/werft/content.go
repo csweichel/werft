@@ -160,6 +160,16 @@ type GitHubContentProvider struct {
 	Revision string
 	Client   *github.Client
 	Auth     GitCredentialHelper
+	Sideload *GitHubContentProviderSideload
+}
+
+// GitHubContentProviderSideload enables side-loading of files after a Git clone
+type GitHubContentProviderSideload struct {
+	TarStream io.Reader
+
+	Namespace  string
+	Kubeconfig *rest.Config
+	Clientset  kubernetes.Interface
 }
 
 // Download provides access to a single file
@@ -188,6 +198,9 @@ func (gcp *GitHubContentProvider) InitContainer() (*corev1.Container, error) {
 		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
 	}
 	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, gcp.Owner, gcp.Repo, gcp.Revision)
+	if gcp.Sideload != nil {
+		cloneCmd += "; touch /workspace/.cloned; echo waiting for sideload; while [ ! -f /workspace/.ready ]; do [ -f /workspace/.failed ] && exit 1; sleep 1; done"
+	}
 
 	return &corev1.Container{
 		Image: "alpine/git:latest",
@@ -211,5 +224,59 @@ func (gcp *GitHubContentProvider) InitContainer() (*corev1.Container, error) {
 
 // Serve provides additional services required during initialization.
 func (gcp *GitHubContentProvider) Serve(jobName string) error {
+	if gcp.Sideload == nil {
+		return nil
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		err := gcp.sideload(jobName)
+		if err == nil {
+			break
+		}
+
+		log.WithError(err).Debug("could not initialize (yet), will try again")
+		<-ticker.C
+	}
+	log.Debug("local content served")
+
+	return nil
+}
+
+func (gcp *GitHubContentProvider) sideload(name string) error {
+	sideload := gcp.Sideload
+	req := sideload.Clientset.CoreV1().RESTClient().
+		Post().
+		Namespace(sideload.Namespace).
+		Resource("pods").
+		Name(name).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: "werft-checkout",
+			Command:   []string{"sh", "-c", "while [ ! -f /workspace/.cloned ]; do sleep 1; done; cd /workspace && tar xz; if [ $? == 0 ]; then touch .ready; else touch .failed; fi"},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+
+	remoteExec, err := remotecommand.NewSPDYExecutor(sideload.Kubeconfig, "POST", req.URL())
+	if err != nil {
+		return xerrors.Errorf("executor run: %w", err)
+	}
+
+	// This call waits for the process to end
+	err = remoteExec.Stream(remotecommand.StreamOptions{
+		Stdin:  sideload.TarStream,
+		Stdout: log.New().WithField("pod", name).WriterLevel(log.DebugLevel),
+		Stderr: log.New().WithField("pod", name).WriterLevel(log.ErrorLevel),
+		Tty:    false,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

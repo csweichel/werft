@@ -1,6 +1,7 @@
 package werft
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -166,6 +167,15 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		Revision: md.Repository.Revision,
 		Client:   ghclient,
 		Auth:     gitauth,
+	}
+
+	if len(req.Sideload) > 0 {
+		cp.Sideload = &GitHubContentProviderSideload{
+			TarStream:  bytes.NewReader(req.Sideload),
+			Namespace:  srv.Executor.Config.Namespace,
+			Kubeconfig: srv.Executor.KubeConfig,
+			Clientset:  srv.Executor.Client,
+		}
 	}
 
 	var (
