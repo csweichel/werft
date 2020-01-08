@@ -28,7 +28,7 @@ packages:
   - "pkg/api/**/*.go"
   - "go.mod"
   - "go.sum"
-- name: server-docker
+- name: server-release
   type: docker
   deps:
   - :server
@@ -36,11 +36,12 @@ packages:
   - integrations/plugins/cron:app
   argdeps:
   - version
+  - latestOrNext
   config:
     dockerfile: "server.Dockerfile"
     image:
     - csweichel/werft:${version}
-    - csweichel/werft:latest
+    - csweichel/werft:${latestOrNext}
 - name: client-linux-amd64
   type: go
   srcs:
@@ -99,7 +100,7 @@ packages:
   deps:
   - :client-darwin-amd64
   - :client-linux-amd64
-  - :server-docker
+  - :server-release
   - :changelog
   argdeps:
   - version
