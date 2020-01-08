@@ -60,10 +60,12 @@ const styles = (theme: Theme) => createStyles({
     }
 });
 
+export type JobViewPerspectives = "logs" | "raw-logs" | "results";
+
 export interface JobViewProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
     jobName: string;
-    view: "logs" | "raw-logs" | "results";
+    defaultView?: JobViewPerspectives;
 }
 
 interface JobViewState {
@@ -71,7 +73,8 @@ interface JobViewState {
     showDetails: boolean;
     log: LogSliceEvent[];
     error?: any;
-    newerJob?: JobStatus.AsObject
+    newerJob?: JobStatus.AsObject;
+    view: JobViewPerspectives;
 }
 
 class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
@@ -84,6 +87,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         this.state = {
             showDetails: true,
             log: [],
+            view: this.props.defaultView || 'logs'
         };
     }
 
@@ -95,7 +99,19 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         try {
             const resp = await new Promise<GetJobResponse>((resolve, reject) => this.props.client.getJob(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
             const res = resp.getResult()!;
-            this.setState({ status: res.toObject() });
+            
+            let view = this.props.defaultView;
+            if (!view) {
+                if (res.getPhase() === JobPhase.PHASE_DONE
+                && res.getConditions() 
+                && res.getConditions()!.getSuccess()
+                && res.getResultsList().length > 0) {
+                    view = 'results';
+                } else {
+                    view = 'logs';
+                }
+            }
+            this.setState({ status: res.toObject(), view });
         } catch (err) {
             this.setState({error: err});
             return;
@@ -110,7 +126,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         
         const lreq = new ListenRequest();
         lreq.setLogs(ListenRequestLogs.LOGS_HTML);
-        if (this.props.view === "raw-logs") {
+        if (this.state.view === "raw-logs") {
             lreq.setLogs(ListenRequestLogs.LOGS_UNSLICED);
         }
         lreq.setUpdates(true);
@@ -248,8 +264,8 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const actions = <React.Fragment>
             <Grid item xs></Grid>
             <Grid item>
-                <Tabs onChange={() => {}} value={this.props.view}>
-                    <Tab label="Logs" value="logs" href={`/job/${this.props.jobName}`} />
+                <Tabs onChange={() => {}} value={this.state.view}>
+                    <Tab label="Logs" value="logs" href={`/job/${this.props.jobName}/logs`} />
                     <Tab label="Raw Logs" value="raw-logs" href={`/job/${this.props.jobName}/raw`} />
                     { job && job.resultsList.length > 0 && <Tab label="Results" value="results" href={`/job/${this.props.jobName}/results`} /> }
                 </Tabs>
@@ -334,10 +350,10 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             <main className={classes.main}>
                 { snackbar }
                 { this.state.status && this.state.status.details }
-                { (this.props.view === "logs" || this.props.view === "raw-logs") &&
-                    <LogView name={this.state.status && this.state.status.name} logs={this.state.log} failed={failed} raw={this.props.view === "raw-logs"} finished={finished} />
+                { (this.state.view === "logs" || this.state.view === "raw-logs") &&
+                    <LogView name={this.state.status && this.state.status.name} logs={this.state.log} failed={failed} raw={this.state.view === "raw-logs"} finished={finished} />
                 }
-                { this.props.view === "results" &&
+                { this.state.view === "results" &&
                     <ResultView status={this.state.status} />  
                 }
             </main> 
