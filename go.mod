@@ -4,9 +4,7 @@ go 1.12
 
 require (
 	github.com/GeertJohan/go.rice v1.0.0
-	github.com/Masterminds/goutils v1.1.0 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/sprig v2.22.0+incompatible
+	github.com/Masterminds/sprig/v3 v3.0.2
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/bradleyfalzon/ghinstallation v1.0.0
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
@@ -19,7 +17,6 @@ require (
 	github.com/huandu/xstrings v1.2.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
 	github.com/lib/pq v1.2.0
-	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/olebedev/emitter v0.0.0-20190110104742-e8d1457e6aee
 	github.com/paulbellamy/ratecounter v0.2.0

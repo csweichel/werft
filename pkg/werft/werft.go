@@ -16,7 +16,7 @@ import (
 	"github.com/32leaves/werft/pkg/executor"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
-	"github.com/Masterminds/sprig"
+	sprig "github.com/Masterminds/sprig/v3"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-github/github"
 	"github.com/olebedev/emitter"
