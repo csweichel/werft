@@ -111,7 +111,7 @@ packages:
       - -c
       - |
         echo "## Server Docker images" >> desc.txt
-        echo "<pre>$(cat server-docker/imgnames.txt)</pre>" >> desc.txt
+        echo "<pre>$(cat server-release/imgnames.txt)</pre>" >> desc.txt
         echo >> desc.txt
         echo "## Changelog" >> desc.txt
         cat changelog/changelog.txt >> desc.txt
