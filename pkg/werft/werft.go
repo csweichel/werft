@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"path/filepath"
 	"strings"
 	"sync"
+	"text/template"
 
 	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -325,7 +325,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 	fmt.Fprintln(logs, "[preparing|PHASE] job preparation")
 
-	jobTpl, err := template.New("job").Funcs(sprig.FuncMap()).Parse(string(jobYAML))
+	jobTpl, err := template.New("job").Funcs(sprig.TxtFuncMap()).Parse(string(jobYAML))
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
