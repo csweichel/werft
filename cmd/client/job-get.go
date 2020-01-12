@@ -25,6 +25,7 @@ import (
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 )
 
 var jobGetTpl = `Name:	{{ .Name }}
@@ -52,17 +53,33 @@ Results:
 
 // jobGetCmd represents the list command
 var jobGetCmd = &cobra.Command{
-	Use:   "get <name>",
+	Use:   "get [name]",
 	Short: "Retrieves details of a job",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
-
 		ctx := context.Background()
+
+		var (
+			name string
+			err  error
+		)
+		if len(args) == 0 {
+			name, err = findJobByLocalContext(ctx, client)
+			if err != nil {
+				return err
+			}
+			if name == "" {
+				return xerrors.Errorf("no job found - please specify job name")
+			}
+		} else {
+			name = args[0]
+		}
+
 		resp, err := client.GetJob(ctx, &v1.GetJobRequest{
-			Name: args[0],
+			Name: name,
 		})
 		if err != nil {
 			return err
