@@ -21,8 +21,10 @@ package cmd
 // THE SOFTWARE.
 
 import (
+	"context"
 	"os"
 
+	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/prettyprint"
 	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/cobra"
@@ -66,4 +68,46 @@ func prettyPrint(obj proto.Message, defaultTpl string) error {
 		Template: tpl,
 	}
 	return ctnt.Print()
+}
+
+func getLocalContextJobFilter() ([]*v1.FilterExpression, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	md, err := getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot get local job context: %w", err)
+	}
+
+	return []*v1.FilterExpression{
+		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.owner", Value: md.Repository.Owner}}},
+		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.repo", Value: md.Repository.Repo}}},
+		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: md.Repository.Ref}}},
+	}, nil
+}
+
+func findJobByLocalContext(ctx context.Context, client v1.WerftServiceClient) (name string, err error) {
+	filter, err := getLocalContextJobFilter()
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.ListJobs(ctx, &v1.ListJobsRequest{
+		Filter: filter,
+		Order: []*v1.OrderExpression{&v1.OrderExpression{
+			Field:     "created",
+			Ascending: false,
+		}},
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Result) == 0 {
+		return "", nil
+	}
+
+	name = resp.Result[0].Name
+	return
 }

@@ -21,6 +21,7 @@ package cmd
 // THE SOFTWARE.
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -45,9 +46,14 @@ var runCmd = &cobra.Command{
 func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, error) {
 	var repo v1.Repository
 
+	stderr := bytes.NewBuffer(nil)
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = wd
+	cmd.Stderr = stderr
 	revision, err := cmd.Output()
+	if eerr, ok := err.(*exec.ExitError); ok && eerr.ExitCode() == 128 {
+		return nil, xerrors.Errorf(stderr.String())
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -85,24 +91,6 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 		Owner:      strings.TrimSpace(string(user)),
 		Repository: &repo,
 		Trigger:    trigger,
-	}, nil
-}
-
-func getLocalContextJobFilter() ([]*v1.FilterExpression, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	md, err := getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
-	if err != nil {
-		return nil, err
-	}
-
-	return []*v1.FilterExpression{
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.owner", Value: md.Repository.Owner}}},
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.repo", Value: md.Repository.Repo}}},
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: md.Repository.Ref}}},
 	}, nil
 }
 
