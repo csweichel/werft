@@ -94,6 +94,10 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     async componentDidMount() {
         window.addEventListener("keydown", returnToJobList);
 
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+
         const req = new GetJobRequest();
         req.setName(this.props.jobName);
         try {
@@ -141,6 +145,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }, 200);
             evts.on('data', h => {
                 if (h.hasUpdate()) {
+                    this.showNotification(h.getUpdate()!.toObject())
                     this.setState({ status: h.getUpdate()!.toObject() });
                 } else if (h.hasSlice()) {
                     if (this.disconnected) {
@@ -167,6 +172,21 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             this.disconnected = true;
             setTimeout(() => this.listenForJobUpdates(), 1000);
         }
+    }
+
+    protected showNotification(status: JobStatus.AsObject) {
+        if (!this.state.status || this.state.status.phase === JobPhase.PHASE_DONE) {
+            // don't show notifications again when the user opens the detail page for a finished job
+            return;
+        }
+        if (Notification.permission !== "granted") {
+            return;
+        }
+        if (status.phase !== JobPhase.PHASE_DONE) {
+            return;
+        }
+
+        new Notification(`Job ${status.name} ${status.conditions!.success ? "done" : "failed"}`)
     }
 
     protected listenForNewJobs() {
