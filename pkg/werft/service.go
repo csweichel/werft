@@ -230,7 +230,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	// We do not store the GitHub token of the request and hence can only restart those with default auth
-	canReplay := req.GithubToken == ""
+	canReplay := req.GithubToken == "" && len(req.Sideload) == 0
 
 	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay)
 	if err != nil {
