@@ -57,6 +57,10 @@ const styles = (theme: Theme) => createStyles({
     },
     snackbarLink: {
         color: 'white'
+    },
+    toolbarLink: {
+        color: 'white',
+        textDecoration: 'none'
     }
 });
 
@@ -316,13 +320,21 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const classes = this.props.classes;
         let secondary: React.ReactFragment | undefined;
         if (job) {
+            const host = job.metadata!.repository!.host;
+            const repo = `${host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}`;
             secondary = <Toolbar>
                 <Grid container spacing={1} alignItems="center" className={classes.infobar}>
                     <JobMetadataItemProps label="Owner">{job!.metadata!.owner}</JobMetadataItemProps>
-                    <JobMetadataItemProps label="Repository">{`${job.metadata!.repository!.host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}`}</JobMetadataItemProps>
-                    <JobMetadataItemProps label="Ref">{job.metadata!.repository!.ref}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Repository"><a href={`https://${repo}`} className={classes.toolbarLink}>{repo}</a></JobMetadataItemProps>
+                    <JobMetadataItemProps label="Ref">
+                        { host === "github.com" && <a href={`https://${repo}/tree/${job.metadata!.repository!.ref}`} className={classes.toolbarLink}>{job.metadata!.repository!.ref}</a> }
+                        { host !== "github.com" && job.metadata!.repository!.ref }
+                    </JobMetadataItemProps>
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
-                    <JobMetadataItemProps label="Revision" xs={6}>{job.metadata!.repository!.revision}</JobMetadataItemProps>
+                    <JobMetadataItemProps label="Revision" xs={6}>
+                        { host === "github.com" && <a href={`https://${repo}/commit/${job.metadata!.repository!.revision}`} className={classes.toolbarLink}>{job.metadata!.repository!.revision}</a> }
+                        { host !== "github.com" && job.metadata!.repository!.revision }
+                    </JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
                     { job.metadata!.finished && <JobMetadataItemProps label="Finished">
                         <Tooltip title={((job.metadata!.finished.seconds-job.metadata!.created.seconds)/60)+" minutes"}>
