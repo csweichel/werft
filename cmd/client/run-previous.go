@@ -30,9 +30,9 @@ import (
 
 // runPreviousJobCmd represents the triggerRemote command
 var runPreviousJobCmd = &cobra.Command{
-	Use:   "previous <old-job-name>",
+	Use:   "previous [old-job-name]",
 	Short: "starts a job from a previous one",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		flags := cmd.Parent().PersistentFlags()
 
@@ -44,14 +44,32 @@ var runPreviousJobCmd = &cobra.Command{
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
+		ctx := context.Background()
+
+		var (
+			name string
+			err  error
+		)
+		if len(args) == 0 {
+			name, err = findJobByLocalContext(ctx, client)
+			if err != nil {
+				return err
+			}
+			if name == "" {
+				return fmt.Errorf("no job found - please specify job name")
+			}
+
+			fmt.Printf("re-running \033[34m\033[1m%s\t\033\033[0m\n", name)
+		} else {
+			name = args[0]
+		}
 
 		token, _ := cmd.Flags().GetString("token")
 		req := &v1.StartFromPreviousJobRequest{
-			PreviousJob: args[0],
+			PreviousJob: name,
 			GithubToken: token,
 		}
 
-		ctx := context.Background()
 		resp, err := client.StartFromPreviousJob(ctx, req)
 		if err != nil {
 			return err
