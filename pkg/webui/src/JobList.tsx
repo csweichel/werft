@@ -19,6 +19,10 @@ const styles = (theme: Theme) => createStyles({
         background: '#eaeff1',
     },
     button: headerStyles(theme).button,
+    hiddenLink: {
+        color: 'inherit',
+        textDecoration: 'none'
+    }
 });
 
 type JobIdx = { [key: string]: JobStatus.AsObject };
@@ -156,7 +160,8 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 sort: true,
                 render: (row: JobStatus.AsObject) => {
                     const md = row.metadata!.repository!;
-                    return `${md.host}/${md.owner}/${md.repo}`;
+                    const repo = `${md.host}/${md.owner}/${md.repo}`;
+                    return <a className={classes.hiddenLink} href={`https://${repo}`}>{repo}</a>;
                 }
             },
             {
@@ -165,7 +170,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                 search: true,
                 sort: true,
                 render: (row: JobStatus.AsObject) => {
-                    return row.metadata!.repository!.ref!;
+                    const md = row.metadata!.repository!;
+                    if (md.host === "github.com") {
+                        const repo = `${md.host}/${md.owner}/${md.repo}`;
+                        return <a href={`https://${repo}/tree/${md.ref}`} className={classes.hiddenLink}>{md.ref}</a>
+                    }
+                    return md.ref;
                 }
             },
             {
