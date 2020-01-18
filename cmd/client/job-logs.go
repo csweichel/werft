@@ -59,39 +59,46 @@ var jobLogsCmd = &cobra.Command{
 			name = args[0]
 		}
 
-		resp, err := client.Listen(ctx, &v1.ListenRequest{
-			Name:    name,
-			Logs:    v1.ListenRequestLogs_LOGS_RAW,
-			Updates: true,
-		})
+		return followJob(client, name, "")
+	},
+}
+
+func followJob(client v1.WerftServiceClient, name, prefix string) error {
+	ctx := context.Background()
+	logs, err := client.Listen(ctx, &v1.ListenRequest{
+		Name:    name,
+		Logs:    v1.ListenRequestLogs_LOGS_RAW,
+		Updates: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		msg, err := logs.Recv()
 		if err != nil {
 			return err
 		}
 
-		for {
-			msg, err := resp.Recv()
-			if err != nil {
-				return err
-			}
-			if msg == nil {
-				return nil
-			}
+		if update := msg.GetUpdate(); update != nil {
+			if update.Phase == v1.JobPhase_PHASE_DONE {
+				prettyPrint(update, jobGetTpl)
 
-			update := msg.GetUpdate()
-			if update != nil && update.Phase == v1.JobPhase_PHASE_DONE {
-				if !update.Conditions.Success {
-					os.Exit(-1)
+				if update.Conditions.Success {
+					os.Exit(0)
+				} else {
+					os.Exit(1)
 				}
-
-				return nil
 			}
-			if update != nil {
-				continue
-			}
-
-			pringLogSlice(msg.GetSlice())
 		}
-	},
+		if data := msg.GetSlice(); data != nil {
+			if prefix == "" {
+				pringLogSlice(data)
+			} else {
+				printLogSliceWithPrefix(prefix, data)
+			}
+		}
+	}
 }
 
 func pringLogSlice(slice *v1.LogSliceEvent) {
@@ -110,6 +117,25 @@ func pringLogSlice(slice *v1.LogSliceEvent) {
 		return
 	}
 	prettyPrint(slice, tpl)
+}
+
+func printLogSliceWithPrefix(prefix string, slice *v1.LogSliceEvent) {
+	if slice.Name == "werft:kubernetes" || slice.Name == "werft:status" {
+		return
+	}
+
+	switch slice.Type {
+	case v1.LogSliceType_SLICE_PHASE:
+		fmt.Printf("[%s%s|PHASE] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_CONTENT:
+		fmt.Printf("[%s%s] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_DONE:
+		fmt.Printf("[%s%s|DONE] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_FAIL:
+		fmt.Printf("[%s%s|FAIL] %s\n", prefix, slice.Name, slice.Payload)
+	case v1.LogSliceType_SLICE_RESULT:
+		fmt.Printf("[%s|RESULT] %s\n", slice.Name, slice.Payload)
+	}
 }
 
 func init() {
