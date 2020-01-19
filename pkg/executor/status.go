@@ -106,6 +106,7 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	}
 	status.Conditions.FailureCount = maxRestart
 	status.Conditions.Success = !(anyFailed || maxRestart > getFailureLimit(obj))
+	status.Conditions.DidExecute = obj.Status.Phase != "" || len(statuses) > 0
 
 	if msg, failed := obj.Annotations[AnnotationFailed]; failed {
 		status.Phase = v1.JobPhase_PHASE_DONE

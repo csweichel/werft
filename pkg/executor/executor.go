@@ -251,7 +251,6 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 
 	mutexCancelationMsg := fmt.Sprintf("a newer job (%s) with the same mutex (%s) started", opts.JobName, opts.Mutex)
 	if opts.Mutex != "" {
-		log.WithField("mutex", opts.Mutex).Warn("started iwth mutexs")
 		poddesc.ObjectMeta.Labels[LabelMutex] = opts.Mutex
 
 		// enforce mutex by marking all other jobs with the same mutex as failed

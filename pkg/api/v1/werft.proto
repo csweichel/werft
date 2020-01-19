@@ -203,6 +203,7 @@ message JobConditions {
     int32 failure_count = 2;
     bool can_replay = 3;
     google.protobuf.Timestamp wait_until = 4;
+    bool did_execute = 5;
 }
 
 message JobResult {

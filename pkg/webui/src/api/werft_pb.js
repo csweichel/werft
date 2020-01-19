@@ -4680,7 +4680,8 @@ proto.v1.JobConditions.toObject = function(includeInstance, msg) {
     success: jspb.Message.getFieldWithDefault(msg, 1, false),
     failureCount: jspb.Message.getFieldWithDefault(msg, 2, 0),
     canReplay: jspb.Message.getFieldWithDefault(msg, 3, false),
-    waitUntil: (f = msg.getWaitUntil()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+    waitUntil: (f = msg.getWaitUntil()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
+    didExecute: jspb.Message.getFieldWithDefault(msg, 5, false)
   };
 
   if (includeInstance) {
@@ -4733,6 +4734,10 @@ proto.v1.JobConditions.deserializeBinaryFromReader = function(msg, reader) {
       var value = new google_protobuf_timestamp_pb.Timestamp;
       reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
       msg.setWaitUntil(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setDidExecute(value);
       break;
     default:
       reader.skipField();
@@ -4790,6 +4795,13 @@ proto.v1.JobConditions.serializeBinaryToWriter = function(message, writer) {
       4,
       f,
       google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+  f = message.getDidExecute();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
     );
   }
 };
@@ -4874,6 +4886,23 @@ proto.v1.JobConditions.prototype.clearWaitUntil = function() {
  */
 proto.v1.JobConditions.prototype.hasWaitUntil = function() {
   return jspb.Message.getField(this, 4) != null;
+};
+
+
+/**
+ * optional bool did_execute = 5;
+ * Note that Boolean fields may be set to 0/1 when serialized from a Java server.
+ * You should avoid comparisons like {@code val === true/false} in those cases.
+ * @return {boolean}
+ */
+proto.v1.JobConditions.prototype.getDidExecute = function() {
+  return /** @type {boolean} */ (jspb.Message.getFieldWithDefault(this, 5, false));
+};
+
+
+/** @param {boolean} value */
+proto.v1.JobConditions.prototype.setDidExecute = function(value) {
+  jspb.Message.setProto3BooleanField(this, 5, value);
 };
 
 

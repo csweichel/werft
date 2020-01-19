@@ -624,6 +624,9 @@ export class JobConditions extends jspb.Message {
   getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
   setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
 
+  getDidExecute(): boolean;
+  setDidExecute(value: boolean): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): JobConditions.AsObject;
   static toObject(includeInstance: boolean, msg: JobConditions): JobConditions.AsObject;
@@ -640,6 +643,7 @@ export namespace JobConditions {
     failureCount: number,
     canReplay: boolean,
     waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+    didExecute: boolean,
   }
 }
 
