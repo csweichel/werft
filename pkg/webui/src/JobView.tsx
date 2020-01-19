@@ -12,7 +12,7 @@ import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
 import ReplayIcon from '@material-ui/icons/Replay';
 import InfoIcon from '@material-ui/icons/Info';
-import { ColorUnknown, ColorFailure, ColorSuccess, ColorRunning } from './components/colors';
+import { ColorUnknown, ColorFailure, ColorSuccess, ColorRunning, ColorWarning } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 import * as moment from 'moment';
 import clsx from 'clsx';
@@ -61,6 +61,9 @@ const styles = (theme: Theme) => createStyles({
     toolbarLink: {
         color: 'white',
         textDecoration: 'none'
+    },
+    waitingUntilMsg: {
+        backgroundColor: ColorWarning,
     }
 });
 
@@ -295,7 +298,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 </Tabs>
             </Grid>
             <Grid item>
-                { !!job && !![JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
+                { !!job && !![JobPhase.PHASE_WAITING, JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
                     <Tooltip title="Cancel Job">
                         <IconButton color="inherit" onClick={() => this.stopJob()}>
                             <StopIcon />
@@ -377,11 +380,24 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             </main>
         }
 
+        const waitingOverlay = this.state.status && this.state.status.phase === JobPhase.PHASE_WAITING &&
+            <SnackbarContent 
+                className={classes.waitingUntilMsg}
+                aria-describedby="client-snackbar"
+                message={
+                    <span id="client-snackbar" className={classes.snackbarMessage}>
+                        <InfoIcon className={clsx(classes.snackbarIcon, classes.snackbarIconVariant)} />
+                        <p>This job is delayed until <ReactTimeago date={this.state.status.conditions!.waitUntil.seconds * 1000} /></p>
+                    </span>
+                } />;
+
         return <React.Fragment>
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
                 { snackbar }
                 { this.state.status && this.state.status.details }
+                { waitingOverlay }
+
                 { (this.state.view === "logs" || this.state.view === "raw-logs") &&
                     <LogView name={this.state.status && this.state.status.name} logs={this.state.log} failed={failed} raw={this.state.view === "raw-logs"} finished={finished} />
                 }

@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/filterexpr"
 	"github.com/32leaves/werft/pkg/logcutter"
 	"github.com/32leaves/werft/pkg/store"
 	termtohtml "github.com/buildkite/terminal-to-html"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
@@ -121,7 +123,7 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
 	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
-	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false)
+	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false, time.Time{})
 
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
@@ -232,7 +234,19 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	// We do not store the GitHub token of the request and hence can only restart those with default auth
 	canReplay := req.GithubToken == "" && len(req.Sideload) == 0
 
-	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay)
+	var waitUntil time.Time
+	if req.WaitUntil != nil {
+		waitUntil, err = ptypes.Timestamp(req.WaitUntil)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "waitUntil is invalid: %v", err)
+		}
+
+		if !canReplay {
+			return nil, status.Error(codes.InvalidArgument, "cannot delay the execution of non-replayable jobs (i.e. jobs with custom GitHub token or sideload)")
+		}
+	}
+
+	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay, waitUntil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -300,7 +314,19 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	// We do not store the GitHub token of the request and hence can only restart those with default auth
 	canReplay := req.GithubToken == ""
 
-	jobStatus, err := srv.RunJob(ctx, name, *oldJobStatus.Metadata, cp, jobYAML, canReplay)
+	var waitUntil time.Time
+	if req.WaitUntil != nil {
+		waitUntil, err = ptypes.Timestamp(req.WaitUntil)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "waitUntil is invalid: %v", err)
+		}
+
+		if !canReplay {
+			return nil, status.Error(codes.InvalidArgument, "cannot delay the execution of non-replayable jobs (i.e. jobs with custom GitHub)")
+		}
+	}
+
+	jobStatus, err := srv.RunJob(ctx, name, *oldJobStatus.Metadata, cp, jobYAML, canReplay, waitUntil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -526,8 +552,8 @@ func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.St
 		return nil, status.Error(codes.NotFound, "not found")
 	}
 
-	if job.Phase != v1.JobPhase_PHASE_PREPARING && job.Phase != v1.JobPhase_PHASE_STARTING && job.Phase != v1.JobPhase_PHASE_RUNNING {
-		return nil, status.Error(codes.FailedPrecondition, "job is unstoppable phase")
+	if job.Phase != v1.JobPhase_PHASE_WAITING && job.Phase != v1.JobPhase_PHASE_PREPARING && job.Phase != v1.JobPhase_PHASE_STARTING && job.Phase != v1.JobPhase_PHASE_RUNNING {
+		return nil, status.Error(codes.FailedPrecondition, "job is in unstoppable phase")
 	}
 
 	err = srv.Executor.Stop(req.Name, "job was stopped manually")

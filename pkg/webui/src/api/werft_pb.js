@@ -1149,7 +1149,8 @@ proto.v1.StartGitHubJobRequest.toObject = function(includeInstance, msg) {
     jobPath: jspb.Message.getFieldWithDefault(msg, 2, ""),
     jobYaml: msg.getJobYaml_asB64(),
     githubToken: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    sideload: msg.getSideload_asB64()
+    sideload: msg.getSideload_asB64(),
+    waitUntil: (f = msg.getWaitUntil()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1206,6 +1207,11 @@ proto.v1.StartGitHubJobRequest.deserializeBinaryFromReader = function(msg, reade
     case 5:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setSideload(value);
+      break;
+    case 6:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setWaitUntil(value);
       break;
     default:
       reader.skipField();
@@ -1270,6 +1276,14 @@ proto.v1.StartGitHubJobRequest.serializeBinaryToWriter = function(message, write
     writer.writeBytes(
       5,
       f
+    );
+  }
+  f = message.getWaitUntil();
+  if (f != null) {
+    writer.writeMessage(
+      6,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
     );
   }
 };
@@ -1416,6 +1430,39 @@ proto.v1.StartGitHubJobRequest.prototype.setSideload = function(value) {
 };
 
 
+/**
+ * optional google.protobuf.Timestamp wait_until = 6;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.v1.StartGitHubJobRequest.prototype.getWaitUntil = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 6));
+};
+
+
+/** @param {?proto.google.protobuf.Timestamp|undefined} value */
+proto.v1.StartGitHubJobRequest.prototype.setWaitUntil = function(value) {
+  jspb.Message.setWrapperField(this, 6, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ */
+proto.v1.StartGitHubJobRequest.prototype.clearWaitUntil = function() {
+  this.setWaitUntil(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.v1.StartGitHubJobRequest.prototype.hasWaitUntil = function() {
+  return jspb.Message.getField(this, 6) != null;
+};
+
+
 
 
 
@@ -1447,7 +1494,8 @@ proto.v1.StartFromPreviousJobRequest.prototype.toObject = function(opt_includeIn
 proto.v1.StartFromPreviousJobRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     previousJob: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    githubToken: jspb.Message.getFieldWithDefault(msg, 2, "")
+    githubToken: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    waitUntil: (f = msg.getWaitUntil()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1492,6 +1540,11 @@ proto.v1.StartFromPreviousJobRequest.deserializeBinaryFromReader = function(msg,
       var value = /** @type {string} */ (reader.readString());
       msg.setGithubToken(value);
       break;
+    case 3:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setWaitUntil(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1535,6 +1588,14 @@ proto.v1.StartFromPreviousJobRequest.serializeBinaryToWriter = function(message,
       f
     );
   }
+  f = message.getWaitUntil();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
 };
 
 
@@ -1565,6 +1626,39 @@ proto.v1.StartFromPreviousJobRequest.prototype.getGithubToken = function() {
 /** @param {string} value */
 proto.v1.StartFromPreviousJobRequest.prototype.setGithubToken = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional google.protobuf.Timestamp wait_until = 3;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.v1.StartFromPreviousJobRequest.prototype.getWaitUntil = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 3));
+};
+
+
+/** @param {?proto.google.protobuf.Timestamp|undefined} value */
+proto.v1.StartFromPreviousJobRequest.prototype.setWaitUntil = function(value) {
+  jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ */
+proto.v1.StartFromPreviousJobRequest.prototype.clearWaitUntil = function() {
+  this.setWaitUntil(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.v1.StartFromPreviousJobRequest.prototype.hasWaitUntil = function() {
+  return jspb.Message.getField(this, 3) != null;
 };
 
 
@@ -4585,7 +4679,8 @@ proto.v1.JobConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
     success: jspb.Message.getFieldWithDefault(msg, 1, false),
     failureCount: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    canReplay: jspb.Message.getFieldWithDefault(msg, 3, false)
+    canReplay: jspb.Message.getFieldWithDefault(msg, 3, false),
+    waitUntil: (f = msg.getWaitUntil()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4633,6 +4728,11 @@ proto.v1.JobConditions.deserializeBinaryFromReader = function(msg, reader) {
     case 3:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setCanReplay(value);
+      break;
+    case 4:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setWaitUntil(value);
       break;
     default:
       reader.skipField();
@@ -4684,6 +4784,14 @@ proto.v1.JobConditions.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getWaitUntil();
+  if (f != null) {
+    writer.writeMessage(
+      4,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
 };
 
 
@@ -4733,6 +4841,39 @@ proto.v1.JobConditions.prototype.getCanReplay = function() {
 /** @param {boolean} value */
 proto.v1.JobConditions.prototype.setCanReplay = function(value) {
   jspb.Message.setProto3BooleanField(this, 3, value);
+};
+
+
+/**
+ * optional google.protobuf.Timestamp wait_until = 4;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.v1.JobConditions.prototype.getWaitUntil = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 4));
+};
+
+
+/** @param {?proto.google.protobuf.Timestamp|undefined} value */
+proto.v1.JobConditions.prototype.setWaitUntil = function(value) {
+  jspb.Message.setWrapperField(this, 4, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ */
+proto.v1.JobConditions.prototype.clearWaitUntil = function() {
+  this.setWaitUntil(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.v1.JobConditions.prototype.hasWaitUntil = function() {
+  return jspb.Message.getField(this, 4) != null;
 };
 
 
@@ -5409,7 +5550,8 @@ proto.v1.JobPhase = {
   PHASE_STARTING: 2,
   PHASE_RUNNING: 3,
   PHASE_DONE: 4,
-  PHASE_CLEANUP: 5
+  PHASE_CLEANUP: 5,
+  PHASE_WAITING: 6
 };
 
 /**

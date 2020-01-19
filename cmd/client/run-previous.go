@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/spf13/cobra"
 )
 
@@ -68,6 +69,17 @@ var runPreviousJobCmd = &cobra.Command{
 		req := &v1.StartFromPreviousJobRequest{
 			PreviousJob: name,
 			GithubToken: token,
+		}
+
+		waitUntil, err := getWaitUntil()
+		if err != nil {
+			return err
+		}
+		if waitUntil != nil {
+			req.WaitUntil, err = ptypes.TimestampProto(*waitUntil)
+			if err != nil {
+				return err
+			}
 		}
 
 		resp, err := client.StartFromPreviousJob(ctx, req)

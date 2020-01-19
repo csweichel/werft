@@ -160,7 +160,10 @@ var runCmd = &cobra.Command{
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
 			cfg.Werft.DebugProxy = val
 		}
-		service.Start()
+		err = service.Start()
+		if err != nil {
+			log.WithError(err).Fatal("cannot start service")
+		}
 
 		grpcServer := grpc.NewServer()
 		v1.RegisterWerftServiceServer(grpcServer, service)

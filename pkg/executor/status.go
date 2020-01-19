@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -52,6 +54,18 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	}
 
 	_, canReplay := obj.Annotations[AnnotationCanReplay]
+	var waitUntil *timestamp.Timestamp
+	if wt, ok := obj.Annotations[AnnotationWaitUntil]; ok {
+		ts, err := time.Parse(time.RFC3339, wt)
+		if err != nil {
+			return nil, xerrors.Errorf("cannot parse %s annotation: %w", AnnotationWaitUntil, err)
+		}
+		waitUntil, err = ptypes.TimestampProto(ts)
+		if err != nil {
+			return nil, xerrors.Errorf("cannot convert %s annotation: %w", AnnotationWaitUntil, err)
+		}
+	}
+
 	status = &v1.JobStatus{
 		Name:     name,
 		Metadata: &md,
@@ -59,6 +73,7 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		Conditions: &v1.JobConditions{
 			Success:   true,
 			CanReplay: canReplay,
+			WaitUntil: waitUntil,
 		},
 		Results: results,
 	}

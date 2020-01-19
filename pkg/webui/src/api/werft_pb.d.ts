@@ -110,6 +110,11 @@ export class StartGitHubJobRequest extends jspb.Message {
   getSideload_asB64(): string;
   setSideload(value: Uint8Array | string): void;
 
+  hasWaitUntil(): boolean;
+  clearWaitUntil(): void;
+  getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
   static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
@@ -127,6 +132,7 @@ export namespace StartGitHubJobRequest {
     jobYaml: Uint8Array | string,
     githubToken: string,
     sideload: Uint8Array | string,
+    waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
   }
 }
 
@@ -136,6 +142,11 @@ export class StartFromPreviousJobRequest extends jspb.Message {
 
   getGithubToken(): string;
   setGithubToken(value: string): void;
+
+  hasWaitUntil(): boolean;
+  clearWaitUntil(): void;
+  getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
 
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartFromPreviousJobRequest.AsObject;
@@ -151,6 +162,7 @@ export namespace StartFromPreviousJobRequest {
   export type AsObject = {
     previousJob: string,
     githubToken: string,
+    waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
   }
 }
 
@@ -607,6 +619,11 @@ export class JobConditions extends jspb.Message {
   getCanReplay(): boolean;
   setCanReplay(value: boolean): void;
 
+  hasWaitUntil(): boolean;
+  clearWaitUntil(): void;
+  getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): JobConditions.AsObject;
   static toObject(includeInstance: boolean, msg: JobConditions): JobConditions.AsObject;
@@ -622,6 +639,7 @@ export namespace JobConditions {
     success: boolean,
     failureCount: number,
     canReplay: boolean,
+    waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
   }
 }
 
@@ -758,6 +776,7 @@ export interface JobPhaseMap {
   PHASE_RUNNING: 3;
   PHASE_DONE: 4;
   PHASE_CLEANUP: 5;
+  PHASE_WAITING: 6;
 }
 
 export const JobPhase: JobPhaseMap;

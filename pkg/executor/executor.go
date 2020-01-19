@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -45,6 +46,9 @@ const (
 
 	// AnnotationCanReplay stores if this job can be replayed
 	AnnotationCanReplay = "werft.sh/canReplay"
+
+	// AnnotationWaitUntil stores the start time of waiting job
+	AnnotationWaitUntil = "werft.sh/waitUntil"
 )
 
 // Config configures the executor
@@ -98,6 +102,8 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 		Config:     config,
 		Client:     kubeClient,
 		KubeConfig: kubeConfig,
+
+		waitingJobs: make(map[string]*waitingJob),
 	}, nil
 }
 
@@ -110,6 +116,16 @@ type Executor struct {
 	Client     kubernetes.Interface
 	Config     Config
 	KubeConfig *rest.Config
+
+	waitingJobs map[string]*waitingJob
+	mu          sync.Mutex
+}
+
+// waitingJob is a job which doesn't run yet, but waits until it can start (e.g. based on time)
+type waitingJob struct {
+	Cancel func(reason string)
+	Start  func()
+	Mutex  string
 }
 
 // Run starts the executor and returns immediately
@@ -124,6 +140,7 @@ type startOptions struct {
 	Annotations map[string]string
 	Mutex       string
 	CanReplay   bool
+	WaitUntil   time.Time
 }
 
 // StartOpt configures a job at startup
@@ -176,6 +193,13 @@ func WithCanReplay(canReplay bool) StartOpt {
 	}
 }
 
+// WithWaitUntil starts the execution of a job at some later point
+func WithWaitUntil(t time.Time) StartOpt {
+	return func(opts *startOptions) {
+		opts.WaitUntil = t
+	}
+}
+
 // Start starts a new job
 func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
 	opts := startOptions{
@@ -191,6 +215,9 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	}
 	if opts.CanReplay {
 		annotations[AnnotationCanReplay] = "true"
+	}
+	if !opts.WaitUntil.IsZero() {
+		annotations[AnnotationWaitUntil] = opts.WaitUntil.Format(time.RFC3339)
 	}
 
 	metadata.Created = ptypes.TimestampNow()
@@ -222,7 +249,9 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		opt(&poddesc)
 	}
 
+	mutexCancelationMsg := fmt.Sprintf("a newer job (%s) with the same mutex (%s) started", opts.JobName, opts.Mutex)
 	if opts.Mutex != "" {
+		log.WithField("mutex", opts.Mutex).Warn("started iwth mutexs")
 		poddesc.ObjectMeta.Labels[LabelMutex] = opts.Mutex
 
 		// enforce mutex by marking all other jobs with the same mutex as failed
@@ -232,25 +261,93 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		}
 		for _, pod := range pods.Items {
 			err := js.addAnnotation(pod.Name, map[string]string{
-				AnnotationFailed: fmt.Sprintf("a newer job (%s) with the same mutex (%s) started", opts.JobName, opts.Mutex),
+				AnnotationFailed: mutexCancelationMsg,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
 			}
 		}
+
+		// enforce mutex on all waiting jobs
+		js.mu.Lock()
+		for k, wj := range js.waitingJobs {
+			if wj.Mutex == opts.Mutex {
+				wj.Cancel(mutexCancelationMsg)
+				delete(js.waitingJobs, k)
+			}
+		}
+		js.mu.Unlock()
 	}
 
-	if log.GetLevel() == log.DebugLevel {
-		dbg, _ := json.MarshalIndent(poddesc, "", "  ")
-		log.Debugf("scheduling job\n%s", dbg)
+	startJob := func() (*v1.JobStatus, error) {
+		if log.GetLevel() == log.DebugLevel {
+			dbg, _ := json.MarshalIndent(poddesc, "", "  ")
+			log.Debugf("scheduling job\n%s", dbg)
+		}
+
+		job, err := js.Client.CoreV1().Pods(js.Config.Namespace).Create(&poddesc)
+		if err != nil {
+			return nil, err
+		}
+
+		return getStatus(job)
 	}
 
-	job, err := js.Client.CoreV1().Pods(js.Config.Namespace).Create(&poddesc)
-	if err != nil {
-		return nil, err
+	// Register the go routine to start the job when its time comes.
+	// Werft will tell us again about this job upon startup (pass set of waiting jobs into NewExecutor).
+	// When a waiting job is canceled manually or by a mutex it's deleted from the store.
+	log.WithField("wait-until", opts.WaitUntil).Debug("waiting until")
+	if !opts.WaitUntil.IsZero() && opts.WaitUntil.After(time.Now()) {
+		// This job's time hasn't come yet - let's delay its execution until later.
+		startChan, cancelChan := make(chan struct{}), make(chan string)
+		js.mu.Lock()
+		js.waitingJobs[opts.JobName] = &waitingJob{
+			Cancel: func(reason string) { cancelChan <- reason },
+			Start:  func() { close(startChan) },
+			Mutex:  opts.Mutex,
+		}
+		js.mu.Unlock()
+
+		run := func() {
+			js.mu.Lock()
+			delete(js.waitingJobs, opts.JobName)
+			js.mu.Unlock()
+
+			startJob()
+		}
+
+		status, err := getStatus(&poddesc)
+		if err != nil {
+			return nil, err
+		}
+
+		go func() {
+			d := opts.WaitUntil.Sub(time.Now())
+			select {
+			case <-time.After(d):
+				run()
+			case <-startChan:
+				run()
+			case reason := <-cancelChan:
+				log.WithField("name", opts.JobName).Debug("canceled this waiting job")
+				status.Phase = v1.JobPhase_PHASE_DONE
+				status.Conditions.Success = false
+				status.Details = reason
+				js.OnUpdate(&poddesc, status)
+			}
+		}()
+
+		status.Phase = v1.JobPhase_PHASE_WAITING
+
+		// normally we'd see a Kubernetes event as the job would start immediately. This Kubernetes event would propagate
+		// throughout the system. However, waiting jobs do not produce Kubernetes events right away, hence we have to
+		// call OnUpdate ourselves.
+		js.OnUpdate(&poddesc, status)
+
+		return status, nil
 	}
 
-	return getStatus(job)
+	return startJob()
 }
 
 func (js *Executor) monitorJobs() {
@@ -426,6 +523,17 @@ func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 
 // Stop stops a job
 func (js *Executor) Stop(name, reason string) error {
+	// maybe this is a waiting job - if so, kill that one first
+	js.mu.Lock()
+	if wj, ok := js.waitingJobs[name]; ok {
+		wj.Cancel(reason)
+		delete(js.waitingJobs, name)
+		js.mu.Unlock()
+
+		return nil
+	}
+	js.mu.Unlock()
+
 	pod, err := js.getJobPod(name)
 	if err != nil {
 		return err

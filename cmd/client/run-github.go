@@ -34,6 +34,7 @@ import (
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/reporef"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc/codes"
@@ -70,7 +71,7 @@ var runGithubCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		addUserAnnotations(cmd, md)
+		addUserAnnotations(md)
 
 		triggerName, _ := flags.GetString("trigger")
 		trigger, ok := v1.JobTrigger_value[fmt.Sprintf("TRIGGER_%s", strings.ToUpper(triggerName))]
@@ -110,6 +111,17 @@ var runGithubCmd = &cobra.Command{
 				return err
 			}
 			req.Sideload = sd
+		}
+
+		waitUntil, err := getWaitUntil()
+		if err != nil {
+			return err
+		}
+		if waitUntil != nil {
+			req.WaitUntil, err = ptypes.TimestampProto(*waitUntil)
+			if err != nil {
+				return err
+			}
 		}
 
 		conn := dial()
