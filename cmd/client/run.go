@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	log "github.com/sirupsen/logrus"
@@ -112,7 +113,7 @@ func configureRepoFromOrigin(repo *v1.Repository, origin string) error {
 }
 
 // adds the annotations from --annotation to the metadata
-func addUserAnnotations(cmd *cobra.Command, md *v1.JobMetadata) {
+func addUserAnnotations(md *v1.JobMetadata) {
 	annotations, _ := runCmd.PersistentFlags().GetStringToString("annotations")
 	for k, v := range annotations {
 		md.Annotations = append(md.Annotations, &v1.Annotation{
@@ -120,6 +121,25 @@ func addUserAnnotations(cmd *cobra.Command, md *v1.JobMetadata) {
 			Value: v,
 		})
 	}
+}
+
+func getWaitUntil() (*time.Time, error) {
+	w, _ := runCmd.PersistentFlags().GetString("wait-until")
+	if w == "" {
+		return nil, nil
+	}
+
+	dt, err := time.ParseDuration(w)
+	if err == nil {
+		t := time.Now().Add(dt)
+		return &t, nil
+	}
+	t, err := time.Parse(time.RFC3339, w)
+	if err == nil {
+		return &t, nil
+	}
+
+	return nil, xerrors.Errorf("cannot parse wait-until: %w", err)
 }
 
 func init() {
@@ -131,4 +151,5 @@ func init() {
 	runCmd.PersistentFlags().BoolP("follow", "f", false, "follow the log output once the job is running")
 	runCmd.PersistentFlags().StringToStringP("annotations", "a", map[string]string{}, "adds an annotation to the job")
 	runCmd.PersistentFlags().String("follow-with-prefix", "", "prints the log output with a prefix and disbales colors - useful for starting jobs from within jobs")
+	runCmd.PersistentFlags().String("wait-until", "", "delays the execution of the job by/until some time - use a valid duration (e.g. 5h) or RFC3339 timestamp")
 }

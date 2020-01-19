@@ -42,6 +42,10 @@ var runLocalCmd = &cobra.Command{
 	Use:   "local",
 	Short: "starts a job from a local directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if wu, _ := getWaitUntil(); wu != nil {
+			return xerrors.Errorf("--wait-until is not supported for local jobs")
+		}
+
 		flags := cmd.Parent().PersistentFlags()
 		workingdir, _ := cmd.Flags().GetString("cwd")
 		triggerName, _ := flags.GetString("trigger")
@@ -67,7 +71,7 @@ var runLocalCmd = &cobra.Command{
 				},
 			}
 		}
-		addUserAnnotations(cmd, md)
+		addUserAnnotations(md)
 
 		var configYAML []byte
 		jobPath, _ := cmd.Flags().GetString("job-file")

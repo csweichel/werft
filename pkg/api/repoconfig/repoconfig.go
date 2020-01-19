@@ -75,7 +75,7 @@ type JobSpec struct {
 	// Mutex makes job execution exclusive, with new ones canceling the currently running one.
 	// For example: job A is running at the moment, and job B is about to start. If A and B share the
 	// same mutex, B will cancel A.
-	Mutex string `yaml:"lock,omitempty"`
+	Mutex string `yaml:"mutex,omitempty"`
 
 	// Args describe annotations which this job expects. This list is only used on the UI when manually
 	// starting the job.

@@ -49,7 +49,7 @@ plugins:
     - integration
     config:
       tasks:
-      - spec: "@every 1m"
+      - spec: "@every 10m"
         repo: github.com/32leaves/test-repo:werft
     command:
     - sh

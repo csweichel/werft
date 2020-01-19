@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/32leaves/werft/pkg/api/repoconfig"
 	v1 "github.com/32leaves/werft/pkg/api/v1"
@@ -80,75 +81,125 @@ type GitHubSetup struct {
 }
 
 // Start sets up everything to run this werft instance, including executor config
-func (srv *Service) Start() {
+func (srv *Service) Start() error {
 	if srv.logListener == nil {
 		srv.logListener = make(map[string]*jobLog)
 	}
+	srv.Executor.OnUpdate = srv.handleJobUpdate
 
-	srv.Executor.OnUpdate = func(pod *corev1.Pod, s *v1.JobStatus) {
-		var isCleanupJob bool
-		for _, annotation := range s.Metadata.Annotations {
-			if annotation.Key == annotationCleanupJob {
-				isCleanupJob = true
-				break
-			}
-		}
-		// We ignore all status updates from cleanup jobs - they are not user triggered and we do not want them polluting the system.
-		if isCleanupJob {
-			return
-		}
-
-		// ensure we have logging, e.g. reestablish joblog for unknown jobs (i.e. after restart)
-		srv.ensureLogging(s)
-
-		out, err := srv.Logs.Write(s.Name)
-		if err == nil {
-			pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
-			k8syaml.NewSerializer(k8syaml.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
-			pw.Flush()
-
-			jsonStatus, _ := json.Marshal(s)
-			fmt.Fprintf(out, "[werft:status] %s\n", jsonStatus)
-		}
-
-		// TODO make sure this runs only once, e.g. by improving the status computation s.t. we pass through starting
-		// if s.Phase == v1.JobPhase_PHASE_RUNNING {
-		// out, err := srv.Logs.Place(context.TODO(), s.Name)
-		// if err == nil {
-		// 	fmt.Fprintln(out, "[running|PHASE] job running")
-		// }
-		// }
-
-		if s.Phase == v1.JobPhase_PHASE_CLEANUP {
-			srv.mu.Lock()
-			if jl, ok := srv.logListener[s.Name]; ok {
-				if jl.CancelExecutorListener != nil {
-					jl.CancelExecutorListener()
-				}
-				if jl.LogStore != nil {
-					jl.LogStore.Close()
-				}
-				srv.cleanupJobWorkspace(s)
-
-				delete(srv.logListener, s.Name)
-			}
-			srv.mu.Unlock()
-
-			return
-		}
-		err = srv.Jobs.Store(context.Background(), *s)
-		if err != nil {
-			log.WithError(err).WithField("name", s.Name).Warn("cannot store job")
-		}
-
-		err = srv.updateGitHubStatus(s)
-		if err != nil {
-			log.WithError(err).WithField("name", s.Name).Warn("cannot update GitHub status")
-		}
-
-		// tell our Listen subscribers about this change
-		<-srv.events.Emit("job", s)
+	// we might still have waiting jobs which we must load back into the executor
+	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v1.FilterExpression{
+		&v1.FilterExpression{Terms: []*v1.FilterTerm{
+			&v1.FilterTerm{
+				Field:     "phase",
+				Value:     "waiting",
+				Operation: v1.FilterOp_OP_EQUALS,
+			},
+		}},
+	}, []*v1.OrderExpression{}, 0, 0)
+	if err != nil {
+		return xerrors.Errorf("cannot restore waiting jobs: %w", err)
 	}
+	for _, j := range waitingJobs {
+		cancelJob := func(err error) {
+			log.WithError(err).Errorf("cannot restore waiting job %s", j.Name)
+			j.Phase = v1.JobPhase_PHASE_DONE
+			j.Details = fmt.Sprintf("cannot restore execution context upon werft restart: %v", err)
+			j.Conditions.Success = false
+			srv.handleJobUpdate(nil, &j)
+		}
+
+		jobYAML, err := srv.Jobs.GetJobSpec(j.Name)
+		if err != nil {
+			cancelJob(err)
+			continue
+		}
+		waitUntil, err := ptypes.Timestamp(j.Conditions.WaitUntil)
+		if err != nil {
+			cancelJob(err)
+			continue
+		}
+
+		md := j.Metadata
+		cp := &GitHubContentProvider{
+			Owner:    md.Repository.Owner,
+			Repo:     md.Repository.Repo,
+			Revision: md.Repository.Revision,
+			Client:   srv.GitHub.Client,
+			Auth:     srv.GitHub.Auth,
+		}
+		_, err = srv.RunJob(context.Background(), j.Name, *md, cp, jobYAML, true, waitUntil)
+		if err != nil {
+			cancelJob(err)
+			continue
+		}
+	}
+	return nil
+}
+
+func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
+	var isCleanupJob bool
+	for _, annotation := range s.Metadata.Annotations {
+		if annotation.Key == annotationCleanupJob {
+			isCleanupJob = true
+			break
+		}
+	}
+	// We ignore all status updates from cleanup jobs - they are not user triggered and we do not want them polluting the system.
+	if isCleanupJob {
+		return
+	}
+
+	// ensure we have logging, e.g. reestablish joblog for unknown jobs (i.e. after restart)
+	srv.ensureLogging(s)
+
+	out, err := srv.Logs.Write(s.Name)
+	if err == nil && pod != nil {
+		pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
+		k8syaml.NewSerializer(k8syaml.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
+		pw.Flush()
+
+		jsonStatus, _ := json.Marshal(s)
+		fmt.Fprintf(out, "[werft:status] %s\n", jsonStatus)
+	}
+
+	// TODO make sure this runs only once, e.g. by improving the status computation s.t. we pass through starting
+	// if s.Phase == v1.JobPhase_PHASE_RUNNING {
+	// out, err := srv.Logs.Place(context.TODO(), s.Name)
+	// if err == nil {
+	// 	fmt.Fprintln(out, "[running|PHASE] job running")
+	// }
+	// }
+
+	if s.Phase == v1.JobPhase_PHASE_CLEANUP {
+		srv.mu.Lock()
+		if jl, ok := srv.logListener[s.Name]; ok {
+			if jl.CancelExecutorListener != nil {
+				jl.CancelExecutorListener()
+			}
+			if jl.LogStore != nil {
+				jl.LogStore.Close()
+			}
+			srv.cleanupJobWorkspace(s)
+
+			delete(srv.logListener, s.Name)
+		}
+		srv.mu.Unlock()
+
+		return
+	}
+	err = srv.Jobs.Store(context.Background(), *s)
+	if err != nil {
+		log.WithError(err).WithField("name", s.Name).Warn("cannot store job")
+	}
+
+	err = srv.updateGitHubStatus(s)
+	if err != nil {
+		log.WithError(err).WithField("name", s.Name).Warn("cannot update GitHub status")
+	}
+
+	// tell our Listen subscribers about this change
+	<-srv.events.Emit("job", s)
 }
 
 func (srv *Service) ensureLogging(s *v1.JobStatus) {
@@ -279,7 +330,7 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 }
 
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool) (status *v1.JobStatus, err error) {
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool, waitUntil time.Time) (status *v1.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr == nil {
@@ -314,16 +365,6 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 			log.WithError(err).Warn("cannot store job YAML - job will not be replayable")
 		}
 	}
-
-	logs, err = srv.Logs.Open(name)
-	if err != nil {
-		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
-	}
-	srv.mu.Lock()
-	srv.logListener[name] = &jobLog{LogStore: logs}
-	srv.mu.Unlock()
-
-	fmt.Fprintln(logs, "[preparing|PHASE] job preparation")
 
 	jobTpl, err := template.New("job").Funcs(sprig.TxtFuncMap()).Parse(string(jobYAML))
 	if err != nil {
@@ -381,6 +422,15 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		})
 	}
 
+	logs, err = srv.Logs.Open(name)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot start logging for %s: %w", name, err)
+	}
+	srv.mu.Lock()
+	srv.logListener[name] = &jobLog{LogStore: logs}
+	srv.mu.Unlock()
+	fmt.Fprintln(logs, "[preparing|PHASE] job preparation")
+
 	// dump podspec into logs
 	pw := textio.NewPrefixWriter(logs, "[werft:template] ")
 	redactedSpec := podspec.DeepCopy()
@@ -400,7 +450,12 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	pw.Flush()
 
 	// schedule/start job
-	status, err = srv.Executor.Start(*podspec, metadata, executor.WithName(name), executor.WithCanReplay(canReplay))
+	status, err = srv.Executor.Start(*podspec, metadata,
+		executor.WithName(name),
+		executor.WithCanReplay(canReplay),
+		executor.WithWaitUntil(waitUntil),
+		executor.WithMutex(jobspec.Mutex),
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}

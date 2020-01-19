@@ -1,3 +1,4 @@
+mutex: build-{{ .Repository.Revision }}
 pod:
   containers:
   - name: build
