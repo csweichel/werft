@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "werft.fullname" . }}-config
+  labels:
+    app.kubernetes.io/name: {{ include "werft.name" . }}
+    helm.sh/chart: {{ include "werft.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  "config.yaml": |
+    werft:
+      baseURL: {{ .Values.config.baseURL }}
+      workspaceNodePathPrefix: {{ .Values.config.workspaceNodePathPrefix }}
+{{- if .Values.config.jobSpecRepos }}
+      jobSpecRepos:
+{{ toYaml .Values.config.jobSpecRepos | indent 8 }}
+{{- end }}
+    service:
+      webPort: 8080
+      grpcPort: 7777
+    executor:
+      namespace: {{ .Release.Namespace }}
+      preperationTimeout: {{ .Values.config.timeouts.perperation | default "10m" }}
+      totalTimeout: {{ .Values.config.timeouts.total | default "60m" }}
+    storage:
+      logsPath: /mnt/logs
+      jobsConnectionString: {{ .Values.config.db | default (printf "host=werft-postgresql dbname=%s user=%s password=%s connect_timeout=5 sslmode=disable" .Values.postgresql.postgresqlDatabase .Values.postgresql.postgresqlUsername .Values.postgresql.postgresqlPassword) }}
+    github:
+      webhookSecret: {{ .Values.github.webhookSecret }}
+      privateKeyPath: /mnt/github/github-app.pem
+      appID: {{ .Values.github.appID }}
+      installationID: {{ .Values.github.installationID }}
+{{- if .Values.config.additional }}
+{{ toYaml .Values.config.additional | indent 4 }}
+{{- end }}

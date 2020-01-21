@@ -1,0 +1,72 @@
+github:
+  webhookSecret: my-webhook-secret
+  privateKeyPath: secrets/github-app.pem
+  appID: 000000
+  installationID: 0000000
+
+config:
+  baseURL: https://demo.werft.dev
+  ## By default Werft uses an empty-dir to share the workspace between the init container
+  ## and actual job containers. If you want to use a HostPath mount instead (e.g. for performance reasons),
+  ## set the path here. Werft will clean up after a job has finished and remove the workspaces
+  ## it creates.
+  # workspaceNodePathPrefix: /mnt/disks/ssd0/builds
+  timeouts:
+    preperation: 10m
+    total: 60m
+  # additional:
+  #   plugins:
+  #     - name: "cron"
+  #       type:
+  #       - integration
+  #       config:
+  #         tasks:
+  #         - spec: "30 21 * * *"
+  #           repo: github.com/typefox/gitpod:master
+  #           jobPath: .werft/wipe-devstaging.yaml
+
+replicaCount: 1
+
+image:
+  repository: csweichel/werft
+  tag: latest
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  ui:
+    port: 80
+  grpc:
+    port: 7777
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  requests:
+   cpu: 100m
+   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+rbac:
+  create: true
+
+postgresql:
+  enabled: true
+  postgresqlDatabase: werft
+  postgresqlUsername: werft
+  postgresqlPassword: changeme
+
+vouch: {}
