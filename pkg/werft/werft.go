@@ -390,16 +390,26 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	}
 
 	nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
-	httype := corev1.HostPathDirectoryOrCreate
-	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
-		Name: "werft-workspace",
-		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{
-				Path: nodePath,
-				Type: &httype,
+	wsVolume := "werft-workspace"
+	if nodePath != "" {
+		httype := corev1.HostPathDirectoryOrCreate
+		podspec.Volumes = append(podspec.Volumes, corev1.Volume{
+			Name: wsVolume,
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: nodePath,
+					Type: &httype,
+				},
 			},
-		},
-	})
+		})
+	} else {
+		podspec.Volumes = append(podspec.Volumes, corev1.Volume{
+			Name: wsVolume,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+	}
 
 	initcontainer, err := cp.InitContainer()
 	if err != nil {
@@ -409,14 +419,14 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	cpinit.Name = "werft-checkout"
 	cpinit.ImagePullPolicy = corev1.PullIfNotPresent
 	cpinit.VolumeMounts = append(cpinit.VolumeMounts, corev1.VolumeMount{
-		Name:      "werft-workspace",
+		Name:      wsVolume,
 		ReadOnly:  false,
 		MountPath: "/workspace",
 	})
 	podspec.InitContainers = append(podspec.InitContainers, cpinit)
 	for i, c := range podspec.Containers {
 		podspec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-			Name:      "werft-workspace",
+			Name:      wsVolume,
 			ReadOnly:  false,
 			MountPath: "/workspace",
 		})
@@ -476,6 +486,12 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 // cleanupWorkspace starts a cleanup job for a previously run job
 func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
+	if srv.Config.WorkspaceNodePathPrefix == "" {
+		// we don't have a workspace node path prefix, hence used an emptydir volume,
+		// hence don't have to clean up after ourselves.
+		return
+	}
+
 	name := s.Name
 	md := v1.JobMetadata{
 		Owner:      s.Metadata.Owner,
