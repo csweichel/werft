@@ -78,6 +78,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		db.SetMaxOpenConns(5)
 		err = db.Ping()
 		if err != nil {
 			return err
