@@ -64,6 +64,7 @@ const styles = (theme: Theme) => createStyles({
     },
     waitingUntilMsg: {
         backgroundColor: ColorWarning,
+        boxShadow: 'none'
     }
 });
 
@@ -383,9 +384,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         const waitingOverlay = this.state.status && this.state.status.phase === JobPhase.PHASE_WAITING &&
             <SnackbarContent 
                 className={classes.waitingUntilMsg}
-                aria-describedby="client-snackbar"
+                aria-describedby="waiting-snackbar"
                 message={
-                    <span id="client-snackbar" className={classes.snackbarMessage}>
+                    <span id="waiting-snackbar" className={classes.snackbarMessage}>
                         <InfoIcon className={clsx(classes.snackbarIcon, classes.snackbarIconVariant)} />
                         <p>This job is delayed until <ReactTimeago date={this.state.status.conditions!.waitUntil.seconds * 1000} /></p>
                     </span>
