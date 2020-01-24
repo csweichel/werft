@@ -1,6 +1,8 @@
 werft:
   baseURL: https://werft.dev
   workspaceNodePathPrefix: "/mnt/disks/ssd0/builds"
+  cleanupJobSpec:
+    terminationGracePeriodSeconds: 10
 service:
   webPort: 8080
   grpcPort: 7777

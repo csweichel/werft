@@ -24,9 +24,10 @@ import (
 	"github.com/segmentio/textio"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	k8syaml "k8s.io/apimachinery/pkg/runtime/serializer/json"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
@@ -44,8 +45,28 @@ type Config struct {
 	// WorkspaceNodePathPrefix is the location on the node where we place the builds
 	WorkspaceNodePathPrefix string `yaml:"workspaceNodePathPrefix,omitempty"`
 
+	// CleanupJobSpec is a podspec YAML which forms the basis for cleanup jobs.
+	// Can be empty, in which clean up jobs will use a default.
+	CleanupJobSpec *configPodSpec `yaml:"cleanupJobSpec,omitempty"`
+
 	// Enables the webui debug proxy pointing to this address
 	DebugProxy string
+}
+
+type configPodSpec corev1.PodSpec
+
+func (spec *configPodSpec) UnmarshalYAML(value *yaml.Node) error {
+	raw, err := yaml.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	err = k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(raw), 4096).Decode(spec)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type jobLog struct {
@@ -156,7 +177,7 @@ func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 	out, err := srv.Logs.Write(s.Name)
 	if err == nil && pod != nil {
 		pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
-		k8syaml.NewSerializer(k8syaml.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
+		k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
 		pw.Flush()
 
 		jsonStatus, _ := json.Marshal(s)
@@ -379,7 +400,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 	// we have to use the Kubernetes YAML decoder to decode the podspec
 	var jobspec repoconfig.JobSpec
-	err = yaml.NewYAMLOrJSONDecoder(bytes.NewReader(buf.Bytes()), 4096).Decode(&jobspec)
+	err = k8syaml.NewYAMLOrJSONDecoder(bytes.NewReader(buf.Bytes()), 4096).Decode(&jobspec)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
@@ -456,7 +477,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 			redactedSpec.InitContainers[ci] = c
 		}
 	}
-	k8syaml.NewYAMLSerializer(k8syaml.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *redactedSpec}, pw)
+	k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, nil, nil).Encode(&corev1.Pod{Spec: *redactedSpec}, pw)
 	pw.Flush()
 
 	// schedule/start job
@@ -505,36 +526,37 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 			},
 		},
 	}
+
+	var podspec corev1.PodSpec
+	if srv.Config.CleanupJobSpec != nil {
+		// We have a cleanup job spec we ought to respect.
+		podspec = corev1.PodSpec(*srv.Config.CleanupJobSpec)
+	}
+
 	nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
 	httype := corev1.HostPathDirectoryOrCreate
-	podspec := corev1.PodSpec{
-		Volumes: []corev1.Volume{
-			corev1.Volume{
-				Name: "werft-workspace",
-				VolumeSource: corev1.VolumeSource{
-					HostPath: &corev1.HostPathVolumeSource{
-						Path: nodePath,
-						Type: &httype,
-					},
-				},
+	podspec.Volumes = append(podspec.Volumes, corev1.Volume{
+		Name: "werft-workspace",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: nodePath,
+				Type: &httype,
 			},
 		},
-		Containers: []corev1.Container{
-			corev1.Container{
-				Name:       "cleanup",
-				Image:      "alpine:latest",
-				Command:    []string{"sh", "-c", "rm -rf *"},
-				WorkingDir: "/workspace",
-				VolumeMounts: []corev1.VolumeMount{
-					corev1.VolumeMount{
-						Name:      "werft-workspace",
-						MountPath: "/workspace",
-					},
-				},
+	})
+	podspec.Containers = append(podspec.Containers, corev1.Container{
+		Name:       "cleanup",
+		Image:      "alpine:latest",
+		Command:    []string{"sh", "-c", "rm -rf *"},
+		WorkingDir: "/workspace",
+		VolumeMounts: []corev1.VolumeMount{
+			corev1.VolumeMount{
+				Name:      "werft-workspace",
+				MountPath: "/workspace",
 			},
 		},
-		RestartPolicy: corev1.RestartPolicyOnFailure,
-	}
+	})
+	podspec.RestartPolicy = corev1.RestartPolicyOnFailure
 	_, err := srv.Executor.Start(podspec, md, executor.WithCanReplay(false), executor.WithBackoff(3), executor.WithName(fmt.Sprintf("cleanup-%s", name)))
 	if err != nil {
 		log.WithError(err).WithField("name", name).Error("cannot start cleanup job")
