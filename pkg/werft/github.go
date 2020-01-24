@@ -10,6 +10,7 @@ import (
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -212,12 +213,12 @@ func getRepoCfg(ctx context.Context, fp FileProvider) (*repoconfig.C, error) {
 	werftYAML, err := fp.Download(ctx, PathWerftConfig)
 	if err != nil {
 		// TODO handle repos without werft config more gracefully
-		return nil, err
+		return nil, xerrors.Errorf("cannot get repo config: %w", err)
 	}
 	var repoCfg repoconfig.C
 	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("cannot unmarshal repo config: %w", err)
 	}
 
 	return &repoCfg, nil

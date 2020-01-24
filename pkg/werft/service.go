@@ -196,12 +196,12 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 
 		in, err := cp.Download(ctx, tplpath)
 		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", tplpath, err.Error())
 		}
 		jobYAML, err = ioutil.ReadAll(in)
 		in.Close()
 		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", tplpath, err.Error())
 		}
 	}
 	if tplpath != "" {
