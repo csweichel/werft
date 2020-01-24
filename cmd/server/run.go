@@ -78,11 +78,17 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		db.SetMaxOpenConns(5)
+		maxConns := 5
+		if cfg.Storage.JobStoreMaxConnections > 0 {
+			maxConns = cfg.Storage.JobStoreMaxConnections
+		}
+		log.WithField("maxOpenConns", maxConns).Debug("setting max open connections on job store DB")
+		db.SetMaxOpenConns(maxConns)
 		err = db.Ping()
 		if err != nil {
 			return err
 		}
+
 		log.Info("making sure database schema is up to date")
 		err = postgres.Migrate(db)
 		if err != nil {
@@ -310,8 +316,9 @@ type Config struct {
 		JobSpecRepos []string `yaml:"jobSpecRepos"`
 	}
 	Storage struct {
-		LogStore string `yaml:"logsPath"`
-		JobStore string `yaml:"jobsConnectionString"`
+		LogStore               string `yaml:"logsPath"`
+		JobStore               string `yaml:"jobsConnectionString"`
+		JobStoreMaxConnections int    `yaml:"jobsMaxConnections"`
 	} `yaml:"storage"`
 	Executor   executor.Config `yaml:"executor"`
 	Kubeconfig string          `yaml:"kubeconfig,omitempty"`

@@ -15,6 +15,7 @@ executor:
 storage:
   logsPath: "/tmp/logs"
   jobsConnectionString: dbname=werft user=gitpod connect_timeout=5 sslmode=disable
+  jobsMaxConnections: 10
 github:
   webhookSecret: foobar
   privateKeyPath: testdata/example-app.pem
