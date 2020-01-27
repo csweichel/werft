@@ -118,7 +118,7 @@ type Executor struct {
 	KubeConfig *rest.Config
 
 	waitingJobs map[string]*waitingJob
-	mu          sync.Mutex
+	mu          sync.RWMutex
 }
 
 // waitingJob is a job which doesn't run yet, but waits until it can start (e.g. based on time)
@@ -126,6 +126,7 @@ type waitingJob struct {
 	Cancel func(reason string)
 	Start  func()
 	Mutex  string
+	Status *v1.JobStatus
 }
 
 // Run starts the executor and returns immediately
@@ -297,6 +298,11 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	// When a waiting job is canceled manually or by a mutex it's deleted from the store.
 	log.WithField("wait-until", opts.WaitUntil).Debug("waiting until")
 	if !opts.WaitUntil.IsZero() && opts.WaitUntil.After(time.Now()) {
+		status, err := getStatus(&poddesc)
+		if err != nil {
+			return nil, err
+		}
+
 		// This job's time hasn't come yet - let's delay its execution until later.
 		startChan, cancelChan := make(chan struct{}), make(chan string)
 		js.mu.Lock()
@@ -304,6 +310,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 			Cancel: func(reason string) { cancelChan <- reason },
 			Start:  func() { close(startChan) },
 			Mutex:  opts.Mutex,
+			Status: status,
 		}
 		js.mu.Unlock()
 
@@ -313,11 +320,6 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 			js.mu.Unlock()
 
 			startJob()
-		}
-
-		status, err := getStatus(&poddesc)
-		if err != nil {
-			return nil, err
 		}
 
 		go func() {
@@ -501,6 +503,9 @@ func (js *Executor) doHousekeeping() {
 	}
 }
 
+// errNotFound is returned by getJobPod if no running job was found
+var errNotFound = xerrors.Errorf("unknown job")
+
 // Finds the pod executing a job
 func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
@@ -511,7 +516,7 @@ func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 	}
 
 	if len(pods.Items) == 0 {
-		return nil, xerrors.Errorf("unknown job: %s", name)
+		return nil, xerrors.Errorf("%w: %s", errNotFound, name)
 	}
 	if len(pods.Items) > 1 {
 		return nil, xerrors.Errorf("job %s has no unique execution", name)
@@ -546,6 +551,32 @@ func (js *Executor) Stop(name, reason string) error {
 	}
 
 	return nil
+}
+
+// GetKnownJobs returns a list of all jobs the executor knows about
+func (js *Executor) GetKnownJobs() (jobs []v1.JobStatus, err error) {
+	js.mu.RLock()
+	for _, wj := range js.waitingJobs {
+		jobs = append(jobs, *wj.Status)
+	}
+	js.mu.RUnlock()
+
+	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods.Items {
+		var status *v1.JobStatus
+		status, err = getStatus(&pod)
+		if err != nil {
+			return nil, err
+		}
+
+		jobs = append(jobs, *status)
+	}
+	return
 }
 
 // RegisterResult registers a result produced by a job

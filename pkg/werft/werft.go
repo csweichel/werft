@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"text/template"
@@ -155,7 +156,54 @@ func (srv *Service) Start() error {
 			continue
 		}
 	}
+
+	go srv.doHousekeeping()
+
 	return nil
+}
+
+func (srv *Service) doHousekeeping() {
+	tick := time.NewTicker(5 * time.Minute)
+	for {
+		log.Debug("performing werft service housekeeping")
+
+		ctx := context.Background()
+		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)
+		if err != nil {
+			log.WithError(err).Warn("cannot perform housekeeping")
+			continue
+		}
+
+		knownJobs, err := srv.Executor.GetKnownJobs()
+		if err != nil {
+			log.WithError(err).Warn("cannot perform housekeeping")
+			continue
+		}
+
+		knownJobsIdx := make(map[string]v1.JobStatus)
+		for _, s := range knownJobs {
+			knownJobsIdx[s.Name] = s
+		}
+
+		for _, job := range expectedJobs {
+			knownStatus, exists := knownJobsIdx[job.Name]
+			if !exists {
+				log.WithField("name", job.Name).Warn("executor does not know about this job - we have missed an event. Marking as failed.")
+				job.Phase = v1.JobPhase_PHASE_DONE
+				job.Conditions.Success = false
+				job.Details = "Werft missed updates for this job and the job is no longer running."
+				srv.handleJobUpdate(nil, &job)
+				continue
+			}
+
+			if !reflect.DeepEqual(knownStatus, job) {
+				log.WithField("name", job.Name).Warn("executor had a different status than what we had last seen - we have missed an event. Updating job.")
+				srv.handleJobUpdate(nil, &job)
+			}
+		}
+
+		<-tick.C
+	}
 }
 
 func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
