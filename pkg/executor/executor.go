@@ -352,13 +352,14 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 }
 
 func (js *Executor) monitorJobs() {
+	reconnectionTimeout := 100 * time.Millisecond
 	for {
 		incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
 		})
 		if err != nil {
 			log.WithError(err).Error("cannot watch jobs - retrying")
-			<-time.After(1 * time.Second)
+			time.Sleep(reconnectionTimeout)
 			continue
 		}
 		log.Info("connected to Kubernetes master")
@@ -376,7 +377,7 @@ func (js *Executor) monitorJobs() {
 		}
 		log.Warn("lost connection to Kubernetes master")
 
-		<-time.After(1 * time.Second)
+		time.Sleep(reconnectionTimeout)
 	}
 
 	// TODO: handle graceful shutdown
