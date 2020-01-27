@@ -9,6 +9,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/godoc_vfs"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/tools/godoc/vfs/mapfs"
 	"golang.org/x/xerrors"
 )
@@ -29,6 +30,7 @@ func Migrate(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	mig.Log = &logrusAdapter{}
 
 	err = mig.Up()
 	if err != nil && err != migrate.ErrNoChange {
@@ -67,4 +69,14 @@ func getMigrations(db *sql.DB) (source.Driver, error) {
 	}
 
 	return fs, nil
+}
+
+type logrusAdapter struct{}
+
+func (*logrusAdapter) Printf(format string, args ...interface{}) {
+	log.WithField("migration", true).Debugf(format, args...)
+}
+
+func (*logrusAdapter) Verbose() bool {
+	return true
 }
