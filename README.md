@@ -113,11 +113,11 @@ The default cutter in Werft expects the following syntax:
 
 | Code | Command | Description |
 | --------- | ----- | ----------- |
-| `[someID|PHASE] Some description here` | Enter new phase | Enters into a new phase identified by `someID` and described by `Some description here`. All output in this phase that does not explicitely name a slice will use `someID` as slice.
+| `[someID\|PHASE] Some description here` | Enter new phase | Enters into a new phase identified by `someID` and described by `Some description here`. All output in this phase that does not explicitely name a slice will use `someID` as slice.
 | `[someID] Arbitrary output` | Log to a slice | Logs `Arbitrary output` and marks it as part of the `someID` slice.
-| `[someID|DONE]` | Finish a slice | Marks the `someID` slice as done. No more output is expected from this slice in this phase.
-| `[someID|FAIL] Reason` | Fail a slice | Marks the `someID` slice as failed becuase of `Reason`. No more output is expected from this slice in this phase. Failing a slice does not automatically fail the job.
-| `[type|RESULT] content` | Publish a result | Publishes `content` as result of type `type` 
+| `[someID\|DONE]` | Finish a slice | Marks the `someID` slice as done. No more output is expected from this slice in this phase.
+| `[someID\|FAIL] Reason` | Fail a slice | Marks the `someID` slice as failed becuase of `Reason`. No more output is expected from this slice in this phase. Failing a slice does not automatically fail the job.
+| `[type\|RESULT] content` | Publish a result | Publishes `content` as result of type `type` 
 
 > **Tip**: You can produce this kind of log output using the Werft CLI: `werft log`
 
