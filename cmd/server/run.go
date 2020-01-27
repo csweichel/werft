@@ -78,12 +78,17 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		maxConns := 5
+		maxConns := 10
+		maxIdleConns := 2
 		if cfg.Storage.JobStoreMaxConnections > 0 {
 			maxConns = cfg.Storage.JobStoreMaxConnections
 		}
-		log.WithField("maxOpenConns", maxConns).Debug("setting max open connections on job store DB")
+		if cfg.Storage.JobStoreMaxIdleConnections > 0 {
+			maxIdleConns = cfg.Storage.JobStoreMaxIdleConnections
+		}
+		log.WithField("maxOpenConns", maxConns).WithField("maxIdleConns", maxIdleConns).Debug("setting max open connections on job store DB")
 		db.SetMaxOpenConns(maxConns)
+		db.SetMaxIdleConns(maxIdleConns)
 		err = db.Ping()
 		if err != nil {
 			return err
@@ -316,9 +321,10 @@ type Config struct {
 		JobSpecRepos []string `yaml:"jobSpecRepos"`
 	}
 	Storage struct {
-		LogStore               string `yaml:"logsPath"`
-		JobStore               string `yaml:"jobsConnectionString"`
-		JobStoreMaxConnections int    `yaml:"jobsMaxConnections"`
+		LogStore                   string `yaml:"logsPath"`
+		JobStore                   string `yaml:"jobsConnectionString"`
+		JobStoreMaxConnections     int    `yaml:"jobsMaxConnections"`
+		JobStoreMaxIdleConnections int    `yaml:"jobsMaxIdleConnections"`
 	} `yaml:"storage"`
 	Executor   executor.Config `yaml:"executor"`
 	Kubeconfig string          `yaml:"kubeconfig,omitempty"`
