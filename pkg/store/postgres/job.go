@@ -213,6 +213,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 	if err != nil {
 		return nil, 0, err
 	}
+	defer rows.Close()
 
 	var result []v1.JobStatus
 	for rows.Next() {
@@ -239,7 +240,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 
 // StoreJobSpec stores job information in the store.
 func (s *JobStore) StoreJobSpec(name string, data []byte) error {
-	_, err := s.DB.Query(`
+	rows, err := s.DB.Query(`
 		INSERT
 		INTO   job_spec (name, data)
 		VALUES          ($1  , $2  ) 
@@ -252,6 +253,7 @@ func (s *JobStore) StoreJobSpec(name string, data []byte) error {
 	if err != nil {
 		return err
 	}
+	rows.Close()
 
 	return nil
 }
