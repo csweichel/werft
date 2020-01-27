@@ -6,6 +6,7 @@ werft:
 service:
   webPort: 8080
   grpcPort: 7777
+  prometheusPort: 9500
   jobSpecRepos:
   - 32leaves/test-repo:werft
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"

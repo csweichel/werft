@@ -20,6 +20,7 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/olebedev/emitter v0.0.0-20190110104742-e8d1457e6aee
 	github.com/paulbellamy/ratecounter v0.2.0
+	github.com/prometheus/client_golang v1.3.0
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/segmentio/textio v1.2.0
 	github.com/sirupsen/logrus v1.4.2

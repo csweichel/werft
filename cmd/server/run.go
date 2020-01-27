@@ -44,6 +44,8 @@ import (
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/github"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -183,6 +185,42 @@ var runCmd = &cobra.Command{
 		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
 		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
 
+		if cfg.Service.PromPort > 0 {
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(
+				prometheus.NewGoCollector(),
+				prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+					Name: "job_store_db_open_connections_total",
+					Help: "Open database connections of the job store.",
+				}, func() float64 { return float64(db.Stats().OpenConnections) }),
+				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+					Name: "job_store_db_inuse_connections_total",
+					Help: "Open database connections of the job store which are in use.",
+				}, func() float64 { return float64(db.Stats().InUse) }),
+				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+					Name: "job_store_db_idle_connections_total",
+					Help: "Open database connections of the job store which are idleing.",
+				}, func() float64 { return float64(db.Stats().Idle) }),
+				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+					Name: "job_store_db_waiting_queries_total",
+					Help: "Number of waiting new DB connections of the job store.",
+				}, func() float64 { return float64(db.Stats().WaitCount) }),
+			)
+
+			handler := http.NewServeMux()
+			handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+
+			addr := fmt.Sprintf(":%d", cfg.Service.PromPort)
+			go func() {
+				err := http.ListenAndServe(addr, handler)
+				if err != nil {
+					log.WithError(err).Fatal("cannot start Prometheus metrics server")
+				}
+			}()
+			log.WithField("addr", addr).Info("started Prometheus metrics server")
+		}
+
 		plugins, err := plugin.Start(cfg.Plugins, service)
 		if err != nil {
 			log.WithError(err).Fatal("cannot start plugins")
@@ -318,6 +356,7 @@ type Config struct {
 	Service struct {
 		WebPort      int      `yaml:"webPort"`
 		GRPCPort     int      `yaml:"grpcPort"`
+		PromPort     int      `yaml:"prometheusPort,omitempty"`
 		JobSpecRepos []string `yaml:"jobSpecRepos"`
 	}
 	Storage struct {
