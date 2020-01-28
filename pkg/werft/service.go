@@ -123,6 +123,14 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
 	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
+	if len(name) > 58 {
+		// Kubernetes label values must not be longer than 63 characters according to
+		// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		// We need to leave some space for the build number. Assuming that we won't have more than 9999 builds on
+		// a single long named branch, leaving four chars should be enough.
+		name = name[:58]
+	}
+
 	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false, time.Time{})
 
 	if err != nil {
@@ -221,6 +229,13 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		refname = moniker.New().NameSep("-")
 	}
 	name := fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname)
+	if len(name) > 58 {
+		// Kubernetes label values must not be longer than 63 characters according to
+		// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		// We need to leave some space for the build number. Assuming that we won't have more than 9999 builds on
+		// a single long named branch, leaving four chars should be enough.
+		name = name[:58]
+	}
 	if refname != "" {
 		// we have a valid refname, hence need to acquire job number
 		t, err := srv.Groups.Next(name)
