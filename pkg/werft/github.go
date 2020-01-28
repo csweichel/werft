@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	werftGithubContext       = "continunous-integration/werft"
-	werftResultGithubContext = "continunous-integration/werft/result"
+	werftGithubContext       = "continuous-integration/werft"
+	werftResultGithubContext = "continuous-integration/werft/result"
 
 	// annotationStatusUpdate is set on jobs whoose status needs to be updated on GitHub.
 	// This is set only on jobs created through GitHub events.
