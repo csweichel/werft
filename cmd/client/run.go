@@ -144,6 +144,7 @@ func getWaitUntil() (*time.Time, error) {
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+	jobCmd.AddCommand(runCmd)
 
 	runCmd.PersistentFlags().StringP("job-file", "j", "", "location of the job file (defaults to the default job in the werft config)")
 	runCmd.PersistentFlags().String("config-file", "$CWD/.werft/config.yaml", "location of the werft config file")
