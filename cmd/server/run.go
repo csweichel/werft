@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -184,41 +185,11 @@ var runCmd = &cobra.Command{
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
 		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
 		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
-
-		if cfg.Service.PromPort > 0 {
-			reg := prometheus.NewRegistry()
-			reg.MustRegister(
-				prometheus.NewGoCollector(),
-				prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
-				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-					Name: "job_store_db_open_connections_total",
-					Help: "Open database connections of the job store.",
-				}, func() float64 { return float64(db.Stats().OpenConnections) }),
-				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-					Name: "job_store_db_inuse_connections_total",
-					Help: "Open database connections of the job store which are in use.",
-				}, func() float64 { return float64(db.Stats().InUse) }),
-				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-					Name: "job_store_db_idle_connections_total",
-					Help: "Open database connections of the job store which are idleing.",
-				}, func() float64 { return float64(db.Stats().Idle) }),
-				prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-					Name: "job_store_db_waiting_queries_total",
-					Help: "Number of waiting new DB connections of the job store.",
-				}, func() float64 { return float64(db.Stats().WaitCount) }),
-			)
-
-			handler := http.NewServeMux()
-			handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
-
-			addr := fmt.Sprintf(":%d", cfg.Service.PromPort)
-			go func() {
-				err := http.ListenAndServe(addr, handler)
-				if err != nil {
-					log.WithError(err).Fatal("cannot start Prometheus metrics server")
-				}
-			}()
-			log.WithField("addr", addr).Info("started Prometheus metrics server")
+		if cfg.Service.PromPort != 0 {
+			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort), db.Stats)
+		}
+		if cfg.Service.PprofPort != 0 {
+			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
 		}
 
 		plugins, err := plugin.Start(cfg.Plugins, service)
@@ -303,6 +274,56 @@ func startGRPC(srv *grpc.Server, addr string) {
 	}
 }
 
+// startPrometheus starts a Prometheus metrics server on addr.
+func startPrometheus(addr string, dbstats func() sql.DBStats) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_open_connections_total",
+			Help: "Open database connections of the job store.",
+		}, func() float64 { return float64(dbstats().OpenConnections) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_inuse_connections_total",
+			Help: "Open database connections of the job store which are in use.",
+		}, func() float64 { return float64(dbstats().InUse) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_idle_connections_total",
+			Help: "Open database connections of the job store which are idleing.",
+		}, func() float64 { return float64(dbstats().Idle) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_waiting_queries_total",
+			Help: "Number of waiting new DB connections of the job store.",
+		}, func() float64 { return float64(dbstats().WaitCount) }),
+	)
+
+	handler := http.NewServeMux()
+	handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+
+	log.WithField("addr", addr).Info("started Prometheus metrics server")
+	err := http.ListenAndServe(addr, handler)
+	if err != nil {
+		log.WithError(err).Fatal("cannot start Prometheus metrics server")
+	}
+}
+
+// startPProf starts a pprof server on addr
+func startPProf(addr string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	log.WithField("addr", addr).Info("serving pprof service")
+	err := http.ListenAndServe(addr, mux)
+	if err != nil {
+		log.WithField("addr", addr).WithError(err).Warn("cannot serve pprof service")
+	}
+}
+
 // hstsHandler wraps an http.HandlerFunc sfuch that it sets the HSTS header.
 func hstsHandler(fn http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -357,6 +378,7 @@ type Config struct {
 		WebPort      int      `yaml:"webPort"`
 		GRPCPort     int      `yaml:"grpcPort"`
 		PromPort     int      `yaml:"prometheusPort,omitempty"`
+		PprofPort    int      `yaml:"pprofPort,omitempty"`
 		JobSpecRepos []string `yaml:"jobSpecRepos"`
 	}
 	Storage struct {
