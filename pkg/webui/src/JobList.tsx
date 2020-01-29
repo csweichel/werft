@@ -69,11 +69,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
 
     protected startListening() {
         try {
-            const req = new SubscribeRequest();
-            req.setFilterList(this.state.search);
             if (this.eventStream) {
                 this.eventStream.cancel();
             }
+
+            const req = new SubscribeRequest();
+            req.setFilterList(this.state.search);
             this.eventStream = this.props.client.subscribe(req);
             this.eventStream.on('end', () => setTimeout(() => this.startListening(), 1000));
             this.eventStream.on('data', r => {
@@ -127,10 +128,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
         state.jobs = resp.getResultList().map(r => r.toObject());
         state.totalJobs = resp.getTotal();
-        if (newState.search !== this.state.search) {
+        const searchChanged = newState.search !== this.state.search;
+        this.setState(state);
+        
+        if (searchChanged) {
             this.startListening();
         }
-        this.setState(state);
     }
 
     render() {
