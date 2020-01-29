@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, OrderExpression } from './api/werft_pb';
+import { WerftServiceClient, ResponseStream } from './api/werft_pb_service';
+import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, OrderExpression, SubscribeResponse } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
 import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, TablePagination } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
@@ -44,6 +44,8 @@ interface JobListState {
 
 class JobListImpl extends React.Component<JobListProps, JobListState> {
 
+    protected eventStream: ResponseStream<SubscribeResponse> | undefined;
+
     constructor(props: JobListProps) {
         const initialSearch = decodeURIComponent(window.location.pathname.substring("/jobs/".length));
 
@@ -68,9 +70,13 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
     protected startListening() {
         try {
             const req = new SubscribeRequest();
-            let evts = this.props.client.subscribe(req);
-            evts.on('end', () => setTimeout(() => this.startListening(), 1000));
-            evts.on('data', r => {
+            req.setFilterList(this.state.search);
+            if (this.eventStream) {
+                this.eventStream.cancel();
+            }
+            this.eventStream = this.props.client.subscribe(req);
+            this.eventStream.on('end', () => setTimeout(() => this.startListening(), 1000));
+            this.eventStream.on('data', r => {
                 const status = r.getResult();
                 if (!status) {
                     return;
@@ -87,7 +93,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
 
                 this.setState({ jobs });
             });
-            evts.on('status', console.warn);
+            this.eventStream.on('status', console.warn);
         } catch (err) {
             console.warn(err);
             setTimeout(() => this.startListening(), 1200);
@@ -121,6 +127,9 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
         state.jobs = resp.getResultList().map(r => r.toObject());
         state.totalJobs = resp.getTotal();
+        if (newState.search !== this.state.search) {
+            this.startListening();
+        }
         this.setState(state);
     }
 
