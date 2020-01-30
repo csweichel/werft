@@ -57,7 +57,7 @@ var initJobCmd = &cobra.Command{
     - sh 
     - -c
     - |
-	  echo Hello World`), 0644)
+      echo Hello World`), 0644)
 	},
 }
 
