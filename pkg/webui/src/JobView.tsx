@@ -106,6 +106,8 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             Notification.requestPermission();
         }
 
+        document.title = `werft - ${this.props.jobName}`;
+
         const req = new GetJobRequest();
         req.setName(this.props.jobName);
         try {
