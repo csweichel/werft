@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/executor"
@@ -50,6 +51,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -180,7 +182,14 @@ var runCmd = &cobra.Command{
 			log.WithError(err).Fatal("cannot start service")
 		}
 
-		grpcServer := grpc.NewServer()
+		grpcServer := grpc.NewServer(
+			// We don't know how good our cients are at closing connections. If they don't close them properly
+			// we'll be leaking goroutines left and right. Closing Idle connections should prevent that.
+			// If a client gets disconnected because nothing happened for 15 minutes (e.g. no log output, no new job),
+			// the client can simply reconnect if they're still interested. WebUI is pretty good at maintaining
+			// connections anyways.
+			grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 15 * time.Minute}),
+		)
 		v1.RegisterWerftServiceServer(grpcServer, service)
 		v1.RegisterWerftUIServer(grpcServer, uiservice)
 		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
