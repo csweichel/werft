@@ -145,6 +145,7 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
 func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
+	tStartGithubPrep := time.Now()
 	var (
 		ghclient = srv.GitHub.Client
 		gitauth  = srv.GitHub.Auth
@@ -187,6 +188,8 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 			Clientset:  srv.Executor.Client,
 		}
 	}
+
+	srv.metrics.GithubJobPreparationSeconds.Observe(time.Since(tStartGithubPrep).Seconds())
 
 	var (
 		jobYAML     = req.JobYaml

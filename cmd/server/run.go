@@ -195,7 +195,7 @@ var runCmd = &cobra.Command{
 		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
 		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
 		if cfg.Service.PromPort != 0 {
-			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort), db.Stats)
+			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort), db.Stats, service)
 		}
 		if cfg.Service.PprofPort != 0 {
 			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
@@ -284,7 +284,7 @@ func startGRPC(srv *grpc.Server, addr string) {
 }
 
 // startPrometheus starts a Prometheus metrics server on addr.
-func startPrometheus(addr string, dbstats func() sql.DBStats) {
+func startPrometheus(addr string, dbstats func() sql.DBStats, service *werft.Service) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		prometheus.NewGoCollector(),
@@ -306,6 +306,7 @@ func startPrometheus(addr string, dbstats func() sql.DBStats) {
 			Help: "Number of waiting new DB connections of the job store.",
 		}, func() float64 { return float64(dbstats().WaitCount) }),
 	)
+	service.RegisterPrometheusMetrics(reg)
 
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))

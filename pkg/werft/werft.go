@@ -22,6 +22,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/go-github/github"
 	"github.com/olebedev/emitter"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/textio"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
@@ -89,7 +90,11 @@ type Service struct {
 	mu          sync.RWMutex
 	logListener map[string]*jobLog
 
-	events emitter.Emitter
+	events  emitter.Emitter
+	metrics struct {
+		GithubJobPreparationSeconds   prometheus.Histogram
+		ExecutorJobPreperationSeconds prometheus.Histogram
+	}
 }
 
 // GitCredentialHelper can authenticate provide authentication credentials for a repository
@@ -108,6 +113,18 @@ func (srv *Service) Start() error {
 		srv.logListener = make(map[string]*jobLog)
 	}
 	srv.Executor.OnUpdate = srv.handleJobUpdate
+
+	// set up prometheus gauges
+	srv.metrics.GithubJobPreparationSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "github_job_preparation_seconds",
+		Help:    "Time it took to retrieve all required data from GitHub prior to starting a job",
+		Buckets: []float64{0, 0.25, 0.5, 0.75, 1},
+	})
+	srv.metrics.ExecutorJobPreperationSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "executor_job_preparation_seconds",
+		Help:    "Time it took to start executing the job",
+		Buckets: []float64{0, 0.25, 0.5, 0.75, 1},
+	})
 
 	// we might still have waiting jobs which we must load back into the executor
 	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v1.FilterExpression{
@@ -160,6 +177,12 @@ func (srv *Service) Start() error {
 	go srv.doHousekeeping()
 
 	return nil
+}
+
+// RegisterPrometheusMetrics registers the service metrics on the registerer with MustRegister
+func (srv *Service) RegisterPrometheusMetrics(reg prometheus.Registerer) {
+	reg.MustRegister(srv.metrics.GithubJobPreparationSeconds)
+	reg.MustRegister(srv.metrics.ExecutorJobPreperationSeconds)
 }
 
 func (srv *Service) doHousekeeping() {
@@ -402,29 +425,30 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool, waitUntil time.Time) (status *v1.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
-		if *perr == nil {
-			return
+		if *perr != nil {
+			// make sure we tell the world about this failed job startup attempt
+			if status == nil {
+				status = &v1.JobStatus{}
+			}
+			status.Name = name
+			status.Phase = v1.JobPhase_PHASE_DONE
+			status.Conditions = &v1.JobConditions{Success: false, FailureCount: 1}
+			status.Metadata = &metadata
+			if status.Metadata.Created == nil {
+				status.Metadata.Created = ptypes.TimestampNow()
+			}
+			status.Details = (*perr).Error()
+			if logs != nil {
+				logs.Write([]byte("\n[werft] FAILURE " + status.Details))
+			}
 		}
 
-		// make sure we tell the world about this failed job startup attempt
-		var s v1.JobStatus
-		if status != nil {
-			s = *status
+		// either way, at the end of this function we must save the job
+		serr := srv.Jobs.Store(context.Background(), *status)
+		if serr != nil {
+			log.WithError(serr).WithField("name", name).Warn("cannot save job - this will break things")
 		}
-		s.Name = name
-		s.Phase = v1.JobPhase_PHASE_DONE
-		s.Conditions = &v1.JobConditions{Success: false, FailureCount: 1}
-		s.Metadata = &metadata
-		if s.Metadata.Created == nil {
-			s.Metadata.Created = ptypes.TimestampNow()
-		}
-		s.Details = (*perr).Error()
-		if logs != nil {
-			logs.Write([]byte("\n[werft] FAILURE " + s.Details))
-		}
-
-		srv.Jobs.Store(context.Background(), s)
-		<-srv.events.Emit("job", &s)
+		<-srv.events.Emit("job", status)
 	}(&err)
 
 	if canReplay {
@@ -529,6 +553,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	pw.Flush()
 
 	// schedule/start job
+	tExecutorPrepStart := time.Now()
 	status, err = srv.Executor.Start(*podspec, metadata,
 		executor.WithName(name),
 		executor.WithCanReplay(canReplay),
@@ -539,15 +564,11 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	name = status.Name
+	srv.metrics.ExecutorJobPreperationSeconds.Observe(time.Since(tExecutorPrepStart).Seconds())
 
 	err = cp.Serve(name)
 	if err != nil {
 		return nil, err
-	}
-
-	err = srv.Jobs.Store(ctx, *status)
-	if err != nil {
-		log.WithError(err).WithField("name", name).Warn("cannot store job status")
 	}
 
 	return status, nil
