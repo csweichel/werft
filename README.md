@@ -157,13 +157,10 @@ Use "werft [command] --help" for more information about a command.
 
 Logo based on [Shipyard Vectors by Vecteezy](https://www.vecteezy.com/free-vector/shipyard)
 
-## Thank-You
-Thank you to our contributors
+## Thank You
+Thank you to our contributors:
 
-csweichel
-
-corneliusludmann
-
-jankeromnes
-
-JesterOrNot
+- [csweichel](https://github.com/csweichel)
+- [corneliusludmann](https://github.com/corneliusludmann)
+- [jankeromnes](https://github.com/jankeromnes)
+- [JesterOrNot](https://github.com/JesterOrNot)
