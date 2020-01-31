@@ -92,9 +92,12 @@ packages:
         if [ -z "$latest" ]; then comparison=""; fi
         git log $comparison --oneline --no-merges > changelog.txt
         git rev-parse --abbrev-ref HEAD > version.txt
+        curl https://api.github.com/repos/csweichel/werft/compare/refs/tags/$latest...master | jq -r .commits[].author.login | sort | uniq > contributor.txt
         echo "Version: $(cat version.txt)"
         echo Changelog:
         cat changelog.txt
+        echo Contributor:
+        cat contributor.txt
 - name: release
   type: generic
   deps:
@@ -115,6 +118,11 @@ packages:
         echo >> desc.txt
         echo "## Changelog" >> desc.txt
         cat changelog/changelog.txt >> desc.txt
+        echo >> desc.txt
+        echo "## Contributor" >> desc.txt
+        for i in $(cat changelog/contributor.txt); do
+          echo "- [$i](https://github.com/$i)" >> desc.txt
+        done
     - ["mkdir", "dist"]
     - ["mv", "client-darwin-amd64/werft", "dist/werft-client-darwin-amd64"]
     - ["mv", "client-linux-amd64/werft", "dist/werft-client-linux-amd64"]
