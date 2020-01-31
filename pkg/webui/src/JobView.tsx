@@ -155,8 +155,10 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             }, 200);
             evts.on('data', h => {
                 if (h.hasUpdate()) {
-                    this.showNotification(h.getUpdate()!.toObject())
-                    this.setState({ status: h.getUpdate()!.toObject() });
+                    const update = h.getUpdate()!.toObject();
+                    this.showNotification(update);
+                    this.updateFavicon(update);
+                    this.setState({ status: update });
                 } else if (h.hasSlice()) {
                     if (this.disconnected) {
                         this.logCache = [];
@@ -197,6 +199,37 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
         }
 
         new Notification(`Job ${status.name} ${status.conditions!.success ? "done" : "failed"}`)
+    }
+
+    protected updateFavicon(status: JobStatus.AsObject) {
+        if (status.phase !== JobPhase.PHASE_DONE) {
+            return;
+        }
+
+        let faviconName = "favicon";
+        if (status.conditions && status.conditions.success) {
+            faviconName = "favicon-success";
+        } else {
+            faviconName = "favicon-failure";
+        }
+
+        const links = document.getElementsByTagName("link");
+        for (let i = 0; i < links.length; i++) {
+            const el = links.item(i);
+            if (!el) {
+                continue;
+            }
+
+            if (el.getAttribute("rel") === "icon") {
+                if (el.getAttribute("sizes") === "32x32") {
+                    el.setAttribute("href", `/${faviconName}-32x32.png`);
+                } else if (el.getAttribute("sizes") === "16x16") {
+                    el.setAttribute("href", `/${faviconName}-16x16.png`);
+                }
+            } else if (el.getAttribute("rel") === "shortcut icon") {
+                el.setAttribute("href", `/${faviconName}.ico`);
+            }
+        }
     }
 
     protected listenForNewJobs() {
