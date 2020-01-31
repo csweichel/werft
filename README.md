@@ -161,6 +161,9 @@ Logo based on [Shipyard Vectors by Vecteezy](https://www.vecteezy.com/free-vecto
 Thank you to our contributors
 
 csweichel
+
 corneliusludmann
+
 jankeromnes
+
 JesterOrNot
