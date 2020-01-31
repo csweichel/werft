@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -263,6 +265,10 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 			err := js.addAnnotation(pod.Name, map[string]string{
 				AnnotationFailed: mutexCancelationMsg,
 			})
+			if err, ok := err.(*k8serr.StatusError); ok && err.ErrStatus.Code == http.StatusNotFound {
+				// if the pod is gone by now that's ok. The mutex was enfored alright.
+				continue
+			}
 			if err != nil {
 				return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
 			}
