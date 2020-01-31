@@ -195,7 +195,10 @@ var runCmd = &cobra.Command{
 		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
 		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
 		if cfg.Service.PromPort != 0 {
-			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort), db.Stats, service)
+			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort),
+				jobStore.RegisterPrometheusMetrics,
+				service.RegisterPrometheusMetrics,
+			)
 		}
 		if cfg.Service.PprofPort != 0 {
 			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
@@ -284,29 +287,15 @@ func startGRPC(srv *grpc.Server, addr string) {
 }
 
 // startPrometheus starts a Prometheus metrics server on addr.
-func startPrometheus(addr string, dbstats func() sql.DBStats, service *werft.Service) {
+func startPrometheus(addr string, regfuncs ...func(prometheus.Registerer)) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		prometheus.NewGoCollector(),
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-			Name: "job_store_db_open_connections_total",
-			Help: "Open database connections of the job store.",
-		}, func() float64 { return float64(dbstats().OpenConnections) }),
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-			Name: "job_store_db_inuse_connections_total",
-			Help: "Open database connections of the job store which are in use.",
-		}, func() float64 { return float64(dbstats().InUse) }),
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-			Name: "job_store_db_idle_connections_total",
-			Help: "Open database connections of the job store which are idleing.",
-		}, func() float64 { return float64(dbstats().Idle) }),
-		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-			Name: "job_store_db_waiting_queries_total",
-			Help: "Number of waiting new DB connections of the job store.",
-		}, func() float64 { return float64(dbstats().WaitCount) }),
 	)
-	service.RegisterPrometheusMetrics(reg)
+	for _, f := range regfuncs {
+		f(reg)
+	}
 
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))

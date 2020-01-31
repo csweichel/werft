@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	v1 "github.com/32leaves/werft/pkg/api/v1"
 	"github.com/32leaves/werft/pkg/store"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 )
@@ -16,15 +18,52 @@ import (
 // JobStore stores jobs in a Postgres database
 type JobStore struct {
 	DB *sql.DB
+
+	metrics struct {
+		PostgresStoreJobDurationSecond prometheus.Histogram
+	}
 }
 
 // NewJobStore creates a new SQL job store
 func NewJobStore(db *sql.DB) (*JobStore, error) {
-	return &JobStore{DB: db}, nil
+	res := &JobStore{DB: db}
+	res.metrics.PostgresStoreJobDurationSecond = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "job_store_store_duration_second",
+		Help:    "Time it takes to store a job status",
+		Buckets: prometheus.ExponentialBuckets(0.001, 10, 4),
+	})
+	return res, nil
+}
+
+// RegisterPrometheusMetrics registers metrics on the registerer with MustRegister
+func (s *JobStore) RegisterPrometheusMetrics(reg prometheus.Registerer) {
+	reg.MustRegister(
+		s.metrics.PostgresStoreJobDurationSecond,
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_open_connections_total",
+			Help: "Open database connections of the job store.",
+		}, func() float64 { return float64(s.DB.Stats().OpenConnections) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_inuse_connections_total",
+			Help: "Open database connections of the job store which are in use.",
+		}, func() float64 { return float64(s.DB.Stats().InUse) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_idle_connections_total",
+			Help: "Open database connections of the job store which are idleing.",
+		}, func() float64 { return float64(s.DB.Stats().Idle) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "job_store_db_waiting_queries_total",
+			Help: "Number of waiting new DB connections of the job store.",
+		}, func() float64 { return float64(s.DB.Stats().WaitCount) }),
+	)
 }
 
 // Store stores job information in the store.
 func (s *JobStore) Store(ctx context.Context, job v1.JobStatus) error {
+	defer func(start time.Time) {
+		s.metrics.PostgresStoreJobDurationSecond.Observe(time.Since(start).Seconds())
+	}(time.Now())
+
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
 	}
