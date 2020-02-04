@@ -25,6 +25,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -119,6 +120,7 @@ var runCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			kubeConfig.RateLimiter = &unlimitedRateLimiter{}
 		} else {
 			kubeConfig, err = clientcmd.BuildConfigFromFlags("", cfg.Kubeconfig)
 			if err != nil {
@@ -361,6 +363,35 @@ func (w *interceptResponseWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 	return w.ResponseWriter.Write(p)
+}
+
+// unlimitedRateLimiter removes all client side rate limits
+type unlimitedRateLimiter struct{}
+
+// TryAccept returns true if a token is taken immediately. Otherwise,
+// it returns false.
+func (*unlimitedRateLimiter) TryAccept() bool {
+	return true
+}
+
+// Accept returns once a token becomes available.
+func (*unlimitedRateLimiter) Accept() {
+	return
+}
+
+// Stop stops the rate limiter, subsequent calls to CanAccept will return false
+func (*unlimitedRateLimiter) Stop() {
+	return
+}
+
+// QPS returns QPS of this rate limiter
+func (*unlimitedRateLimiter) QPS() float32 {
+	return math.MaxFloat32
+}
+
+// Wait returns nil if a token is taken before the Context is done.
+func (*unlimitedRateLimiter) Wait(ctx context.Context) error {
+	return nil
 }
 
 func init() {
