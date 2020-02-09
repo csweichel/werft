@@ -23,6 +23,7 @@ package cmd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -44,6 +45,7 @@ import (
 	plugin "github.com/csweichel/werft/pkg/plugin/host"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/csweichel/werft/pkg/store/postgres"
+	"github.com/csweichel/werft/pkg/version"
 	"github.com/csweichel/werft/pkg/werft"
 	"github.com/google/go-github/github"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
@@ -260,6 +262,7 @@ func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugPro
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/github/app", srv.HandleGithubWebhook)
+	mux.HandleFunc("/version", serveVersion)
 	mux.Handle("/", hstsHandler(
 		grpcTrafficSplitter(
 			webuiServer,
@@ -323,6 +326,20 @@ func startPProf(addr string) {
 	if err != nil {
 		log.WithField("addr", addr).WithError(err).Warn("cannot serve pprof service")
 	}
+}
+
+// serveVersion serves a version JSON structure
+func serveVersion(w http.ResponseWriter, req *http.Request) {
+	info := struct {
+		V string `json:"version"`
+		C string `json:"commit"`
+		D string `json:"date"`
+	}{
+		version.Version,
+		version.Commit,
+		version.Date,
+	}
+	json.NewEncoder(w).Encode(info)
 }
 
 // hstsHandler wraps an http.HandlerFunc sfuch that it sets the HSTS header.
