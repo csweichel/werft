@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/plugin/common"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/plugin/common"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"

@@ -8,4 +8,4 @@ filter:
 template: '{"text": "{{ .Name }} done"}'
 ```
 
-The template receives a [JobStatus](https://godoc.org/github.com/32leaves/werft/pkg/api/v1#JobStatus) as context.
+The template receives a [JobStatus](https://godoc.org/github.com/csweichel/werft/pkg/api/v1#JobStatus) as context.

@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/filterexpr"
 	"github.com/alecthomas/repr"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/filterexpr"
 )
 
 func TestValidBasics(t *testing.T) {

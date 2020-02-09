@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/store"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/store"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"

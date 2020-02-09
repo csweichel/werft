@@ -11,7 +11,7 @@ pod:
         sleep 5
         echo "[build|PHASE] building stuff"
         for i in $(seq 1 10); do sleep 2; echo "[foo] output $i"; done
-        echo "[url|RESULT] https://github.com/32leaves/werft the github project"
+        echo "[url|RESULT] https://github.com/csweichel/werft the github project"
         echo "[url|RESULT] https://github.com/32leaves/tree/{{ .Repository.Ref }} this branch on Github"
         echo "hello world"
         echo "some more regular logging"

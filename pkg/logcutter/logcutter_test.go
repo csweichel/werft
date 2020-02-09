@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/logcutter"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/logcutter"
 )
 
 func TestDefaultCutterSlice(t *testing.T) {

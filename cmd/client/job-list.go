@@ -24,8 +24,8 @@ import (
 	"context"
 	"strings"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/filterexpr"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/filterexpr"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )

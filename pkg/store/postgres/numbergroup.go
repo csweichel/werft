@@ -3,7 +3,7 @@ package postgres
 import (
 	"database/sql"
 
-	"github.com/32leaves/werft/pkg/store"
+	"github.com/csweichel/werft/pkg/store"
 )
 
 // NumberGroup provides postgres backed number groups

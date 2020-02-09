@@ -19,19 +19,16 @@ package cmd
 // THE SOFTWARE.
 
 import (
-	"fmt"
-
+	"github.com/csweichel/werft/pkg/version"
 	"github.com/spf13/cobra"
 )
-
-var version = "unknown"
 
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Prints the version of this binary",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(version)
+		version.Print()
 	},
 }
 

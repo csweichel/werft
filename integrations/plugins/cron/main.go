@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	plugin "github.com/32leaves/werft/pkg/plugin/client"
-	"github.com/32leaves/werft/pkg/reporef"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	plugin "github.com/csweichel/werft/pkg/plugin/client"
+	"github.com/csweichel/werft/pkg/reporef"
 	cron "github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
 )

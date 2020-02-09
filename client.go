@@ -22,7 +22,7 @@
 package main
 
 import (
-	cmd "github.com/32leaves/werft/cmd/client"
+	cmd "github.com/csweichel/werft/cmd/client"
 )
 
 func main() {

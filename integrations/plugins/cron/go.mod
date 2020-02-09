@@ -1,11 +1,11 @@
-module github.com/32leaves/werft/cron-plugin
+module github.com/csweichel/werft/cron-plugin
 
 go 1.13
 
-replace github.com/32leaves/werft => ../../..
+replace github.com/csweichel/werft => ../../..
 
 require (
-	github.com/32leaves/werft v0.0.0-00010101000000-000000000000
+	github.com/csweichel/werft v0.0.0-00010101000000-000000000000
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.4.2
 )

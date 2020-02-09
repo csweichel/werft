@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -93,7 +93,7 @@ func getLocalJobContext(wd string, trigger v1.JobTrigger) (*v1.JobMetadata, erro
 }
 
 // configureRepoFromOrigin is very much geared towards GitHub origins in the form of:
-//     https://github.com/32leaves/werft.git
+//     https://github.com/csweichel/werft.git
 // It might work on others, but that's neither tested nor intended.
 func configureRepoFromOrigin(repo *v1.Repository, origin string) error {
 	ourl, err := url.Parse(strings.TrimSpace(string(origin)))

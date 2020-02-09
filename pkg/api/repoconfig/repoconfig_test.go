@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/32leaves/werft/pkg/api/repoconfig"
-	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/api/repoconfig"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"gopkg.in/yaml.v3"
 )
 

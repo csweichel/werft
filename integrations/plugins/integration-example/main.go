@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	plugin "github.com/32leaves/werft/pkg/plugin/client"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	plugin "github.com/csweichel/werft/pkg/plugin/client"
 	log "github.com/sirupsen/logrus"
 )
 

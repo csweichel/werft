@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/32leaves/werft/pkg/store"
+	"github.com/csweichel/werft/pkg/store"
 )
 
 func TestContinuousWriteReading(t *testing.T) {

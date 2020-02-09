@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/32leaves/werft/pkg/api/repoconfig"
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/reporef"
+	"github.com/csweichel/werft/pkg/api/repoconfig"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/reporef"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"

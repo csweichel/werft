@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"golang.org/x/xerrors"
 )
 

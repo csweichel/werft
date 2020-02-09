@@ -1,4 +1,4 @@
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/32leaves/werft) 
+[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/csweichel/werft) 
 
 <center><img src="logo.png" width="200px"></center>
 
@@ -125,7 +125,7 @@ The default cutter in Werft expects the following syntax:
 Werft sports a powerful CI which can be used to create, list, start and listen to jobs.
 
 ### Installation
-The Werft CLI is available on the [GitHub release page](https://github.com/32leaves/werft/releases), or using this one-liner:
+The Werft CLI is available on the [GitHub release page](https://github.com/csweichel/werft/releases), or using this one-liner:
 ```bash
 curl -L werft.dev/get-cli.sh | sh
 ```

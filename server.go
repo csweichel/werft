@@ -22,9 +22,9 @@
 package main
 
 import (
-	cmd "github.com/32leaves/werft/cmd/server"
+	cmd "github.com/csweichel/werft/cmd/server"
 
-	_ "github.com/32leaves/werft/pkg/webui"
+	_ "github.com/csweichel/werft/pkg/webui"
 	_ "github.com/lib/pq"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )

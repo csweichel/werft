@@ -1,8 +1,8 @@
 package repoconfig
 
 import (
-	werftv1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/filterexpr"
+	werftv1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/filterexpr"
 	corev1 "k8s.io/api/core/v1"
 )
 

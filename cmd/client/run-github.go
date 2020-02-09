@@ -32,8 +32,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
-	"github.com/32leaves/werft/pkg/reporef"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/reporef"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"

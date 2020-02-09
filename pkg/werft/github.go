@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/32leaves/werft/pkg/api/repoconfig"
-	v1 "github.com/32leaves/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/api/repoconfig"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/google/go-github/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"

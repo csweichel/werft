@@ -1,27 +1,24 @@
-module github.com/32leaves/werft
+module github.com/csweichel/werft
 
-go 1.12
+go 1.13
 
 require (
+	github.com/32leaves/werft v0.0.3
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Masterminds/sprig/v3 v3.0.2
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/bradleyfalzon/ghinstallation v1.0.0
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
-	github.com/elazarl/goproxy v0.0.0-20191011121108-aa519ddbe484 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang-migrate/migrate/v4 v4.7.1
 	github.com/golang/protobuf v1.3.2
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/gorilla/websocket v1.4.1 // indirect
-	github.com/huandu/xstrings v1.2.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
 	github.com/lib/pq v1.2.0
-	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/olebedev/emitter v0.0.0-20190110104742-e8d1457e6aee
 	github.com/paulbellamy/ratecounter v0.2.0
 	github.com/prometheus/client_golang v1.3.0
-	github.com/rs/cors v1.7.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/segmentio/textio v1.2.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5

@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"os"
 
-	v1 "github.com/32leaves/werft/pkg/api/v1"
+	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
