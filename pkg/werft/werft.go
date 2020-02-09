@@ -482,9 +482,9 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		return nil, xerrors.Errorf("cannot handle job for %s: no podspec present", name)
 	}
 
-	nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
 	wsVolume := "werft-workspace"
-	if nodePath != "" {
+	if srv.Config.WorkspaceNodePathPrefix != "" {
+		nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
 		httype := corev1.HostPathDirectoryOrCreate
 		podspec.Volumes = append(podspec.Volumes, corev1.Volume{
 			Name: wsVolume,
