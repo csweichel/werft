@@ -15,5 +15,6 @@ pod:
         echo "[url|RESULT] https://github.com/32leaves/tree/{{ .Repository.Ref }} this branch on Github"
         echo "hello world"
         echo "some more regular logging"
+        echo "{{ .Annotations.msg }}"
         echo "[docker|RESULT] csweichel/werft:{{ .Name }} this version's docker image"
         echo "[docker|RESULT] csweichel/werft-utils:{{ .Name }} this versions utility image"

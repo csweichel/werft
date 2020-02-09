@@ -170,7 +170,7 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
                 </Grid>
             </Grid>
             <StickyScroll>
-                <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: this.getRawLogs()}} />
+                <div className="term-container" style={{width:"100%"}}>{this.getRawLogs()}</div>
             </StickyScroll>
         </React.Fragment>
     }
