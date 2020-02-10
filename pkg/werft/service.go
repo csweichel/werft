@@ -122,14 +122,7 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 	//       The context upload is a one time thing and hence prevent job replay.
 
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
-	name := fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-"))
-	if len(name) > 58 {
-		// Kubernetes label values must not be longer than 63 characters according to
-		// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-		// We need to leave some space for the build number. Assuming that we won't have more than 9999 builds on
-		// a single long named branch, leaving four chars should be enough.
-		name = name[:58]
-	}
+	name := cleanupPodName(fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-")))
 
 	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false, time.Time{})
 
@@ -231,14 +224,8 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		// we did not compute a sensible refname - use moniker
 		refname = moniker.New().NameSep("-")
 	}
-	name := fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname)
-	if len(name) > 58 {
-		// Kubernetes label values must not be longer than 63 characters according to
-		// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-		// We need to leave some space for the build number. Assuming that we won't have more than 9999 builds on
-		// a single long named branch, leaving four chars should be enough.
-		name = name[:58]
-	}
+	name := cleanupPodName(fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname))
+
 	if refname != "" {
 		// we have a valid refname, hence need to acquire job number
 		t, err := srv.Groups.Next(name)
@@ -273,6 +260,38 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
+}
+
+func cleanupPodName(name string) string {
+	name = strings.TrimSpace(name)
+	if len(name) == 0 {
+		name = "unknown"
+	}
+	if len(name) > 58 {
+		// Kubernetes label values must not be longer than 63 characters according to
+		// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		// We need to leave some space for the build number. Assuming that we won't have more than 9999 builds on
+		// a single long named branch, leaving four chars should be enough.
+		name = name[:58]
+	}
+
+	// attempt to fix the name segment wise
+	segs := strings.Split(name, ".")
+	for i, n := range segs {
+		s := strings.ToLower(n)[0]
+		if !(('a' <= s && s <= 'z') || ('0' <= s && s <= '9')) {
+			n = "a" + n[1:]
+		}
+		e := strings.ToLower(n)[len(n)-1]
+		if !(('a' <= e && e <= 'z') || ('0' <= e && e <= '9')) {
+			n = n[:len(n)-1] + "a"
+		}
+
+		segs[i] = n
+	}
+	name = strings.Join(segs, ".")
+
+	return name
 }
 
 func translateGitHubToGRPCError(err error, rev, ref string) error {
