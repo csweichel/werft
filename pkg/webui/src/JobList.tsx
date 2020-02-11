@@ -2,7 +2,7 @@ import * as React from 'react';
 import { WerftServiceClient, ResponseStream } from './api/werft_pb_service';
 import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, FilterExpression, OrderExpression, SubscribeResponse } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, TablePagination } from '@material-ui/core';
+import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableSortLabel, TableBody, Link, Grid, TablePagination, Tabs, Tab } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import ReactTimeago from 'react-timeago';
 import WarningIcon from '@material-ui/icons/Warning';
@@ -231,6 +231,12 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                         defaultValue={[this.state.initialSearchString].filter(e => !!e).map(e => e!)} />
                 </Grid>
                 <Grid item xs></Grid>
+                <Grid item>
+                    <Tabs onChange={() => {}} value="jobs">
+                        <Tab label="Jobs" value="jobs" href={`/jobs`} />
+                        <Tab label="Branches" value="branches" href={`/branches`} />
+                    </Tabs>
+                </Grid>
                 <Grid item>
                     <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
                         Start Job
