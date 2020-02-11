@@ -13,6 +13,7 @@ import { CssBaseline, createMuiTheme, createStyles } from '@material-ui/core';
 import { GithubPage } from './GithubPage';
 import { StartJob } from './StartJob';
 import { WerftUIClient } from './api/werft-ui_pb_service';
+import { BranchList } from './BranchList';
 
 export interface AppProps extends WithStyles<typeof styles> { }
 
@@ -52,6 +53,9 @@ const AppImpl: React.SFC<AppProps> = (props) => {
                         </Route>
                         <Route path="/start">
                             <StartJob client={client} uiClient={uiClient} />
+                        </Route>
+                        <Route path="/branches">
+                            <BranchList client={client} />
                         </Route>
                         <Route path="/">
                             <JobList client={client} />
