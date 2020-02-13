@@ -154,10 +154,20 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 
 	md := req.Metadata
 	if md.Repository.Revision == "" && md.Repository.Ref != "" {
-		md.Repository.Revision, _, err = ghclient.Repositories.GetCommitSHA1(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Ref, "")
+		branch, _, err := ghclient.Repositories.GetBranch(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Ref)
 		if err != nil {
 			return nil, translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
 		}
+		if branch == nil {
+			return nil, status.Error(codes.NotFound, "did not find ref")
+		}
+		if branch.Commit == nil || branch.Commit.SHA == nil {
+			return nil, status.Error(codes.NotFound, "ref did not point to a commit")
+		}
+		md.Repository.Revision = *branch.Commit.SHA
+	}
+	if md.Repository.Host == "" {
+		md.Repository.Host = defaultGitHubHost
 	}
 
 	_, _, err = ghclient.Repositories.GetCommit(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Revision)
