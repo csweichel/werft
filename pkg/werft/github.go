@@ -21,6 +21,8 @@ var (
 	// annotationStatusUpdate is set on jobs whoose status needs to be updated on GitHub.
 	// This is set only on jobs created through GitHub events.
 	annotationStatusUpdate = "updateGitHubStatus"
+
+	defaultGitHubHost = "github.com"
 )
 
 func (srv *Service) updateGitHubStatus(job *v1.JobStatus) error {
@@ -168,7 +170,7 @@ func (srv *Service) processPushEvent(event *github.PushEvent) {
 	metadata := v1.JobMetadata{
 		Owner: *event.Pusher.Name,
 		Repository: &v1.Repository{
-			Host:     "github.com",
+			Host:     defaultGitHubHost,
 			Owner:    *event.Repo.Owner.Name,
 			Repo:     *event.Repo.Name,
 			Ref:      *event.Ref,
