@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { WerftServiceClient, ResponseStream } from './api/werft_pb_service';
-import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, SubscribeResponse } from './api/werft_pb';
+import { JobStatus, ListJobsResponse, ListJobsRequest, JobPhase, SubscribeRequest, SubscribeResponse, OrderExpression } from './api/werft_pb';
 import { Header, headerStyles } from './components/header';
 import { createStyles, Theme, Button, Table, TableHead, TableRow, TableCell, TableBody, Link, Grid, Tabs, Tab, Tooltip } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
@@ -44,7 +44,11 @@ class BranchListImpl extends React.Component<BranchListProps, BranchListState> {
     }
 
     async componentDidMount() {
+        const order = new OrderExpression();
+        order.setAscending(false);
+        order.setField("created");
         const req = new ListJobsRequest();
+        req.addOrder(order);
         req.setLimit(200);
         const resp = await new Promise<ListJobsResponse>((resolve, reject) => this.props.client.listJobs(req, (err, resp) => !!err ? reject(err) : resolve(resp!)));
         this.addToTree(resp.getResultList().map(r => r.toObject()));
