@@ -371,7 +371,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     </JobMetadataItemProps>
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
                     <JobMetadataItemProps label="Revision" xs={6}>
-                        { host === "github.com" && <a href={`https://${repo}/commit/${job.metadata!.repository!.revision}`} className={classes.toolbarLink}>{job.metadata!.repository!.revision}</a> }
+                        { host === "github.com" && <a href={`https://${repo}/compare/${job.metadata!.repository!.revision}`} className={classes.toolbarLink}>{job.metadata!.repository!.revision}</a> }
                         { host !== "github.com" && job.metadata!.repository!.revision }
                     </JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
