@@ -183,7 +183,9 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
         const repo = j.getRepo()!;
         if (!!this.state.useRef) {
             repo.setRef(this.state.targetRefRev!);
+            repo.setRevision("");
         } else {
+            repo.setRef("");
             repo.setRevision(this.state.targetRefRev!);
         }
 

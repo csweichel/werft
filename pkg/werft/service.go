@@ -165,6 +165,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 			return nil, status.Error(codes.NotFound, "ref did not point to a commit")
 		}
 		md.Repository.Revision = *branch.Commit.SHA
+		log.WithField("ref", md.Repository.Ref).WithField("rev", md.Repository.Revision).Debug("resolved reference to revision")
 	}
 	if md.Repository.Host == "" {
 		md.Repository.Host = defaultGitHubHost
