@@ -5,6 +5,7 @@ import { withStyles } from "@material-ui/styles";
 import { StickyScroll } from "./StickyScroll";
 import DoneIcon from "@material-ui/icons/Done";
 import ErrorIcon from "@material-ui/icons/Error";
+import LinkIcon from '@material-ui/icons/Link';
 import { ColorFailure } from './colors';
 
 export const styles = (theme: Theme) =>
@@ -17,12 +18,27 @@ export const styles = (theme: Theme) =>
             backgroundColor: 'inherit',
         },
         sectionHeader: {
-            alignItems: 'center'
+            alignItems: 'center',
+            "&.Mui-expanded a": {
+                opacity: 0.3,
+            },
+            "&.Mui-expanded a:hover": {
+                opacity: 0.7,
+            }
         },
         sectionTitle: {
             paddingLeft: '1em',
             width: '30%',
             overflow: 'hidden'
+        },
+        sectionDesc: {
+            flex: 1,
+        },
+        sectionLink: {
+            alignSelf: 'end',
+            justifySelf: 'end',
+            color: 'black',
+            opacity: 0
         },
         kubeUpdatesLabel: {
             fontSize: '1rem'
@@ -179,6 +195,8 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
         this.updateChunks();
         const chunks = Array.from(this.chunks.entries());
         const classes = this.props.classes;
+
+        const activeChunk = window.location.hash ? window.location.hash.substring(1) : undefined;
         
         const phases = chunks.map(c => c[1]).filter(c => isPhase(c));
         return <React.Fragment>
@@ -191,15 +209,28 @@ class LogViewImpl extends React.Component<LogViewProps, LogViewState> {
             <StickyScroll>
             { chunks.map((kv, i) => {
                 const chunk = kv[1];
+                const isActiveChunk = kv[0] === activeChunk;
+                let activeChunkEl: HTMLElement | undefined;
+                if (isActiveChunk) {
+                    setTimeout(() => {
+                        if (!activeChunkEl) {
+                            return;
+                        }
+
+                        window.scrollTo({top: activeChunkEl.scrollHeight, behavior: 'smooth'});
+                    }, 100);
+                }
+
                 if (isContent(chunk) && !chunk.name.startsWith("werft:")) { return (
-                    <ExpansionPanel key={kv[0]} defaultExpanded={chunk.status === "failed"}>
+                    <ExpansionPanel ref={(el: HTMLElement) => activeChunkEl = el} key={kv[0]} defaultExpanded={chunk.status === "failed" || isActiveChunk}>
                         <ExpansionPanelSummary className={classes.sectionHeader} style={chunk.status === "failed" ? { color: ColorFailure} : {}}>
                             { chunk.status === "done" && <DoneIcon /> }
                             { chunk.status === "failed" && <ErrorIcon /> }
                             { chunk.status === "running" && !this.props.finished && <CircularProgress style={{width:'24px', height:'24px'}} /> }
                             { ((chunk.status === "running" && this.props.finished) || chunk.status === "unknown") && <DoneIcon style={{opacity:0.25}} /> }
                             <span className={classes.sectionTitle}>{ chunk.name }</span>
-                            <span dangerouslySetInnerHTML={{__html: chunk.lines[chunk.lines.length - 1]}}></span>
+                            <span className={classes.sectionDesc} dangerouslySetInnerHTML={{__html: chunk.lines[chunk.lines.length - 1]}}></span>
+                            <a className={classes.sectionLink} href={`#${kv[0]}`}><LinkIcon /></a>
                         </ExpansionPanelSummary>
                         <ExpansionPanelDetails>
                             <div className="term-container" style={{width:"100%"}} dangerouslySetInnerHTML={{__html: chunk.lines.join("<br />")}} />
