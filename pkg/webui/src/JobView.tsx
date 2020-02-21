@@ -65,6 +65,11 @@ const styles = (theme: Theme) => createStyles({
     waitingUntilMsg: {
         backgroundColor: ColorWarning,
         boxShadow: 'none'
+    },
+    jobDetails: {
+        padding: '1em',
+        borderRadius: '5px',
+        backgroundColor: '#fafafa'
     }
 });
 
@@ -431,7 +436,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
             <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
             <main className={classes.main}>
                 { snackbar }
-                { this.state.status && this.state.status.details }
+                { this.state.status && this.state.status.details && 
+                    <p style={{borderLeft: `10px solid ${color}`}} className={classes.jobDetails}>{ this.state.status.details }</p>
+                }
                 { waitingOverlay }
 
                 { (this.state.view === "logs" || this.state.view === "raw-logs") &&
