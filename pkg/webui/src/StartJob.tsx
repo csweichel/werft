@@ -115,10 +115,11 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
                             <Typography variant="h5">Arguments</Typography>
                             <List>
                                 <ListItem>
-                                    <Switch defaultChecked={this.state.useRef} onChange={e => this.setState({useRef: e.target.checked})} />
+                                    <Switch defaultChecked={this.state.useRef} onChange={e => this.setState({useRef: e.target.checked})} title="Choose to provide either a Git reference (e.g. 'master') or a Git revision (i.e. commit hash)" />
                                     <TextField 
                                         className={classes.arg} 
                                         label={this.state.useRef ? "Ref" : "Revision"}
+                                        title={this.state.useRef ? "Git reference, like 'master' or 'refs/heads/some-branch'" : "Git commit SHA-1 hash"}
                                         value={this.state.targetRefRev}
                                         onChange={e => this.setState({targetRefRev: e.target.value})} />
                                 </ListItem>
