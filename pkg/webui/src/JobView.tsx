@@ -373,12 +373,12 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 <Grid container spacing={1} alignItems="center" className={classes.infobar}>
                     <JobMetadataItemProps label="Owner">{job!.metadata!.owner}</JobMetadataItemProps>
                     <JobMetadataItemProps label="Repository"><a href={`https://${repo}`} className={classes.toolbarLink}>{repo}</a></JobMetadataItemProps>
-                    <JobMetadataItemProps label="Ref">
+                    <JobMetadataItemProps label="Ref" title="Git reference, like 'master' or 'refs/heads/some-branch'">
                         { host === "github.com" && <a href={`https://${repo}/tree/${job.metadata!.repository!.ref}`} className={classes.toolbarLink}>{job.metadata!.repository!.ref}</a> }
                         { host !== "github.com" && job.metadata!.repository!.ref }
                     </JobMetadataItemProps>
                     <JobMetadataItemProps label="Started"><ReactTimeago date={job.metadata!.created.seconds * 1000} /></JobMetadataItemProps>
-                    <JobMetadataItemProps label="Revision" xs={6}>
+                    <JobMetadataItemProps label="Revision" title="Git commit SHA-1 hash" xs={6}>
                         { host === "github.com" && <a href={`https://${repo}/compare/${job.metadata!.repository!.revision}`} className={classes.toolbarLink}>{job.metadata!.repository!.revision}</a> }
                         { host !== "github.com" && job.metadata!.repository!.revision }
                     </JobMetadataItemProps>
@@ -508,13 +508,14 @@ export const JobView = withStyles(styles)(JobViewImpl);
 
 interface JobMetadataItemProps extends WithStyles<typeof styles> {
     label: string
+    title?: string
     xs?: 1|2|3|4|5|6|7|8|9
 }
 
 class JobMetadataItemPropsImpl extends React.Component<JobMetadataItemProps, {}> {
     render() {
         return <Grid item xs={this.props.xs || 3}>
-            <span className={this.props.classes.metadataItemLabel}>{this.props.label}</span>
+            <span className={this.props.classes.metadataItemLabel} title={this.props.title}>{this.props.label}</span>
             {this.props.children}
         </Grid>
     }
