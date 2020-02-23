@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
 	werftv1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
@@ -26,39 +25,13 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-const (
-	// LabelWerftMarker is the label applied to all jobs and configmaps. This label can be used
-	// to search for werft job objects in Kubernetes.
-	LabelWerftMarker = "werft.sh/job"
-
-	// UserDataAnnotationPrefix is prepended to all user annotations added to jobs
-	UserDataAnnotationPrefix = "userdata.werft.sh"
-
-	// AnnotationFailureLimit is the annotation denoting the max times a job may fail
-	AnnotationFailureLimit = "werft.sh/failureLimit"
-
-	// AnnotationMetadata stores the JSON encoded metadata available at creation
-	AnnotationMetadata = "werft.sh/metadata"
-
-	// AnnotationFailed explicitelly fails the job
-	AnnotationFailed = "werft.sh/failed"
-
-	// AnnotationResults stores JSON encoded list of a job results
-	AnnotationResults = "werft.sh/results"
-
-	// AnnotationCanReplay stores if this job can be replayed
-	AnnotationCanReplay = "werft.sh/canReplay"
-
-	// AnnotationWaitUntil stores the start time of waiting job
-	AnnotationWaitUntil = "werft.sh/waitUntil"
-)
-
 // Config configures the executor
 type Config struct {
 	Namespace       string    `yaml:"namespace"`
 	EventTraceLog   string    `yaml:"eventTraceLog,omitempty"`
 	JobPrepTimeout  *Duration `yaml:"preperationTimeout"`
 	JobTotalTimeout *Duration `yaml:"totalTimeout"`
+	LabelPrefix     string    `json:"labelPrefix"`
 }
 
 // Duration is a JSON un-/marshallable type
@@ -105,6 +78,7 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 		Client:     kubeClient,
 		KubeConfig: kubeConfig,
 
+		labels:      newLabelSetet(config.LabelPrefix),
 		waitingJobs: make(map[string]*waitingJob),
 	}, nil
 }
@@ -119,6 +93,7 @@ type Executor struct {
 	Config     Config
 	KubeConfig *rest.Config
 
+	labels      labelSet
 	waitingJobs map[string]*waitingJob
 	mu          sync.RWMutex
 }
@@ -128,7 +103,7 @@ type waitingJob struct {
 	Cancel func(reason string)
 	Start  func()
 	Mutex  string
-	Status *v1.JobStatus
+	Status *werftv1.JobStatus
 }
 
 // Run starts the executor and returns immediately
@@ -138,12 +113,13 @@ func (js *Executor) Run() {
 }
 
 type startOptions struct {
-	JobName     string
-	Modifier    []func(*corev1.Pod)
-	Annotations map[string]string
-	Mutex       string
-	CanReplay   bool
-	WaitUntil   time.Time
+	JobName      string
+	Modifier     []func(*corev1.Pod)
+	Annotations  map[string]string
+	BackoffLimit int
+	Mutex        string
+	CanReplay    bool
+	WaitUntil    time.Time
 }
 
 // StartOpt configures a job at startup
@@ -153,7 +129,7 @@ type StartOpt func(*startOptions)
 func WithBackoff(limit int) StartOpt {
 	return func(opts *startOptions) {
 		opts.Modifier = append(opts.Modifier, func(j *corev1.Pod) {
-			j.Annotations[AnnotationFailureLimit] = fmt.Sprintf("%d", limit)
+			opts.BackoffLimit = limit
 		})
 	}
 }
@@ -204,7 +180,7 @@ func WithWaitUntil(t time.Time) StartOpt {
 }
 
 // Start starts a new job
-func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *v1.JobStatus, err error) {
+func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *werftv1.JobStatus, err error) {
 	opts := startOptions{
 		JobName: fmt.Sprintf("werft-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
 	}
@@ -214,13 +190,16 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 
 	annotations := make(map[string]string)
 	for key, val := range opts.Annotations {
-		annotations[fmt.Sprintf("%s/%s", UserDataAnnotationPrefix, key)] = val
+		annotations[fmt.Sprintf("%s/%s", js.labels.UserDataAnnotationPrefix, key)] = val
 	}
 	if opts.CanReplay {
-		annotations[AnnotationCanReplay] = "true"
+		annotations[js.labels.AnnotationCanReplay] = "true"
 	}
 	if !opts.WaitUntil.IsZero() {
-		annotations[AnnotationWaitUntil] = opts.WaitUntil.Format(time.RFC3339)
+		annotations[js.labels.AnnotationWaitUntil] = opts.WaitUntil.Format(time.RFC3339)
+	}
+	if opts.BackoffLimit > 0 {
+		annotations[js.labels.AnnotationFailureLimit] = fmt.Sprintf("%d", opts.BackoffLimit)
 	}
 
 	metadata.Created = ptypes.TimestampNow()
@@ -230,7 +209,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	if err != nil {
 		return nil, xerrors.Errorf("cannot marshal metadata: %w", err)
 	}
-	annotations[AnnotationMetadata] = mdjson
+	annotations[js.labels.AnnotationMetadata] = mdjson
 
 	if podspec.RestartPolicy != corev1.RestartPolicyNever && podspec.RestartPolicy != corev1.RestartPolicyOnFailure {
 		podspec.RestartPolicy = corev1.RestartPolicyOnFailure
@@ -239,8 +218,8 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	meta := metav1.ObjectMeta{
 		Name: opts.JobName,
 		Labels: map[string]string{
-			LabelWerftMarker: "true",
-			LabelJobName:     opts.JobName,
+			js.labels.LabelWerftMarker: "true",
+			js.labels.LabelJobName:     opts.JobName,
 		},
 		Annotations: annotations,
 	}
@@ -254,16 +233,17 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 
 	mutexCancelationMsg := fmt.Sprintf("a newer job (%s) with the same mutex (%s) started", opts.JobName, opts.Mutex)
 	if opts.Mutex != "" {
-		poddesc.ObjectMeta.Labels[LabelMutex] = opts.Mutex
+		labelMutex := js.labels.LabelMutex
+		poddesc.ObjectMeta.Labels[labelMutex] = opts.Mutex
 
 		// enforce mutex by marking all other jobs with the same mutex as failed
-		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", LabelMutex, opts.Mutex)})
+		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", labelMutex, opts.Mutex)})
 		if err != nil {
 			return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
 		}
 		for _, pod := range pods.Items {
 			err := js.addAnnotation(pod.Name, map[string]string{
-				AnnotationFailed: mutexCancelationMsg,
+				js.labels.AnnotationFailed: mutexCancelationMsg,
 			})
 			if err, ok := err.(*k8serr.StatusError); ok && err.ErrStatus.Code == http.StatusNotFound {
 				// if the pod is gone by now that's ok. The mutex was enfored alright.
@@ -285,7 +265,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		js.mu.Unlock()
 	}
 
-	startJob := func() (*v1.JobStatus, error) {
+	startJob := func() (*werftv1.JobStatus, error) {
 		if log.GetLevel() == log.DebugLevel {
 			dbg, _ := json.MarshalIndent(poddesc, "", "  ")
 			log.Debugf("scheduling job\n%s", dbg)
@@ -296,7 +276,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 			return nil, err
 		}
 
-		return getStatus(job)
+		return getStatus(job, js.labels)
 	}
 
 	// Register the go routine to start the job when its time comes.
@@ -304,7 +284,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	// When a waiting job is canceled manually or by a mutex it's deleted from the store.
 	log.WithField("wait-until", opts.WaitUntil).Debug("waiting until")
 	if !opts.WaitUntil.IsZero() && opts.WaitUntil.After(time.Now()) {
-		status, err := getStatus(&poddesc)
+		status, err := getStatus(&poddesc, js.labels)
 		if err != nil {
 			return nil, err
 		}
@@ -337,14 +317,14 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 				run()
 			case reason := <-cancelChan:
 				log.WithField("name", opts.JobName).Debug("canceled this waiting job")
-				status.Phase = v1.JobPhase_PHASE_DONE
+				status.Phase = werftv1.JobPhase_PHASE_DONE
 				status.Conditions.Success = false
 				status.Details = reason
 				js.OnUpdate(&poddesc, status)
 			}
 		}()
 
-		status.Phase = v1.JobPhase_PHASE_WAITING
+		status.Phase = werftv1.JobPhase_PHASE_WAITING
 
 		// normally we'd see a Kubernetes event as the job would start immediately. This Kubernetes event would propagate
 		// throughout the system. However, waiting jobs do not produce Kubernetes events right away, hence we have to
@@ -358,10 +338,10 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 }
 
 func (js *Executor) monitorJobs() {
-	reconnectionTimeout := 100 * time.Millisecond
+	reconnectionTimeout := 500 * time.Millisecond
 	for {
 		incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+			LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 		})
 		if err != nil {
 			log.WithError(err).Error("cannot watch jobs - retrying")
@@ -390,7 +370,7 @@ func (js *Executor) monitorJobs() {
 }
 
 func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
-	status, err := getStatus(obj)
+	status, err := getStatus(obj, js.labels)
 	js.writeEventTraceLog(status, obj)
 	if err != nil {
 		log.WithError(err).WithField("name", obj.Name).Error("cannot compute status")
@@ -461,7 +441,7 @@ func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Po
 
 // Logs provides the log output of a running job. If the job is unknown, nil is returned.
 func (js *Executor) Logs(name string) io.Reader {
-	return listenToLogs(js.Client, name, js.Config.Namespace)
+	return listenToLogs(js.Client, name, js.Config.Namespace, js.labels)
 }
 
 func (js *Executor) doHousekeeping() {
@@ -469,7 +449,7 @@ func (js *Executor) doHousekeeping() {
 	for {
 		// check our state and watch for non-existent jobs/events that we missed
 		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+			LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 		})
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
@@ -477,7 +457,7 @@ func (js *Executor) doHousekeeping() {
 		}
 
 		for _, pod := range pods.Items {
-			status, err := getStatus(&pod)
+			status, err := getStatus(&pod, js.labels)
 			if err != nil {
 				log.WithError(err).WithField("name", pod.Name).Warn("cannot perform housekeeping")
 				continue
@@ -490,7 +470,7 @@ func (js *Executor) doHousekeeping() {
 			}
 
 			var ttl time.Duration
-			if status.Phase == v1.JobPhase_PHASE_PREPARING {
+			if status.Phase == werftv1.JobPhase_PHASE_PREPARING {
 				ttl = js.Config.JobPrepTimeout.Duration
 			} else {
 				ttl = js.Config.JobTotalTimeout.Duration
@@ -502,7 +482,7 @@ func (js *Executor) doHousekeeping() {
 			msg := fmt.Sprintf("job timed out during %s", strings.TrimPrefix(strings.ToLower(status.Phase.String()), "phase_"))
 			log.WithField("job", status.Name).Info(msg)
 			err = js.addAnnotation(pod.Name, map[string]string{
-				AnnotationFailed: msg,
+				js.labels.AnnotationFailed: msg,
 			})
 		}
 
@@ -516,7 +496,7 @@ var errNotFound = xerrors.Errorf("unknown job")
 // Finds the pod executing a job
 func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
 	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", LabelJobName, name),
+		LabelSelector: fmt.Sprintf("%s=%s", js.labels.LabelJobName, name),
 	})
 	if err != nil {
 		return nil, err
@@ -551,7 +531,7 @@ func (js *Executor) Stop(name, reason string) error {
 	}
 
 	err = js.addAnnotation(pod.Name, map[string]string{
-		AnnotationFailed: reason,
+		js.labels.AnnotationFailed: reason,
 	})
 	if err != nil {
 		return err
@@ -561,7 +541,7 @@ func (js *Executor) Stop(name, reason string) error {
 }
 
 // GetKnownJobs returns a list of all jobs the executor knows about
-func (js *Executor) GetKnownJobs() (jobs []v1.JobStatus, err error) {
+func (js *Executor) GetKnownJobs() (jobs []werftv1.JobStatus, err error) {
 	js.mu.RLock()
 	for _, wj := range js.waitingJobs {
 		jobs = append(jobs, *wj.Status)
@@ -569,14 +549,14 @@ func (js *Executor) GetKnownJobs() (jobs []v1.JobStatus, err error) {
 	js.mu.RUnlock()
 
 	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", LabelWerftMarker),
+		LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 	})
 	if err != nil {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		var status *v1.JobStatus
-		status, err = getStatus(&pod)
+		var status *werftv1.JobStatus
+		status, err = getStatus(&pod, js.labels)
 		if err != nil {
 			return nil, err
 		}
@@ -587,7 +567,7 @@ func (js *Executor) GetKnownJobs() (jobs []v1.JobStatus, err error) {
 }
 
 // RegisterResult registers a result produced by a job
-func (js *Executor) RegisterResult(jobname string, res *v1.JobResult) error {
+func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error {
 	pod, err := js.getJobPod(jobname)
 	if err != nil {
 		return err
@@ -604,8 +584,8 @@ func (js *Executor) RegisterResult(jobname string, res *v1.JobResult) error {
 			return xerrors.Errorf("job pod %s does not exist", podname)
 		}
 
-		var results []v1.JobResult
-		if c, ok := pod.Annotations[AnnotationResults]; ok {
+		var results []werftv1.JobResult
+		if c, ok := pod.Annotations[js.labels.AnnotationResults]; ok {
 			err := json.Unmarshal([]byte(c), &results)
 			if err != nil {
 				return xerrors.Errorf("cannot unmarshal previous results: %w", err)
@@ -616,7 +596,7 @@ func (js *Executor) RegisterResult(jobname string, res *v1.JobResult) error {
 		if err != nil {
 			return xerrors.Errorf("cannot remarshal results: %w", err)
 		}
-		pod.Annotations[AnnotationResults] = string(ra)
+		pod.Annotations[js.labels.AnnotationResults] = string(ra)
 
 		_, err = client.Update(pod)
 		return err

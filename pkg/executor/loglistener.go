@@ -18,6 +18,7 @@ type logListener struct {
 	Clientset kubernetes.Interface
 	Job       string
 	Namespace string
+	Labels    labelSet
 
 	listener map[string]io.Closer
 	started  time.Time
@@ -30,11 +31,12 @@ type logListener struct {
 }
 
 // Listen establishes a log listener for a job
-func listenToLogs(client kubernetes.Interface, job, namespace string) io.Reader {
+func listenToLogs(client kubernetes.Interface, job, namespace string, labels labelSet) io.Reader {
 	ll := &logListener{
 		Clientset: client,
 		Job:       job,
 		Namespace: namespace,
+		Labels:    labels,
 		started:   time.Now(),
 		listener:  make(map[string]io.Closer),
 	}
@@ -66,7 +68,7 @@ func (ll *logListener) Close() error {
 
 func (ll *logListener) Start() {
 	podwatch, err := ll.Clientset.CoreV1().Pods(ll.Namespace).Watch(metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", LabelJobName, ll.Job),
+		LabelSelector: fmt.Sprintf("%s=%s", ll.Labels.LabelJobName, ll.Job),
 	})
 	if err != nil {
 		log.WithError(err).Warn("cannot watch for pod events")

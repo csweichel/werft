@@ -3,7 +3,6 @@ package executor
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
 	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -14,28 +13,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const (
-	// LabelJobName adds the ID of the job to the k8s object
-	LabelJobName = "werft.sh/jobName"
-
-	// LabelMutex makes jobs findable via their mutex
-	LabelMutex = "werft.sh/mutex"
-)
-
 // extracts the phase from the job object
-func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
+func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err error) {
 	defer func() {
 		if status != nil && status.Phase == v1.JobPhase_PHASE_DONE {
 			status.Metadata.Finished = ptypes.TimestampNow()
 		}
 	}()
 
-	name, hasName := getJobName(obj)
+	name, hasName := getJobName(obj, labels)
 	if !hasName {
 		return nil, xerrors.Errorf("job has no name: %v", obj.Name)
 	}
 
-	rawmd, ok := obj.Annotations[AnnotationMetadata]
+	rawmd, ok := obj.Annotations[labels.AnnotationMetadata]
 	if !ok {
 		return nil, xerrors.Errorf("job has no metadata")
 	}
@@ -46,23 +37,26 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	}
 
 	var results []*v1.JobResult
-	if c, ok := obj.Annotations[AnnotationResults]; ok {
+	if c, ok := obj.Annotations[labels.AnnotationResults]; ok {
 		err = json.Unmarshal([]byte(c), &results)
 		if err != nil {
 			return nil, xerrors.Errorf("cannot unmarshal results: %w", err)
 		}
 	}
 
-	_, canReplay := obj.Annotations[AnnotationCanReplay]
+	annotationCanReplay := labels.AnnotationCanReplay
+	_, canReplay := obj.Annotations[annotationCanReplay]
+
+	annotationWaitUntil := labels.AnnotationWaitUntil
 	var waitUntil *timestamp.Timestamp
-	if wt, ok := obj.Annotations[AnnotationWaitUntil]; ok {
+	if wt, ok := obj.Annotations[annotationWaitUntil]; ok {
 		ts, err := time.Parse(time.RFC3339, wt)
 		if err != nil {
-			return nil, xerrors.Errorf("cannot parse %s annotation: %w", AnnotationWaitUntil, err)
+			return nil, xerrors.Errorf("cannot parse %s annotation: %w", annotationWaitUntil, err)
 		}
 		waitUntil, err = ptypes.TimestampProto(ts)
 		if err != nil {
-			return nil, xerrors.Errorf("cannot convert %s annotation: %w", AnnotationWaitUntil, err)
+			return nil, xerrors.Errorf("cannot convert %s annotation: %w", annotationWaitUntil, err)
 		}
 	}
 
@@ -105,10 +99,10 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		}
 	}
 	status.Conditions.FailureCount = maxRestart
-	status.Conditions.Success = !(anyFailed || maxRestart > getFailureLimit(obj))
+	status.Conditions.Success = !(anyFailed || maxRestart > getFailureLimit(obj, labels))
 	status.Conditions.DidExecute = obj.Status.Phase != "" || len(statuses) > 0
 
-	if msg, failed := obj.Annotations[AnnotationFailed]; failed {
+	if msg, failed := obj.Annotations[labels.AnnotationFailed]; failed {
 		status.Phase = v1.JobPhase_PHASE_DONE
 		if obj.DeletionTimestamp != nil {
 			status.Phase = v1.JobPhase_PHASE_CLEANUP
@@ -122,7 +116,7 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 		status.Phase = v1.JobPhase_PHASE_CLEANUP
 		return
 	}
-	if maxRestart > getFailureLimit(obj) {
+	if maxRestart > getFailureLimit(obj, labels) {
 		status.Phase = v1.JobPhase_PHASE_DONE
 		return
 	}
@@ -142,8 +136,8 @@ func getStatus(obj *corev1.Pod) (status *v1.JobStatus, err error) {
 	return
 }
 
-func getFailureLimit(obj *corev1.Pod) int32 {
-	val := obj.Annotations[AnnotationFailureLimit]
+func getFailureLimit(obj *corev1.Pod, labels labelSet) int32 {
+	val := obj.Annotations[labels.AnnotationFailureLimit]
 	if val == "" {
 		val = "0"
 	}
@@ -152,17 +146,7 @@ func getFailureLimit(obj *corev1.Pod) int32 {
 	return int32(res)
 }
 
-func getJobName(obj *corev1.Pod) (id string, ok bool) {
-	id, ok = obj.Labels[LabelJobName]
+func getJobName(obj *corev1.Pod, labels labelSet) (id string, ok bool) {
+	id, ok = obj.Labels[labels.LabelJobName]
 	return
-}
-
-func getUserData(obj *corev1.Pod) map[string]string {
-	res := make(map[string]string)
-	for key, val := range obj.Annotations {
-		if strings.HasPrefix(key, UserDataAnnotationPrefix) {
-			res[strings.TrimPrefix(key, UserDataAnnotationPrefix)] = val
-		}
-	}
-	return res
 }
