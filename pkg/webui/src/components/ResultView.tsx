@@ -21,8 +21,9 @@ const ResultViewImpl: React.SFC<ResultViewProps> = (props) => {
         return <React.Fragment />;
     }
 
+    const results = props.status.resultsList.slice().reverse();
     return <List>
-        { props.status.resultsList.map((r, i) => (
+        { results.map((r, i) => (
             <ListItem key={i}>
                 {renderIcon(r.type)}
                 <ListItemText primary={renderPayload(r.type, r.payload)} secondary={r.description} />
