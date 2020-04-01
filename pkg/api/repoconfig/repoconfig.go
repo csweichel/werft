@@ -83,6 +83,8 @@ type JobSpec struct {
 	// (i.e. jobs can run even when annotations listed here are not present). What matters for a job to
 	// run is only if Kubernetes accepts the produced podspec.
 	Args []ArgSpec `yaml:"args,omitempty"`
+
+	Sidecars []string `yaml:"sidecars,omitempty"`
 }
 
 // ArgSpec specifies an argument/annotation for a job.

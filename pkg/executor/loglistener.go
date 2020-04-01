@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,7 +98,11 @@ func (ll *logListener) Start() {
 
 			for _, c := range statuses {
 				if c.State.Running != nil {
-					go ll.tail(pod.Name, c.Name)
+					var prefix string
+					if isSidecar := strings.Contains(pod.Annotations[ll.Labels.AnnotationSidecars], c.Name); isSidecar {
+						prefix = fmt.Sprintf("[%s] ", c.Name)
+					}
+					go ll.tail(pod.Name, c.Name, prefix)
 				}
 			}
 		case watch.Deleted:
@@ -114,7 +119,7 @@ func (ll *logListener) Start() {
 	}
 }
 
-func (ll *logListener) tail(pod, container string) {
+func (ll *logListener) tail(pod, container, prefix string) {
 	var once sync.Once
 
 	ll.mu.Lock()
@@ -148,7 +153,7 @@ func (ll *logListener) tail(pod, container string) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		ll.inmu.Lock()
-		ll.in.Write([]byte(line + "\n"))
+		ll.in.Write([]byte(prefix + line + "\n"))
 		ll.inmu.Unlock()
 	}
 }

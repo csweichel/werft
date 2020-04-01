@@ -3,6 +3,7 @@ package executor
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -86,11 +87,12 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 			return
 		}
 
+		isSidecarContainer := strings.Contains(obj.Annotations[labels.AnnotationSidecars], cs.Name)
 		if cs.State.Terminated != nil {
 			if cs.State.Terminated.ExitCode != 0 {
 				anyFailed = true
 			}
-		} else {
+		} else if !isSidecarContainer {
 			allTerminated = false
 		}
 

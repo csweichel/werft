@@ -120,6 +120,7 @@ type startOptions struct {
 	Mutex        string
 	CanReplay    bool
 	WaitUntil    time.Time
+	Sidecars     []string
 }
 
 // StartOpt configures a job at startup
@@ -179,6 +180,13 @@ func WithWaitUntil(t time.Time) StartOpt {
 	}
 }
 
+// WithSidecars makes some containers dependent on the lifecycle of others
+func WithSidecars(names []string) StartOpt {
+	return func(opts *startOptions) {
+		opts.Sidecars = names
+	}
+}
+
 // Start starts a new job
 func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *werftv1.JobStatus, err error) {
 	opts := startOptions{
@@ -200,6 +208,9 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 	}
 	if opts.BackoffLimit > 0 {
 		annotations[js.labels.AnnotationFailureLimit] = fmt.Sprintf("%d", opts.BackoffLimit)
+	}
+	if len(opts.Sidecars) > 0 {
+		annotations[js.labels.AnnotationSidecars] = strings.Join(opts.Sidecars, " ")
 	}
 
 	metadata.Created = ptypes.TimestampNow()

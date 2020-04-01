@@ -38,6 +38,9 @@ type labelSet struct {
 
 	// AnnotationWaitUntil stores the start time of waiting job
 	AnnotationWaitUntil string
+
+	// AnnotationSidecars lists all container whose lifecycle depends on that of the others
+	AnnotationSidecars string
 }
 
 // newLabelSetet returns a new label set initialized with a particular prefix
@@ -58,5 +61,6 @@ func newLabelSetet(prefix string) labelSet {
 		AnnotationResults:        prefix + "results",
 		AnnotationCanReplay:      prefix + "canReplay",
 		AnnotationWaitUntil:      prefix + "waitUntil",
+		AnnotationSidecars:       prefix + "sidecars",
 	}
 }

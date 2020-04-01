@@ -482,6 +482,20 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		return nil, xerrors.Errorf("cannot handle job for %s: no podspec present", name)
 	}
 
+	for _, s := range jobspec.Sidecars {
+		var found bool
+		for _, p := range podspec.Containers {
+			if p.Name == s {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, xerrors.Errorf("pod has no container \"%s\", but the job lists it as sidecar", s)
+		}
+	}
+
 	wsVolume := "werft-workspace"
 	if srv.Config.WorkspaceNodePathPrefix != "" {
 		nodePath := filepath.Join(srv.Config.WorkspaceNodePathPrefix, name)
@@ -559,6 +573,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		executor.WithCanReplay(canReplay),
 		executor.WithWaitUntil(waitUntil),
 		executor.WithMutex(jobspec.Mutex),
+		executor.WithSidecars(jobspec.Sidecars),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
