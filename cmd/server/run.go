@@ -34,6 +34,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -205,6 +207,30 @@ var runCmd = &cobra.Command{
 			)
 		}
 		if cfg.Service.PprofPort != 0 {
+			var mpf int
+			if rv := os.Getenv("WERFT_MUTEX_PROFILE_FRACTION"); rv != "" {
+				v, err := strconv.ParseInt(rv, 10, 64)
+				if err == nil {
+					mpf = int(v)
+					log.WithField("fraction", mpf).Debug("enabling mutex contention profiling")
+				} else {
+					log.WithError(err).WithField("WERFT_MUTEX_PROFILE_FRACTION", rv).Warn("not enabling mutex contention profiling")
+				}
+			}
+			runtime.SetMutexProfileFraction(mpf)
+
+			var bpr int
+			if rv := os.Getenv("WERFT_BLOCK_PROFILE_RATE"); rv != "" {
+				v, err := strconv.ParseInt(rv, 10, 64)
+				if err == nil {
+					bpr = int(v)
+					log.WithField("fraction", bpr).Debug("enabling block profiling")
+				} else {
+					log.WithError(err).WithField("WERFT_BLOCK_PROFILE_RATE", rv).Warn("not enabling block profiling")
+				}
+			}
+			runtime.SetBlockProfileRate(bpr)
+
 			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
 		}
 
