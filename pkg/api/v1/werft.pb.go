@@ -1624,7 +1624,9 @@ func init() {
 	proto.RegisterType((*StopJobResponse)(nil), "v1.StopJobResponse")
 }
 
-func init() { proto.RegisterFile("werft.proto", fileDescriptor_9fe744feedd6d332) }
+func init() {
+	proto.RegisterFile("werft.proto", fileDescriptor_9fe744feedd6d332)
+}
 
 var fileDescriptor_9fe744feedd6d332 = []byte{
 	// 1673 bytes of a gzipped FileDescriptorProto
@@ -1737,11 +1739,11 @@ var fileDescriptor_9fe744feedd6d332 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // WerftServiceClient is the client API for WerftService service.
 //
@@ -1772,10 +1774,10 @@ type WerftServiceClient interface {
 }
 
 type werftServiceClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewWerftServiceClient(cc *grpc.ClientConn) WerftServiceClient {
+func NewWerftServiceClient(cc grpc.ClientConnInterface) WerftServiceClient {
 	return &werftServiceClient{cc}
 }
 

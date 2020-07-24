@@ -13,9 +13,19 @@ type WerftUIListJobSpecs = {
   readonly responseType: typeof werft_ui_pb.ListJobSpecsResponse;
 };
 
+type WerftUIIsReadOnly = {
+  readonly methodName: string;
+  readonly service: typeof WerftUI;
+  readonly requestStream: false;
+  readonly responseStream: false;
+  readonly requestType: typeof werft_ui_pb.IsReadOnlyRequest;
+  readonly responseType: typeof werft_ui_pb.IsReadOnlyResponse;
+};
+
 export class WerftUI {
   static readonly serviceName: string;
   static readonly ListJobSpecs: WerftUIListJobSpecs;
+  static readonly IsReadOnly: WerftUIIsReadOnly;
 }
 
 export type ServiceError = { message: string, code: number; metadata: grpc.Metadata }
@@ -51,5 +61,14 @@ export class WerftUIClient {
 
   constructor(serviceHost: string, options?: grpc.RpcOptions);
   listJobSpecs(requestMessage: werft_ui_pb.ListJobSpecsRequest, metadata?: grpc.Metadata): ResponseStream<werft_ui_pb.ListJobSpecsResponse>;
+  isReadOnly(
+    requestMessage: werft_ui_pb.IsReadOnlyRequest,
+    metadata: grpc.Metadata,
+    callback: (error: ServiceError|null, responseMessage: werft_ui_pb.IsReadOnlyResponse|null) => void
+  ): UnaryResponse;
+  isReadOnly(
+    requestMessage: werft_ui_pb.IsReadOnlyRequest,
+    callback: (error: ServiceError|null, responseMessage: werft_ui_pb.IsReadOnlyResponse|null) => void
+  ): UnaryResponse;
 }
 

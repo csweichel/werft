@@ -7,6 +7,9 @@ import "werft.proto";
 service WerftUI {
     // ListJobSpecs returns a list of jobs that can be started through the UI.
     rpc ListJobSpecs(ListJobSpecsRequest) returns (stream ListJobSpecsResponse) {};
+
+    // IsReadOnly returns true if the UI is readonly.
+    rpc IsReadOnly(IsReadOnlyRequest) returns (IsReadOnlyResponse) {};
 }
 
 message ListJobSpecsRequest{}
@@ -24,4 +27,10 @@ message DesiredAnnotation {
     string name = 1;
     bool required = 2;
     string description = 3;
+}
+
+message IsReadOnlyRequest {}
+
+message IsReadOnlyResponse {
+    bool readonly = 1;
 }

@@ -17,18 +17,20 @@ import (
 
 // UIService implements api/v1/WerftUIServer
 type UIService struct {
-	Github *github.Client
-	Repos  []string
+	Github   *github.Client
+	Repos    []string
+	Readonly bool
 
 	cache []*v1.ListJobSpecsResponse
 	mu    sync.RWMutex
 }
 
 // NewUIService produces a new UI service and initializes its repo list
-func NewUIService(gh *github.Client, repos []string) (*UIService, error) {
+func NewUIService(gh *github.Client, repos []string, readonly bool) (*UIService, error) {
 	r := &UIService{
-		Github: gh,
-		Repos:  repos,
+		Github:   gh,
+		Repos:    repos,
+		Readonly: readonly,
 	}
 	err := r.updateJobSpecs()
 	if err != nil {
@@ -141,4 +143,11 @@ func (uis *UIService) ListJobSpecs(req *v1.ListJobSpecsRequest, srv v1.WerftUI_L
 	}
 
 	return nil
+}
+
+// IsReadOnly returns true if the UI is readonly.
+func (uis *UIService) IsReadOnly(context.Context, *v1.IsReadOnlyRequest) (*v1.IsReadOnlyResponse, error) {
+	return &v1.IsReadOnlyResponse{
+		Readonly: uis.Readonly,
+	}, nil
 }

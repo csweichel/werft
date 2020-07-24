@@ -11,7 +11,6 @@ import { ColorUnknown, ColorSuccess, ColorFailure } from './components/colors';
 import { phaseToString } from './components/util';
 import { SearchBox } from './components/SearchBox';
 
-
 const styles = (theme: Theme) => createStyles({
     main: {
         flex: 1,
@@ -29,6 +28,7 @@ type JobIdx = { [key: string]: JobStatus.AsObject };
 
 interface JobListProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
+    readonly?: boolean;
 }
 
 interface JobListState {
@@ -49,7 +49,6 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
     constructor(props: JobListProps) {
         const initialSearch = decodeURIComponent(window.location.pathname.substring("/jobs/".length));
 
-        
         super(props);
         this.state = {
             jobs: [],
@@ -59,7 +58,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             initialSearchString: initialSearch,
             search: [],
             rowsPerPage: 50,
-            page: 0
+            page: 0,
         };
     }
 
@@ -238,9 +237,11 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                     </Tabs>
                 </Grid>
                 <Grid item>
-                    <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
-                        Start Job
-                    </Button>
+                    { !this.props.readonly && 
+                        <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
+                            Start Job
+                        </Button>
+                    }
                 </Grid>
             </React.Fragment>
 
