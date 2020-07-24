@@ -229,6 +229,19 @@ func (srv *Service) doHousekeeping() {
 	}
 }
 
+func redactContainerEnv(c corev1.Container) corev1.Container {
+	for j, e := range c.Env {
+		nme := strings.ToLower(e.Name)
+		if !strings.Contains(nme, "secret") && !strings.Contains(nme, "password") && !strings.Contains(nme, "token") {
+			continue
+		}
+
+		e.Value = "[redacted]"
+		c.Env[j] = e
+	}
+	return c
+}
+
 func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 	var isCleanupJob bool
 	for _, annotation := range s.Metadata.Annotations {
@@ -247,6 +260,13 @@ func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 
 	out, err := srv.Logs.Write(s.Name)
 	if err == nil && pod != nil {
+		for i, c := range pod.Spec.Containers {
+			pod.Spec.Containers[i] = redactContainerEnv(c)
+		}
+		for i, c := range pod.Spec.InitContainers {
+			pod.Spec.InitContainers[i] = redactContainerEnv(c)
+		}
+
 		pw := textio.NewPrefixWriter(out, "[werft:kubernetes] ")
 		k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, nil, false).Encode(pod, pw)
 		pw.Flush()

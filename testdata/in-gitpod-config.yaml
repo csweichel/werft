@@ -10,7 +10,7 @@ service:
   pprofPort: 6060
   jobSpecRepos:
   - 32leaves/test-repo:werft
-  webReadOnly: true
+  webReadOnly: false
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"
 executor:
   preperationTimeout: 10m
