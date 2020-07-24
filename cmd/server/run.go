@@ -56,7 +56,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -148,7 +150,7 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		uiservice, err := werft.NewUIService(ghClient, cfg.Service.JobSpecRepos)
+		uiservice, err := werft.NewUIService(ghClient, cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly)
 		if err != nil {
 			return err
 		}
@@ -188,18 +190,21 @@ var runCmd = &cobra.Command{
 			log.WithError(err).Fatal("cannot start service")
 		}
 
-		grpcServer := grpc.NewServer(
+		grpcOpts := []grpc.ServerOption{
 			// We don't know how good our cients are at closing connections. If they don't close them properly
 			// we'll be leaking goroutines left and right. Closing Idle connections should prevent that.
 			// If a client gets disconnected because nothing happened for 15 minutes (e.g. no log output, no new job),
 			// the client can simply reconnect if they're still interested. WebUI is pretty good at maintaining
 			// connections anyways.
 			grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 15 * time.Minute}),
-		)
-		v1.RegisterWerftServiceServer(grpcServer, service)
-		v1.RegisterWerftUIServer(grpcServer, uiservice)
-		go startGRPC(grpcServer, fmt.Sprintf(":%d", cfg.Service.GRPCPort))
-		go startWeb(service, grpcServer, fmt.Sprintf(":%d", cfg.Service.WebPort), cfg.Werft.DebugProxy)
+		}
+		go startGRPC(service, fmt.Sprintf(":%d", cfg.Service.GRPCPort), grpcOpts...)
+		go startWeb(service, uiservice, fmt.Sprintf(":%d", cfg.Service.WebPort), startWebOpts{
+			DebugProxy:  cfg.Werft.DebugProxy,
+			ReadOpsOnly: cfg.Service.WebReadOnly,
+			GRPCOpts:    grpcOpts,
+		})
+
 		if cfg.Service.PromPort != 0 {
 			go startPrometheus(fmt.Sprintf(":%d", cfg.Service.PromPort),
 				jobStore.RegisterPrometheusMetrics,
@@ -255,11 +260,17 @@ var runCmd = &cobra.Command{
 	},
 }
 
+type startWebOpts struct {
+	DebugProxy  string
+	ReadOpsOnly bool
+	GRPCOpts    []grpc.ServerOption
+}
+
 // startWeb starts the werft web UI service
-func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugProxy string) {
+func startWeb(service *werft.Service, uiservice v1.WerftUIServer, addr string, opts startWebOpts) {
 	var webuiServer http.Handler
-	if debugProxy != "" {
-		tgt, err := url.Parse(debugProxy)
+	if opts.DebugProxy != "" {
+		tgt, err := url.Parse(opts.DebugProxy)
 		if err != nil {
 			// this is debug only - it's ok to panic
 			panic(err)
@@ -284,10 +295,28 @@ func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugPro
 		})
 	}
 
+	grpcOpts := opts.GRPCOpts
+	if opts.ReadOpsOnly {
+		grpcOpts = append(grpcOpts, grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+			switch info.FullMethod {
+			case "/v1.WerftService/StartLocalJob",
+				"/v1.WerftService/StartGitHubJob",
+				"/v1.WerftService/StartFromPreviousJob",
+				"/v1.WerftService/StopJob":
+				return nil, status.Error(codes.Unauthenticated, "Werft installation is read-only")
+			}
+
+			return handler(ctx, req)
+		}))
+	}
+
+	grpcServer := grpc.NewServer(grpcOpts...)
+	v1.RegisterWerftServiceServer(grpcServer, service)
+	v1.RegisterWerftUIServer(grpcServer, uiservice)
 	grpcWebServer := grpcweb.WrapServer(grpcServer)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/github/app", srv.HandleGithubWebhook)
+	mux.HandleFunc("/github/app", service.HandleGithubWebhook)
 	mux.HandleFunc("/version", serveVersion)
 	mux.Handle("/", hstsHandler(
 		grpcTrafficSplitter(
@@ -304,14 +333,17 @@ func startWeb(srv *werft.Service, grpcServer *grpc.Server, addr string, debugPro
 }
 
 // startGRPC starts the werft GRPC service
-func startGRPC(srv *grpc.Server, addr string) {
+func startGRPC(service v1.WerftServiceServer, addr string, opts ...grpc.ServerOption) {
+	grpcServer := grpc.NewServer(opts...)
+	v1.RegisterWerftServiceServer(grpcServer, service)
+
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.WithError(err).Error("cannot start GRPC server")
 	}
 
 	log.WithField("addr", addr).Info("serving werft GRPC service")
-	err = srv.Serve(lis)
+	err = grpcServer.Serve(lis)
 	if err != nil {
 		log.WithError(err).Error("cannot start GRPC server")
 	}
@@ -453,6 +485,7 @@ type Config struct {
 		PromPort     int      `yaml:"prometheusPort,omitempty"`
 		PprofPort    int      `yaml:"pprofPort,omitempty"`
 		JobSpecRepos []string `yaml:"jobSpecRepos"`
+		WebReadOnly  bool     `yaml:"webReadOnly,omitempty"`
 	}
 	Storage struct {
 		LogStore                   string `yaml:"logsPath"`

@@ -88,3 +88,39 @@ export namespace DesiredAnnotation {
   }
 }
 
+export class IsReadOnlyRequest extends jspb.Message {
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): IsReadOnlyRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: IsReadOnlyRequest): IsReadOnlyRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: IsReadOnlyRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): IsReadOnlyRequest;
+  static deserializeBinaryFromReader(message: IsReadOnlyRequest, reader: jspb.BinaryReader): IsReadOnlyRequest;
+}
+
+export namespace IsReadOnlyRequest {
+  export type AsObject = {
+  }
+}
+
+export class IsReadOnlyResponse extends jspb.Message {
+  getReadonly(): boolean;
+  setReadonly(value: boolean): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): IsReadOnlyResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: IsReadOnlyResponse): IsReadOnlyResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: IsReadOnlyResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): IsReadOnlyResponse;
+  static deserializeBinaryFromReader(message: IsReadOnlyResponse, reader: jspb.BinaryReader): IsReadOnlyResponse;
+}
+
+export namespace IsReadOnlyResponse {
+  export type AsObject = {
+    readonly: boolean,
+  }
+}
+

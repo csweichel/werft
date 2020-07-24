@@ -26,10 +26,12 @@ type JobIdx = { [key: string]: JobStatus.AsObject };
 
 interface BranchListProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
+    readonly?: boolean;
 }
 
 interface BranchListState {
-    branches: Map<string, JobStatus.AsObject[]>
+    branches: Map<string, JobStatus.AsObject[]>;
+    readonly: boolean;
 }
 
 class BranchListImpl extends React.Component<BranchListProps, BranchListState> {
@@ -39,7 +41,8 @@ class BranchListImpl extends React.Component<BranchListProps, BranchListState> {
     constructor(props: BranchListProps) {
         super(props);
         this.state = {
-            branches: new Map<string, JobStatus.AsObject[]>()
+            branches: new Map<string, JobStatus.AsObject[]>(),
+            readonly: true
         };
     }
 
@@ -179,9 +182,11 @@ class BranchListImpl extends React.Component<BranchListProps, BranchListState> {
                     </Tabs>
                 </Grid>
                 <Grid item>
-                    <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
-                        Start Job
-                    </Button>
+                    { !this.props.readonly &&
+                        <Button href="/start" className={classes.button} variant="outlined" color="inherit" size="small">
+                            Start Job
+                        </Button>
+                    }
                 </Grid>
             </React.Fragment>
 

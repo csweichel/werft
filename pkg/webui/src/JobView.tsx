@@ -79,6 +79,7 @@ export interface JobViewProps extends WithStyles<typeof styles> {
     client: WerftServiceClient;
     jobName: string;
     defaultView?: JobViewPerspectives;
+    readonly?: boolean;
 }
 
 interface JobViewState {
@@ -339,14 +340,14 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 </Tabs>
             </Grid>
             <Grid item>
-                { !!job && !![JobPhase.PHASE_WAITING, JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
+                { !this.props.readonly && !!job && !![JobPhase.PHASE_WAITING, JobPhase.PHASE_PREPARING, JobPhase.PHASE_STARTING, JobPhase.PHASE_RUNNING].find(i => job.phase === i) && 
                     <Tooltip title="Cancel Job">
                         <IconButton color="inherit" onClick={() => this.stopJob()}>
                             <StopIcon />
                         </IconButton>
                     </Tooltip>
                 }
-                { !!job && job.phase === JobPhase.PHASE_DONE && job.conditions!.canReplay &&
+                { !this.props.readonly && !!job && job.phase === JobPhase.PHASE_DONE && job.conditions!.canReplay &&
                     <Tooltip title="Replay">
                         <IconButton color="inherit" onClick={() => this.replay()}>
                             <ReplayIcon />

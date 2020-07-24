@@ -10,7 +10,8 @@ require (
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang-migrate/migrate/v4 v4.7.1
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.3.5
+	github.com/google/go-cmp v0.5.0 // indirect
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
@@ -23,10 +24,13 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/technosophos/moniker v0.0.0-20180509230615-a5dbd03a2245
+	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
 	golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c
+	golang.org/x/sys v0.0.0-20200722175500-76b94024e4b6 // indirect
+	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/tools v0.0.0-20191219041853-979b82bfef62
-	golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898
-	google.golang.org/grpc v1.25.1
+	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
+	google.golang.org/grpc v1.30.0
 	gopkg.in/yaml.v3 v3.0.0-20191120175047-4206685974f2
 	k8s.io/api v0.0.0-20190620084959-7cf5895f2711
 	k8s.io/apimachinery v0.0.0-20190612205821-1799e75a0719

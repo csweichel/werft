@@ -14,6 +14,7 @@ import { GithubPage } from './GithubPage';
 import { StartJob } from './StartJob';
 import { WerftUIClient } from './api/werft-ui_pb_service';
 import { BranchList } from './BranchList';
+import { IsReadonly } from './components/IsReadonly';
 
 export interface AppProps extends WithStyles<typeof styles> { }
 
@@ -37,16 +38,24 @@ const AppImpl: React.SFC<AppProps> = (props) => {
                 <Router>
                     <Switch>
                         <Route path="/job/:name/raw">
-                            <JobViewWithName client={client} defaultView="raw-logs" />
+                            <IsReadonly uiClient={uiClient}>
+                                <JobViewWithName client={client} defaultView="raw-logs" />
+                            </IsReadonly>
                         </Route>
                         <Route path="/job/:name/results">
-                            <JobViewWithName client={client} defaultView="results" />
+                            <IsReadonly uiClient={uiClient}>
+                                <JobViewWithName client={client} defaultView="results" />
+                            </IsReadonly>
                         </Route>
                         <Route path="/job/:name/logs">
-                            <JobViewWithName client={client} defaultView="logs" />
+                            <IsReadonly uiClient={uiClient}>
+                                <JobViewWithName client={client} defaultView="logs" />
+                            </IsReadonly>
                         </Route>
                         <Route path="/job/:name">
-                            <JobViewWithName client={client} />
+                            <IsReadonly uiClient={uiClient}>
+                                <JobViewWithName client={client} />
+                            </IsReadonly>
                         </Route>
                         <Route path="/github">
                             <GithubPage />
@@ -55,10 +64,14 @@ const AppImpl: React.SFC<AppProps> = (props) => {
                             <StartJob client={client} uiClient={uiClient} />
                         </Route>
                         <Route path="/branches">
-                            <BranchList client={client} />
+                            <IsReadonly uiClient={uiClient}>
+                                <BranchList client={client} />
+                            </IsReadonly>
                         </Route>
                         <Route path="/">
-                            <JobList client={client} />
+                            <IsReadonly uiClient={uiClient}>
+                                <JobList client={client} />
+                            </IsReadonly>
                         </Route>
                     </Switch>
                 </Router >

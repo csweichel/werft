@@ -19,6 +19,15 @@ WerftUI.ListJobSpecs = {
   responseType: werft_ui_pb.ListJobSpecsResponse
 };
 
+WerftUI.IsReadOnly = {
+  methodName: "IsReadOnly",
+  service: WerftUI,
+  requestStream: false,
+  responseStream: false,
+  requestType: werft_ui_pb.IsReadOnlyRequest,
+  responseType: werft_ui_pb.IsReadOnlyResponse
+};
+
 exports.WerftUI = WerftUI;
 
 function WerftUIClient(serviceHost, options) {
@@ -60,6 +69,37 @@ WerftUIClient.prototype.listJobSpecs = function listJobSpecs(requestMessage, met
     },
     cancel: function () {
       listeners = null;
+      client.close();
+    }
+  };
+};
+
+WerftUIClient.prototype.isReadOnly = function isReadOnly(requestMessage, metadata, callback) {
+  if (arguments.length === 2) {
+    callback = arguments[1];
+  }
+  var client = grpc.unary(WerftUI.IsReadOnly, {
+    request: requestMessage,
+    host: this.serviceHost,
+    metadata: metadata,
+    transport: this.options.transport,
+    debug: this.options.debug,
+    onEnd: function (response) {
+      if (callback) {
+        if (response.status !== grpc.Code.OK) {
+          var err = new Error(response.statusMessage);
+          err.code = response.status;
+          err.metadata = response.trailers;
+          callback(err, null);
+        } else {
+          callback(null, response.message);
+        }
+      }
+    }
+  });
+  return {
+    cancel: function () {
+      callback = null;
       client.close();
     }
   };
