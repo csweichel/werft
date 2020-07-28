@@ -8,7 +8,7 @@ import (
 
 	"github.com/csweichel/werft/pkg/api/repoconfig"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"

@@ -49,7 +49,7 @@ import (
 	"github.com/csweichel/werft/pkg/store/postgres"
 	"github.com/csweichel/werft/pkg/version"
 	"github.com/csweichel/werft/pkg/werft"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v31/github"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

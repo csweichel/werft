@@ -1,6 +1,7 @@
 package werft
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +20,7 @@ import (
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
 	"golang.org/x/oauth2"
@@ -118,6 +120,11 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 		Clientset:  srv.Executor.Client,
 	}
 
+	err = srv.addRemoteAnnotations(inc.Context(), &md)
+	if err != nil {
+		log.WithError(err).Warn("cannot obtain remote annotations")
+	}
+
 	// Note: for local jobs we DO NOT store the job yaml as we cannot replay those jobs anyways.
 	//       The context upload is a one time thing and hence prevent job replay.
 
@@ -171,9 +178,9 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		md.Repository.Host = defaultGitHubHost
 	}
 
-	_, _, err = ghclient.Repositories.GetCommit(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Revision)
+	err = srv.addRemoteAnnotations(ctx, md)
 	if err != nil {
-		return nil, translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
+		return nil, err
 	}
 
 	var cp = &GitHubContentProvider{
@@ -271,6 +278,78 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
+}
+
+func (srv *Service) addRemoteAnnotations(ctx context.Context, md *v1.JobMetadata) error {
+	ghclient := srv.GitHub.Client
+
+	commit, _, err := ghclient.Repositories.GetCommit(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Revision)
+	if err != nil {
+		return translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
+	}
+	if commit.Commit != nil {
+		atns := parseAnnotations(commit.Commit.GetMessage())
+		for k, v := range atns {
+			md.Annotations = append(md.Annotations, &v1.Annotation{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
+
+	prs, _, err := ghclient.PullRequests.ListPullRequestsWithCommit(ctx, md.Repository.Owner, md.Repository.Repo, commit.GetSHA(), &github.PullRequestListOptions{
+		State: "open",
+		Sort:  "created",
+	})
+	if err != nil {
+		log.WithField("ref", md.Repository.Ref).WithField("rev", md.Repository.Revision).WithError(err).Warn("cannot search for associated PR's")
+	} else if len(prs) >= 1 {
+		sort.Slice(prs, func(i, j int) bool { return prs[i].GetCreatedAt().Before(prs[j].GetCreatedAt()) })
+		pr := prs[0]
+
+		if len(prs) > 1 {
+			log.WithField("ref", md.Repository.Ref).WithField("rev", md.Repository.Revision).WithField("pr", pr.GetHTMLURL()).Warn("found multiple open PR's - using oldest one")
+		}
+
+		atns := parseAnnotations(pr.GetBody())
+		for k, v := range atns {
+			md.Annotations = append(md.Annotations, &v1.Annotation{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
+	return nil
+}
+
+// pareseAnnotations parses one annotation per line in the form of "/werft <key>(=<value>)?".
+// Any line not matching this format is silently ignored.
+func parseAnnotations(message string) (res map[string]string) {
+	scanner := bufio.NewScanner(bytes.NewReader([]byte(message)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		line = strings.TrimPrefix(line, "- [x]")
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "/werft ") {
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "/werft "))
+
+		var name, val string
+		if idx := strings.Index(line, "="); idx > -1 {
+			name = line[:idx]
+			val = strings.TrimPrefix(line[idx:], "=")
+		} else {
+			name = line
+			val = ""
+		}
+		if res == nil {
+			res = make(map[string]string)
+		}
+		res[name] = val
+	}
+	return res
 }
 
 func cleanupPodName(name string) string {

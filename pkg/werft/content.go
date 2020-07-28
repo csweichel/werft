@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
