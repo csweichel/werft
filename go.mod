@@ -11,8 +11,8 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang-migrate/migrate/v4 v4.7.1
 	github.com/golang/protobuf v1.3.5
-	github.com/google/go-cmp v0.5.0 // indirect
-	github.com/google/go-github v17.0.0+incompatible
+	github.com/google/go-cmp v0.5.0
+	github.com/google/go-github/v31 v31.0.0
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
 	github.com/lib/pq v1.2.0

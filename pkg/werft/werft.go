@@ -20,7 +20,7 @@ import (
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v31/github"
 	"github.com/olebedev/emitter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/textio"
@@ -194,12 +194,14 @@ func (srv *Service) doHousekeeping() {
 		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
+			<-tick.C
 			continue
 		}
 
 		knownJobs, err := srv.Executor.GetKnownJobs()
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
+			<-tick.C
 			continue
 		}
 

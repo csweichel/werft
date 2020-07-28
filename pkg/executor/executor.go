@@ -464,6 +464,7 @@ func (js *Executor) doHousekeeping() {
 		})
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
+			<-tick.C
 			continue
 		}
 

@@ -34,7 +34,7 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 	var md v1.JobMetadata
 	err = jsonpb.UnmarshalString(rawmd, &md)
 	if err != nil {
-		return nil, xerrors.Errorf("cannot unmarshal metadata: %w", err)
+		return nil, xerrors.Errorf("cannot unmarshal metadata %v :%w", rawmd, err)
 	}
 
 	var results []*v1.JobResult
