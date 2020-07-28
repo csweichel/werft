@@ -351,6 +351,7 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	}
 
 	md := oldJobStatus.Metadata
+	md.Finished = nil
 	cp := &GitHubContentProvider{
 		Owner:    md.Repository.Owner,
 		Repo:     md.Repository.Repo,
