@@ -1,17 +1,18 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, ListJobsRequest, OrderExpression } from './api/werft_pb';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, ListJobsRequest, OrderExpression, Annotation } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
 import { ResultView } from './components/ResultView';
 import { Header, headerStyles } from './components/header';
-import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typography, Button, Snackbar, SnackbarContent } from '@material-ui/core';
+import { createStyles, Theme, Toolbar, Grid, Tooltip, IconButton, Tabs, Tab, Typography, Button, Snackbar, SnackbarContent, Divider } from '@material-ui/core';
 import { WithStyles, withStyles } from '@material-ui/styles';
 import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
 import ReplayIcon from '@material-ui/icons/Replay';
 import InfoIcon from '@material-ui/icons/Info';
+import MoreVertIcon from '@material-ui/icons/MoreVert';
 import { ColorUnknown, ColorFailure, ColorSuccess, ColorRunning, ColorWarning } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 import * as moment from 'moment';
@@ -364,6 +365,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 
         const classes = this.props.classes;
         let secondary: React.ReactFragment | undefined;
+        let thirdrow: React.ReactFragment | undefined;
         if (job) {
             const host = job.metadata!.repository!.host;
             const repo = `${host}/${job.metadata!.repository!.owner}/${job.metadata!.repository!.repo}`;
@@ -390,6 +392,15 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                     </JobMetadataItemProps> }
                 </Grid>
             </Toolbar>;
+
+            if (job.metadata && job.metadata.annotationsList.length > 0) {
+                thirdrow = <Toolbar>
+                    <Grid container spacing={1} alignItems="center" className={this.props.classes.infobar}>
+                        <Grid item xs={12}><Divider light={true} /></Grid>
+                        { job.metadata.annotationsList.map((a, k) => <JobMetadataItemProps key={k} label={a.key}>{a.value}</JobMetadataItemProps>) }
+                    </Grid>
+                </Toolbar>;
+            }
         }
 
         const snackbar = (
@@ -434,7 +445,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 } />;
 
         return <React.Fragment>
-            <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} />
+            <Header color={color} title={this.props.jobName} actions={actions} secondary={secondary} thirdrow={thirdrow} />
             <main className={classes.main}>
                 { snackbar }
                 { this.state.status && this.state.status.details && 
@@ -509,4 +520,4 @@ class JobMetadataItemPropsImpl extends React.Component<JobMetadataItemProps, {}>
     }
 }
 
-const JobMetadataItemProps = withStyles(styles)(JobMetadataItemPropsImpl)
+const JobMetadataItemProps = withStyles(styles)(JobMetadataItemPropsImpl);

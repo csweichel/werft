@@ -87,6 +87,16 @@ class HeaderImpl extends React.Component<HeaderProps, HeaderState> {
                         style={appbarStyle}
                 >{this.props.secondary}</AppBar>
                 }
+                { this.props.thirdrow && 
+                    <AppBar
+                        component="div"
+                        className={classes.thirdBar}
+                        color="primary"
+                        position="static"
+                        elevation={0}
+                        style={appbarStyle}
+                >{this.props.thirdrow}</AppBar>
+                }
             </React.Fragment>
         )
     }
