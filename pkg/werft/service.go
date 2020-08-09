@@ -23,7 +23,6 @@ import (
 	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
-	"golang.org/x/oauth2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -145,37 +144,37 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
 func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
-	tStartGithubPrep := time.Now()
-	var (
-		ghclient = srv.GitHub.Client
-		gitauth  = srv.GitHub.Auth
-	)
 	if req.GithubToken != "" {
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: req.GithubToken},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		ghclient = github.NewClient(tc)
-		gitauth = fixedOAuthTokenGitCreds(req.GithubToken)
+		return nil, status.Errorf(codes.InvalidArgument, "Per-job GitHub tokens are no longer supported")
+	}
+
+	if req.Metadata.Repository.Host == "" {
+		req.Metadata.Repository.Host = defaultGitHubHost
+	}
+
+	return srv.StartJob(ctx, &v1.StartJobRequest{
+		JobPath:   req.JobPath,
+		JobYaml:   req.JobYaml,
+		Metadata:  req.Metadata,
+		Sideload:  req.Sideload,
+		WaitUntil: req.WaitUntil,
+	})
+}
+
+// StartJob starts a new job based on its specification.
+func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
+	var (
+		repoHost = req.Metadata.Repository.Host
+		repo, ok = srv.RepoProvider[repoHost]
+	)
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported repo host: %v", repoHost)
 	}
 
 	md := req.Metadata
-	if md.Repository.Revision == "" && md.Repository.Ref != "" {
-		branch, _, err := ghclient.Repositories.GetBranch(ctx, md.Repository.Owner, md.Repository.Repo, md.Repository.Ref)
-		if err != nil {
-			return nil, translateGitHubToGRPCError(err, md.Repository.Revision, md.Repository.Ref)
-		}
-		if branch == nil {
-			return nil, status.Error(codes.NotFound, "did not find ref")
-		}
-		if branch.Commit == nil || branch.Commit.SHA == nil {
-			return nil, status.Error(codes.NotFound, "ref did not point to a commit")
-		}
-		md.Repository.Revision = *branch.Commit.SHA
-		log.WithField("ref", md.Repository.Ref).WithField("rev", md.Repository.Revision).Debug("resolved reference to revision")
-	}
-	if md.Repository.Host == "" {
-		md.Repository.Host = defaultGitHubHost
+	err = repo.Resolve(md.Repository)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot resolve request: %q", err)
 	}
 
 	err = srv.addRemoteAnnotations(ctx, md)
@@ -183,16 +182,16 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		return nil, err
 	}
 
-	var cp = &GitHubContentProvider{
-		Owner:    md.Repository.Owner,
-		Repo:     md.Repository.Repo,
-		Revision: md.Repository.Revision,
-		Client:   ghclient,
-		Auth:     gitauth,
+	var cp ContentProvider
+	cp, err = repo.ContentProvider(md.Repository)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
 	}
 
 	if len(req.Sideload) > 0 {
-		cp.Sideload = &GitHubContentProviderSideload{
+		cp = &SideloadingContentProvider{
+			Delegate: cp,
+
 			TarStream:  bytes.NewReader(req.Sideload),
 			Namespace:  srv.Executor.Config.Namespace,
 			Kubeconfig: srv.Executor.KubeConfig,
@@ -200,7 +199,11 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		}
 	}
 
-	srv.metrics.GithubJobPreparationSeconds.Observe(time.Since(tStartGithubPrep).Seconds())
+	var fp FileProvider
+	fp, err = repo.FileProvider(md.Repository)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot produce file provider: %q", err)
+	}
 
 	var (
 		jobYAML     = req.JobYaml
@@ -209,14 +212,14 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	)
 	if jobYAML == nil {
 		if tplpath == "" {
-			repoCfg, err := getRepoCfg(ctx, cp)
+			repoCfg, err := getRepoCfg(ctx, fp)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			tplpath = repoCfg.TemplatePath(req.Metadata)
 		}
 
-		in, err := cp.Download(ctx, tplpath)
+		in, err := fp.Download(ctx, tplpath)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", tplpath, err.Error())
 		}
@@ -254,8 +257,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		name = fmt.Sprintf("%s.%d", name, t)
 	}
 
-	// We do not store the GitHub token of the request and hence can only restart those with default auth
-	canReplay := req.GithubToken == "" && len(req.Sideload) == 0
+	canReplay := len(req.Sideload) == 0
 
 	var waitUntil time.Time
 	if req.WaitUntil != nil {

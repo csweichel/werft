@@ -1,3 +1,4 @@
+workspaceLocation: werft/werft.theia-workspace
 tasks:
   - init: go get && go build ./... && go test ./...
     command: |
@@ -20,7 +21,6 @@ ports:
     onOpen: open-preview
   - port: 2999-3001
     onOpen: ignore
-
 vscode:
   extensions:
     - zxh404.vscode-proto3@0.3.0:4f1jn72vQA2/LVoVSSmMtQ==

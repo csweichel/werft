@@ -162,11 +162,12 @@ var runCmd = &cobra.Command{
 		}
 		exec.Run()
 		service := &werft.Service{
-			Logs:     logStore,
-			Jobs:     jobStore,
-			Groups:   nrGroups,
-			Executor: exec,
-			Cutter:   logcutter.DefaultCutter,
+			Logs:         logStore,
+			Jobs:         jobStore,
+			Groups:       nrGroups,
+			Executor:     exec,
+			RepoProvider: make(map[string]werft.RepositoryProvider),
+			Cutter:       logcutter.DefaultCutter,
 			GitHub: werft.GitHubSetup{
 				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
 				Client:        ghClient,
@@ -239,7 +240,10 @@ var runCmd = &cobra.Command{
 			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
 		}
 
-		plugins, err := plugin.Start(cfg.Plugins, service)
+		plugins, err := plugin.Start(cfg.Plugins, service, func(host string, provider werft.RepositoryProvider) {
+			// TODO(csweichel): properly synchronize this stuff
+			service.RepoProvider[host] = provider
+		})
 		if err != nil {
 			log.WithError(err).Fatal("cannot start plugins")
 		}

@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package v1;
+option go_package = "github.com/csweichel/werft/pkg/api/v1";
 import "google/protobuf/timestamp.proto";
 
 service WerftService {
@@ -18,6 +19,9 @@ service WerftService {
     // StartFromPreviousJob starts a new job based on a previous one.
     // If the previous job does not have the can-replay condition set this call will result in an error.
     rpc StartFromPreviousJob(StartFromPreviousJobRequest) returns (StartJobResponse) {};
+
+    // StartJobRequest starts a new job based on its specification.
+    rpc StartJob(StartJobRequest) returns (StartJobResponse) {};
 
     // Searches for jobs known to this instance
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
@@ -56,6 +60,14 @@ message StartGitHubJobRequest {
     string github_token = 4;
     bytes sideload = 5; 
     google.protobuf.Timestamp wait_until = 6;
+}
+
+message StartJobRequest {
+    JobMetadata metadata = 1;
+    string job_path = 2;
+    bytes job_yaml = 3;
+    bytes sideload = 4; 
+    google.protobuf.Timestamp wait_until = 5;
 }
 
 message StartFromPreviousJobRequest {

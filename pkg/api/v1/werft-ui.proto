@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package v1;
+option go_package = "github.com/csweichel/werft/pkg/api/v1";
 import "werft.proto";
 
 // WerftUI offers services intended for the webui
