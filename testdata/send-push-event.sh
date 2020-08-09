@@ -8,4 +8,4 @@ curl -XPOST \
     -H "X-GitHub-Event: push" \
     -H "X-Hub-Signature: sha1=f6b0ccbd7dbe39d2a807668670e60bd07dbd6b6a" \
     -d @push-event-payload.json \
-    http://localhost:8080/github/app
+    http://localhost:8080/plugins/github-trigger

@@ -2,10 +2,10 @@ package host
 
 import (
 	"bytes"
-	"io/ioutil"
 	"context"
 	"encoding/gob"
 	"io"
+	"io/ioutil"
 	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -41,7 +41,7 @@ func (p *pluginHostProvider) Resolve(repo *v1.Repository) error {
 func (p *pluginHostProvider) ContentProvider(repo *v1.Repository) (werft.ContentProvider, error) {
 	return &pluginContentProvider{
 		Repo: repo,
-		C: p.C,
+		C:    p.C,
 	}, nil
 }
 
@@ -49,13 +49,13 @@ func (p *pluginHostProvider) ContentProvider(repo *v1.Repository) (werft.Content
 func (p *pluginHostProvider) FileProvider(repo *v1.Repository) (werft.FileProvider, error) {
 	return &pluginContentProvider{
 		Repo: repo,
-		C: p.C,
+		C:    p.C,
 	}, nil
 }
 
 type pluginContentProvider struct {
 	Repo *v1.Repository
-	C common.RepositoryPluginClient
+	C    common.RepositoryPluginClient
 }
 
 func (c *pluginContentProvider) InitContainer() (res []corev1.Container, err error) {
@@ -73,8 +73,8 @@ func (c *pluginContentProvider) InitContainer() (res []corev1.Container, err err
 	return
 }
 
-func (c *pluginContentProvider) Serve(jobName string) error { 
-	return nil 
+func (c *pluginContentProvider) Serve(jobName string) error {
+	return nil
 }
 
 func (c *pluginContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
@@ -83,7 +83,7 @@ func (c *pluginContentProvider) Download(ctx context.Context, path string) (io.R
 
 	resp, err := c.C.Download(ctx, &common.DownloadRequest{
 		Repository: c.Repo,
-		Path: path,
+		Path:       path,
 	})
 	if err != nil {
 		return nil, err
