@@ -37,6 +37,20 @@ plugins:
     - -c
     - go run plugins/repositories/github/main.go $*
     - -s
+  - name: "github-trigger"
+    type:
+    - integration
+    config:
+      baseURL: https://werft.dev
+      webhookSecret: foobar
+      privateKeyPath: testdata/example-app.pem
+      appID: 48144
+      installationID: 5647067
+    command:
+    - sh
+    - -c
+    - go run plugins/integrations/github-trigger/main.go $*
+    - -s
   - name: "example"
     type:
     - integration

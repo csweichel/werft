@@ -76,6 +76,28 @@ func WithRepositoryPlugin(p RepositoryPlugin) ServeOpt {
 	}
 }
 
+const proxyPassPluginType common.Type = "proxy-pass"
+
+// ProxyPassPlugin adds additional support for proxied webhooks
+type ProxyPassPlugin interface {
+	Serve(ctx context.Context, l net.Listener) error
+}
+
+// WithProxyPass enables a "through werft" proxy route to the plugin.
+// The route will be available at "http://<werft-location>/plugins/<plugin-name>"
+func WithProxyPass(p ProxyPassPlugin) ServeOpt {
+	return ServeOpt{
+		Type: proxyPassPluginType,
+		Run: func(ctx context.Context, config interface{}, socket string) error {
+			l, err := net.Listen("unix", socket)
+			if err != nil {
+				return err
+			}
+			return p.Serve(ctx, l)
+		},
+	}
+}
+
 // Serve is the main entry point for plugins
 func Serve(configType interface{}, opts ...ServeOpt) {
 	if typ := reflect.TypeOf(configType); typ.Kind() != reflect.Ptr {
@@ -101,11 +123,28 @@ func Serve(configType interface{}, opts ...ServeOpt) {
 	if err != nil {
 		log.Fatalf("cannot read config file: %v", err)
 	}
+
 	err = yaml.Unmarshal(cfgraw, configType)
 	if err != nil {
 		log.Fatalf("cannot unmarshal config: %v", err)
 	}
 	config := configType
+
+	ctx, cancel := context.WithCancel(context.Background())
+	for _, o := range opts {
+		if o.Type != proxyPassPluginType {
+			continue
+		}
+
+		o := o
+		go func() {
+			err = o.Run(ctx, nil, os.Getenv("WERFT_PLUGIN_PROXY_SOCKET"))
+			if err != nil && err != context.Canceled {
+				errchan <- err
+			}
+		}()
+		break
+	}
 
 	var sv *ServeOpt
 	for _, o := range opts {
@@ -117,8 +156,6 @@ func Serve(configType interface{}, opts ...ServeOpt) {
 	if sv == nil {
 		log.Fatalf("cannot serve as %s plugin", tpe)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		err := sv.Run(ctx, config, socketfn)
 		if err != nil && err != context.Canceled {

@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/csweichel/werft/pkg/werft"
@@ -125,6 +128,34 @@ func (p *Plugins) sockerForRepositoryPlugin() (string, error) {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-repo-%d.sock", time.Now().UnixNano())), nil
 }
 
+func (p *Plugins) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	segs := strings.Split(req.URL.Path, "/")
+	plgn := segs[0]
+	skt, ok := p.sockets[plgn]
+	if !ok {
+		resp.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.URL.Scheme = "http"
+			req.URL.Host = "localhost"
+
+			pth := req.URL.Path
+			pth = strings.TrimPrefix(pth, "/")
+			pth = strings.TrimPrefix(pth, plgn)
+			req.URL.Path = pth
+		},
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", skt)
+			},
+		},
+	}
+	proxy.ServeHTTP(resp, req)
+}
+
 func (p *Plugins) startPlugin(reg Registration) error {
 	cfgfile, err := ioutil.TempFile(os.TempDir(), "werft-plugin-cfg")
 	if err != nil {
@@ -150,6 +181,13 @@ func (p *Plugins) startPlugin(reg Registration) error {
 		stdout := pluginLog.WriterLevel(log.InfoLevel)
 		stderr := pluginLog.WriterLevel(log.ErrorLevel)
 
+		env := os.Environ()
+		if t == common.TypeIntegration {
+			skt := filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-proxy-%d.sock", time.Now().UnixNano()))
+			env = append(env, fmt.Sprintf("WERFT_PLUGIN_PROXY_SOCKET=%s", skt))
+			p.sockets[reg.Name] = skt
+		}
+
 		var (
 			command string
 			args    []string
@@ -163,7 +201,7 @@ func (p *Plugins) startPlugin(reg Registration) error {
 		args = append(args, string(t), cfgfile.Name(), socket)
 
 		cmd := exec.Command(command, args...)
-		cmd.Env = os.Environ()
+		cmd.Env = env
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 		err = cmd.Start()

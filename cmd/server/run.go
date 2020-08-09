@@ -191,6 +191,20 @@ var runCmd = &cobra.Command{
 			log.WithError(err).Fatal("cannot start service")
 		}
 
+		plugins, err := plugin.Start(cfg.Plugins, service, func(host string, provider werft.RepositoryProvider) {
+			// TODO(csweichel): properly synchronize this stuff
+			service.RepoProvider[host] = provider
+		})
+		if err != nil {
+			log.WithError(err).Fatal("cannot start plugins")
+		}
+		go func() {
+			for e := range plugins.Errchan {
+				log.WithError(e.Err).WithField("plugin", e.Reg.Name).Warn("plugin error")
+			}
+		}()
+		defer plugins.Stop()
+
 		grpcOpts := []grpc.ServerOption{
 			// We don't know how good our cients are at closing connections. If they don't close them properly
 			// we'll be leaking goroutines left and right. Closing Idle connections should prevent that.
@@ -204,6 +218,7 @@ var runCmd = &cobra.Command{
 			DebugProxy:  cfg.Werft.DebugProxy,
 			ReadOpsOnly: cfg.Service.WebReadOnly,
 			GRPCOpts:    grpcOpts,
+			Plugins:     plugins,
 		})
 
 		if cfg.Service.PromPort != 0 {
@@ -240,20 +255,6 @@ var runCmd = &cobra.Command{
 			go startPProf(fmt.Sprintf(":%d", cfg.Service.PprofPort))
 		}
 
-		plugins, err := plugin.Start(cfg.Plugins, service, func(host string, provider werft.RepositoryProvider) {
-			// TODO(csweichel): properly synchronize this stuff
-			service.RepoProvider[host] = provider
-		})
-		if err != nil {
-			log.WithError(err).Fatal("cannot start plugins")
-		}
-		go func() {
-			for e := range plugins.Errchan {
-				log.WithError(e.Err).WithField("plugin", e.Reg.Name).Warn("plugin error")
-			}
-		}()
-		defer plugins.Stop()
-
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		log.Info("werft is up and running. Stop with SIGINT or CTRL+C")
@@ -268,6 +269,7 @@ type startWebOpts struct {
 	DebugProxy  string
 	ReadOpsOnly bool
 	GRPCOpts    []grpc.ServerOption
+	Plugins     http.Handler
 }
 
 // startWeb starts the werft web UI service
@@ -322,6 +324,7 @@ func startWeb(service *werft.Service, uiservice v1.WerftUIServer, addr string, o
 	mux := http.NewServeMux()
 	mux.HandleFunc("/github/app", service.HandleGithubWebhook)
 	mux.HandleFunc("/version", serveVersion)
+	mux.Handle("/plugins/", http.StripPrefix("/plugins/", opts.Plugins))
 	mux.Handle("/", hstsHandler(
 		grpcTrafficSplitter(
 			webuiServer,
