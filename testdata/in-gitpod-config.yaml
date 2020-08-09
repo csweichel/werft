@@ -25,6 +25,18 @@ github:
   appID: 48144
   installationID: 5647067
 plugins:
+  - name: "repo-github"
+    type:
+    - repository
+    config:
+      privateKeyPath: testdata/example-app.pem
+      appID: 48144
+      installationID: 5647067
+    command:
+    - sh
+    - -c
+    - go run plugins/repositories/github/main.go $*
+    - -s
   - name: "example"
     type:
     - integration
@@ -33,7 +45,7 @@ plugins:
     command:
     - sh
     - -c
-    - cd integrations/plugins/integration-example && go run main.go $*
+    - cd plugins/integrations/integration-example && go run main.go $*
     - -s
   - name: "webhook"
     type:
@@ -48,7 +60,7 @@ plugins:
     command:
     - sh
     - -c
-    - cd integrations/plugins/webhook && go run main.go $*
+    - cd plugins/integrations/webhook && go run main.go $*
     - -s
   - name: "cron"
     type:
@@ -60,5 +72,5 @@ plugins:
     command:
     - sh
     - -c
-    - cd integrations/plugins/cron && go run main.go $*
+    - cd plugins/integrations/cron && go run main.go $*
     - -s

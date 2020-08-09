@@ -78,12 +78,13 @@ type jobLog struct {
 
 // Service ties everything together
 type Service struct {
-	Logs     store.Logs
-	Jobs     store.Jobs
-	Groups   store.NumberGroup
-	Executor *executor.Executor
-	Cutter   logcutter.Cutter
-	GitHub   GitHubSetup
+	Logs         store.Logs
+	Jobs         store.Jobs
+	Groups       store.NumberGroup
+	Executor     *executor.Executor
+	Cutter       logcutter.Cutter
+	RepoProvider map[string]RepositoryProvider
+	GitHub       GitHubSetup
 
 	Config Config
 
@@ -540,19 +541,18 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		})
 	}
 
-	initcontainer, err := cp.InitContainer()
+	ics, err := cp.InitContainer()
 	if err != nil {
 		return nil, xerrors.Errorf("cannot produce init container: %w", err)
 	}
-	cpinit := *initcontainer
-	cpinit.Name = "werft-checkout"
-	cpinit.ImagePullPolicy = corev1.PullIfNotPresent
-	cpinit.VolumeMounts = append(cpinit.VolumeMounts, corev1.VolumeMount{
-		Name:      wsVolume,
-		ReadOnly:  false,
-		MountPath: "/workspace",
-	})
-	podspec.InitContainers = append(podspec.InitContainers, cpinit)
+	for i, ic := range ics {
+		ics[i].VolumeMounts = append(ic.VolumeMounts, corev1.VolumeMount{
+			Name:      wsVolume,
+			ReadOnly:  false,
+			MountPath: "/workspace",
+		})
+	}
+	podspec.InitContainers = append(podspec.InitContainers, ics...)
 	for i, c := range podspec.Containers {
 		podspec.Containers[i].VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
 			Name:      wsVolume,

@@ -25,7 +25,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/technosophos/moniker v0.0.0-20180509230615-a5dbd03a2245
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
-	golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c
+	golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c // indirect
 	golang.org/x/sys v0.0.0-20200722175500-76b94024e4b6 // indirect
 	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/tools v0.0.0-20191219041853-979b82bfef62

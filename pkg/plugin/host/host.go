@@ -1,6 +1,7 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -8,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/csweichel/werft/pkg/werft"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/plugin/common"
@@ -32,9 +35,10 @@ type Config []Registration
 type Plugins struct {
 	Errchan chan Error
 
-	stopchan     chan struct{}
-	sockets      map[string]string
-	werftService v1.WerftServiceServer
+	stopchan         chan struct{}
+	sockets          map[string]string
+	repoRegistration RepoRegistrationCallback
+	werftService     v1.WerftServiceServer
 }
 
 // Stop stops all plugins
@@ -53,15 +57,19 @@ type Error struct {
 	Reg *Registration
 }
 
+// RepoRegistrationCallback is called when a plugin registers a repo provider
+type RepoRegistrationCallback func(host string, repo werft.RepositoryProvider)
+
 // Start starts all configured plugins
-func Start(cfg Config, srv v1.WerftServiceServer) (*Plugins, error) {
+func Start(cfg Config, srv v1.WerftServiceServer, repoRegistration RepoRegistrationCallback) (*Plugins, error) {
 	errchan, stopchan := make(chan Error), make(chan struct{})
 
 	plugins := &Plugins{
-		Errchan:      errchan,
-		stopchan:     stopchan,
-		sockets:      make(map[string]string),
-		werftService: srv,
+		Errchan:          errchan,
+		stopchan:         stopchan,
+		sockets:          make(map[string]string),
+		repoRegistration: repoRegistration,
+		werftService:     srv,
 	}
 
 	for _, pr := range cfg {
@@ -78,6 +86,8 @@ func (p *Plugins) socketFor(t common.Type) (string, error) {
 	switch t {
 	case common.TypeIntegration:
 		return p.socketForIntegrationPlugin()
+	case common.TypeRepository:
+		return p.sockerForRepositoryPlugin()
 	default:
 		return "", xerrors.Errorf("unknown plugin type %s", t)
 	}
@@ -91,7 +101,7 @@ func (p *Plugins) socketForIntegrationPlugin() (string, error) {
 	socketFN := filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-integration-%d.sock", time.Now().UnixNano()))
 	lis, err := net.Listen("unix", socketFN)
 	if err != nil {
-		return "", xerrors.Errorf("cannot start inegration plugin server: %w", err)
+		return "", xerrors.Errorf("cannot start integration plugin server: %w", err)
 	}
 	s := grpc.NewServer()
 	v1.RegisterWerftServiceServer(s, p.werftService)
@@ -109,6 +119,10 @@ func (p *Plugins) socketForIntegrationPlugin() (string, error) {
 
 	p.sockets[string(common.TypeIntegration)] = socketFN
 	return socketFN, nil
+}
+
+func (p *Plugins) sockerForRepositoryPlugin() (string, error) {
+	return filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-repo-%d.sock", time.Now().UnixNano())), nil
 }
 
 func (p *Plugins) startPlugin(reg Registration) error {
@@ -180,7 +194,48 @@ func (p *Plugins) startPlugin(reg Registration) error {
 				cmd.Process.Kill()
 			}
 		}()
+
+		if t == common.TypeRepository {
+			// repo plugins register repo provider at some point - listen for that
+			go p.tryAndRegisterRepoProvider(pluginLog, socket)
+		}
 	}
 
 	return nil
+}
+
+func (p *Plugins) tryAndRegisterRepoProvider(pluginLog *log.Entry, socket string) {
+	var (
+		t    = time.NewTicker(2 * time.Second)
+		conn *grpc.ClientConn
+		err  error
+	)
+	defer t.Stop()
+	for {
+		conn, err = grpc.Dial("unix://"+socket, grpc.WithInsecure())
+		if err != nil {
+			pluginLog.Debug("cannot connect to socket (yet)")
+			continue
+		}
+		client := common.NewRepositoryPluginClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		host, err := client.RepoHost(ctx, &common.RepoHostRequest{})
+		cancel()
+		if err != nil {
+			pluginLog.WithError(err).Debug("cannot connect to socket (yet)")
+			continue
+		}
+
+		defer conn.Close()
+		pluginLog.WithField("host", host.Host).Info("registered repo provider")
+		p.repoRegistration(host.Host, &pluginHostProvider{client})
+		<-p.stopchan
+
+		select {
+		case <-t.C:
+			continue
+		case <-p.stopchan:
+			return
+		}
+	}
 }

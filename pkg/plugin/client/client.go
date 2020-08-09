@@ -25,6 +25,13 @@ type IntegrationPlugin interface {
 	Run(ctx context.Context, config interface{}, srv v1.WerftServiceClient) error
 }
 
+// RepositoryPlugin adds support for a repository host
+type RepositoryPlugin interface {
+	// Run runs the plugin. The plugin runs until the context is canceled and the server returned
+	// by this function is expected to remain functional until then.
+	Run(ctx context.Context, config interface{}) (common.RepositoryPluginServer, error)
+}
+
 // ServeOpt configures a plugin serve
 type ServeOpt struct {
 	Type common.Type
@@ -44,6 +51,27 @@ func WithIntegrationPlugin(p IntegrationPlugin) ServeOpt {
 			client := v1.NewWerftServiceClient(conn)
 
 			return p.Run(ctx, config, client)
+		},
+	}
+}
+
+// WithRepositoryPlugin registers repo plugin capabilities
+func WithRepositoryPlugin(p RepositoryPlugin) ServeOpt {
+	return ServeOpt{
+		Type: common.TypeRepository,
+		Run: func(ctx context.Context, config interface{}, socket string) error {
+			lis, err := net.Listen("unix", socket)
+			if err != nil {
+				return err
+			}
+			service, err := p.Run(ctx, config)
+			if err != nil {
+				return err
+			}
+
+			s := grpc.NewServer()
+			common.RegisterRepositoryPluginServer(s, service)
+			return s.Serve(lis)
 		},
 	}
 }
