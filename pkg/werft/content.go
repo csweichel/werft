@@ -31,6 +31,11 @@ type RepositoryProvider interface {
 	// If the revision is already set, this operation does nothing.
 	Resolve(repo *v1.Repository) error
 
+	// RemoteAnnotations extracts werft annotations form information associated
+    // with a particular commit, e.g. the commit message, PRs or merge requests.
+    // Implementors can expect the revision of the repo object to be set.
+	RemoteAnnotations(repo *v1.Repository) (annotations map[string]string, err error)
+
 	// ContentProvider produces a content provider for a particular repo
 	ContentProvider(repo *v1.Repository) (ContentProvider, error)
 

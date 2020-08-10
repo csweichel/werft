@@ -20,7 +20,6 @@ import (
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/go-github/v31/github"
 	"github.com/olebedev/emitter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/textio"
@@ -78,18 +77,17 @@ type jobLog struct {
 
 // Service ties everything together
 type Service struct {
-	Logs         store.Logs
-	Jobs         store.Jobs
-	Groups       store.NumberGroup
-	Executor     *executor.Executor
-	Cutter       logcutter.Cutter
-	RepoProvider map[string]RepositoryProvider
-	GitHub       GitHubSetup
+	Logs     store.Logs
+	Jobs     store.Jobs
+	Groups   store.NumberGroup
+	Executor *executor.Executor
+	Cutter   logcutter.Cutter
 
 	Config Config
 
-	mu          sync.RWMutex
-	logListener map[string]*jobLog
+	mu           sync.RWMutex
+	logListener  map[string]*jobLog
+	repoProvider map[string]RepositoryProvider
 
 	events  emitter.Emitter
 	metrics struct {
@@ -99,13 +97,25 @@ type Service struct {
 }
 
 // GitCredentialHelper can authenticate provide authentication credentials for a repository
+// TOOD(csweichel): move out of this package
 type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
 
-// GitHubSetup sets up the access to GitHub
-type GitHubSetup struct {
-	WebhookSecret []byte
-	Client        *github.Client
-	Auth          GitCredentialHelper
+// RegisterRepoProvider registers a repository provider for a repo host
+func (srv *Service) RegisterRepoProvider(host string, prov RepositoryProvider) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	if srv.repoProvider == nil {
+		srv.repoProvider = make(map[string]RepositoryProvider)
+	}
+	srv.repoProvider[host] = prov
+}
+
+func (srv *Service) getRepoProvider(host string) RepositoryProvider {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
+
+	return srv.repoProvider[host]
 }
 
 // Start sets up everything to run this werft instance, including executor config
@@ -161,12 +171,15 @@ func (srv *Service) Start() error {
 		}
 
 		md := j.Metadata
-		cp := &GitHubContentProvider{
-			Owner:    md.Repository.Owner,
-			Repo:     md.Repository.Repo,
-			Revision: md.Repository.Revision,
-			Client:   srv.GitHub.Client,
-			Auth:     srv.GitHub.Auth,
+		repo := srv.getRepoProvider(md.Repository.Host)
+		if repo == nil {
+			cancelJob(fmt.Errorf("no repo provider found for %s", md.Repository.Host))
+			continue
+		}
+		cp, err := repo.ContentProvider(md.Repository)
+		if err != nil {
+			cancelJob(err)
+			continue
 		}
 		_, err = srv.RunJob(context.Background(), j.Name, *md, cp, jobYAML, true, waitUntil)
 		if err != nil {
