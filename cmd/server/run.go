@@ -40,7 +40,6 @@ import (
 	"time"
 
 	rice "github.com/GeertJohan/go.rice"
-	"github.com/bradleyfalzon/ghinstallation"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/executor"
 	"github.com/csweichel/werft/pkg/logcutter"
@@ -49,7 +48,6 @@ import (
 	"github.com/csweichel/werft/pkg/store/postgres"
 	"github.com/csweichel/werft/pkg/version"
 	"github.com/csweichel/werft/pkg/werft"
-	"github.com/google/go-github/v31/github"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -134,23 +132,12 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		ghtr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, cfg.GitHub.AppID, cfg.GitHub.InstallationID, cfg.GitHub.PrivateKeyPath)
-		if err != nil {
-			return err
-		}
-		ghClient := github.NewClient(&http.Client{Transport: ghtr})
-
 		execCfg := cfg.Executor
 		if execCfg.Namespace == "" {
 			execCfg.Namespace = "default"
 		}
 
 		logStore, err := store.NewFileLogStore(cfg.Storage.LogStore)
-		if err != nil {
-			return err
-		}
-
-		uiservice, err := werft.NewUIService(ghClient, cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly)
 		if err != nil {
 			return err
 		}
@@ -162,12 +149,12 @@ var runCmd = &cobra.Command{
 		}
 		exec.Run()
 		service := &werft.Service{
-			Logs:     logStore,
-			Jobs:     jobStore,
-			Groups:   nrGroups,
-			Executor: exec,
-			Cutter:   logcutter.DefaultCutter,
-			Config:   cfg.Werft,
+			Logs:               logStore,
+			Jobs:               jobStore,
+			Groups:             nrGroups,
+			Executor:           exec,
+			Cutter:             logcutter.DefaultCutter,
+			Config:             cfg.Werft,
 			RepositoryProvider: werft.NoopRepositoryProvider{},
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
@@ -185,6 +172,11 @@ var runCmd = &cobra.Command{
 		}()
 		defer plugins.Stop()
 		service.RepositoryProvider = plugins.RepositoryProvider()
+
+		uiservice, err := werft.NewUIService(plugins.RepositoryProvider(), cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly)
+		if err != nil {
+			return err
+		}
 
 		err = service.Start()
 		if err != nil {
@@ -487,11 +479,5 @@ type Config struct {
 	} `yaml:"storage"`
 	Executor   executor.Config `yaml:"executor"`
 	Kubeconfig string          `yaml:"kubeconfig,omitempty"`
-	GitHub     struct {
-		WebhookSecret  string `yaml:"webhookSecret"`
-		PrivateKeyPath string `yaml:"privateKeyPath"`
-		InstallationID int64  `yaml:"installationID,omitempty"`
-		AppID          int64  `yaml:"appID"`
-	} `yaml:"github"`
 	Plugins plugin.Config
 }

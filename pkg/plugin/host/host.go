@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,7 +39,9 @@ type Config []Registration
 type Plugins struct {
 	Errchan chan Error
 
-	stopchan     chan struct{}
+	stopchan chan struct{}
+	stopwg   sync.WaitGroup
+
 	sockets      map[string]string
 	werftService v1.WerftServiceServer
 	repoProvider *compoundRepositoryProvider
@@ -51,8 +54,8 @@ func (p *Plugins) RepositoryProvider() werft.RepositoryProvider {
 
 // Stop stops all plugins
 func (p *Plugins) Stop() {
-	// TODO: backsync stopping using waitgroup
 	close(p.stopchan)
+	p.stopwg.Wait()
 
 	for _, s := range p.sockets {
 		os.Remove(s)
@@ -117,9 +120,13 @@ func (p *Plugins) socketForIntegrationPlugin() (string, error) {
 		}
 		delete(p.sockets, string(common.TypeIntegration))
 	}()
+
 	go func() {
+		p.stopwg.Add(1)
+		defer p.stopwg.Done()
+
 		<-p.stopchan
-		s.GracefulStop()
+		s.Stop()
 	}()
 
 	p.sockets[string(common.TypeIntegration)] = socketFN
@@ -229,7 +236,11 @@ func (p *Plugins) startPlugin(reg Registration) error {
 			stderr.Close()
 		}()
 		go func() {
+			p.stopwg.Add(1)
+			defer p.stopwg.Done()
+
 			<-p.stopchan
+			pluginLog.Info("stopping plugin")
 			mayFail = true
 			if cmd.Process != nil {
 				cmd.Process.Kill()
@@ -253,12 +264,12 @@ func (p *Plugins) startPlugin(reg Registration) error {
 
 func (p *Plugins) tryAndRegisterRepoProvider(ctx context.Context, pluginLog *log.Entry, socket string) error {
 	var (
-		t    = time.NewTicker(2 * time.Second)
+		t        = time.NewTicker(2 * time.Second)
 		firstrun = make(chan struct{}, 1)
-		conn *grpc.ClientConn
-		err  error
+		conn     *grpc.ClientConn
+		err      error
 	)
-	firstrun<-struct{}{}
+	firstrun <- struct{}{}
 
 	defer t.Stop()
 	for {
@@ -281,11 +292,11 @@ func (p *Plugins) tryAndRegisterRepoProvider(ctx context.Context, pluginLog *log
 		host, err := client.RepoHost(rctx, &common.RepoHostRequest{})
 		cancel()
 		if err != nil {
+			conn.Close()
 			pluginLog.WithError(err).Debug("cannot connect to socket (yet)")
 			continue
 		}
 
-		defer conn.Close()
 		pluginLog.WithField("host", host.Host).Info("registered repo provider")
 		p.repoProvider.registerProvider(host.Host, &pluginHostProvider{client})
 		return nil

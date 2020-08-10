@@ -20,6 +20,9 @@ service RepositoryPlugin {
     // Download downloads a file from the repository.
     rpc Download(DownloadRequest) returns (DownloadResponse) {};
 
+    // ListFiles lists all files in a directory.
+    rpc ListFiles(ListFilesRequest) returns (ListFilesReponse) {};
+
     // GetRemoteAnnotations extracts werft annotations form information associated
     // with a particular commit, e.g. the commit message, PRs or merge requests.
     // Implementors can expect the revision of the repo object to be set.
@@ -55,6 +58,15 @@ message DownloadRequest {
 
 message DownloadResponse {
     bytes content = 1;
+}
+
+message ListFilesRequest {
+    v1.Repository repository = 1;
+    string path = 2;
+}
+
+message ListFilesReponse {
+    repeated string paths = 1;
 }
 
 message GetRemoteAnnotationsRequest {
