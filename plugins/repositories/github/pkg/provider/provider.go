@@ -206,6 +206,25 @@ func (s *GithubRepoServer) Download(ctx context.Context, req *common.DownloadReq
 	}, nil
 }
 
+// ListFiles lists all files in a directory.
+func (s *GithubRepoServer) ListFiles(ctx context.Context, req *common.ListFilesRequest) (*common.ListFilesReponse, error) {
+	_, dc, _, err := s.Client.Repositories.GetContents(ctx, req.Repository.Owner, req.Repository.Repo, req.Path, &github.RepositoryContentGetOptions{
+		Ref: req.Repository.Revision,
+	})
+	if err != nil {
+		return nil, translateGitHubToGRPCError(err, req.Repository.Revision, req.Repository.Ref)
+	}
+
+	res := make([]string, 0, len(dc))
+	for _, cnt := range dc {
+		if cnt.GetType() != "file" {
+			continue
+		}
+		res = append(res, cnt.GetPath())
+	}
+	return &common.ListFilesReponse{Paths: res}, nil
+}
+
 func translateGitHubToGRPCError(err error, rev, ref string) error {
 	if gherr, ok := err.(*github.ErrorResponse); ok && gherr.Response.StatusCode == 422 {
 		msg := fmt.Sprintf("revision %s", rev)

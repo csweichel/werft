@@ -5,6 +5,7 @@ tasks:
       sleep 10
       echo CREATE DATABASE werft | psql -f -
       mkdir /tmp/logs
+      find . -name "go.mod" | while read f; do echo cd $(dirname $f); echo go get -v ./...; echo cd -; done | sh
       unset PGHOSTADDR
       gp await-port 3000
       go run server.go run testdata/in-gitpod-config.yaml --debug-webui-proxy http://localhost:3000

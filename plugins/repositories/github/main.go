@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -25,6 +26,7 @@ func main() {
 	plugin.Serve(&Config{},
 		plugin.WithRepositoryPlugin(&githubRepoPlugin{}),
 	)
+	fmt.Fprintln(os.Stderr, "shutting down")
 }
 
 type githubRepoPlugin struct{}

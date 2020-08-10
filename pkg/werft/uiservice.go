@@ -10,14 +10,13 @@ import (
 	"github.com/csweichel/werft/pkg/api/repoconfig"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/reporef"
-	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
 // UIService implements api/v1/WerftUIServer
 type UIService struct {
-	Github   *github.Client
+	RepositoryProvider RepositoryProvider
 	Repos    []string
 	Readonly bool
 
@@ -26,9 +25,9 @@ type UIService struct {
 }
 
 // NewUIService produces a new UI service and initializes its repo list
-func NewUIService(gh *github.Client, repos []string, readonly bool) (*UIService, error) {
+func NewUIService(repoprov RepositoryProvider, repos []string, readonly bool) (*UIService, error) {
 	r := &UIService{
-		Github:   gh,
+		RepositoryProvider:   repoprov,
 		Repos:    repos,
 		Readonly: readonly,
 	}
@@ -51,45 +50,40 @@ func (uis *UIService) updateJobSpecs() error {
 			log.WithError(err).WithField("repo", r).Warn("unable to download job spec while updating UI")
 			continue
 		}
-		if repo.Ref != "" && repo.Revision == "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-			repo.Revision, _, err = uis.Github.Repositories.GetCommitSHA1(ctx, repo.Owner, repo.Repo, repo.Ref, "")
-			cancel()
-
-			if err != nil {
-				log.WithError(err).WithField("repo", r).Warn("cannot resolve ref to revision")
-				continue
-			}
-		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-		_, dc, _, err := uis.Github.Repositories.GetContents(ctx, repo.Owner, repo.Repo, ".werft", &github.RepositoryContentGetOptions{
-			Ref: repo.Revision,
-		})
-		cancel()
+		err = uis.RepositoryProvider.Resolve(ctx, repo)
 		if err != nil {
-			log.WithError(err).WithField("repo", repo).Warn("unable to download job spec while updating UI")
+			cancel()
+			log.WithError(err).WithField("repo", r).Warn("unable to download job spec while updating UI")
 			continue
 		}
 
-		for _, f := range dc {
-			if f.GetType() != "file" {
-				continue
-			}
+		fp, err := uis.RepositoryProvider.FileProvider(ctx, repo)
+		if err != nil {
+			cancel()
+			log.WithError(err).WithField("repo", r).Warn("unable to download job spec while updating UI")
+			continue
+		}
+		paths, err := fp.ListFiles(ctx, ".werft")
+		if err != nil {
+			cancel()
+			log.WithError(err).WithField("repo", r).Warn("unable to download job spec while updating UI")
+			continue
+		}
+		cancel()
 
-			fn := f.GetName()
-			if !strings.HasSuffix(fn, "yaml") || f.GetPath() == PathWerftConfig {
+		for _, fn := range paths {
+			if !strings.HasSuffix(fn, "yaml") || fn == PathWerftConfig {
 				continue
 			}
 			jobName := strings.TrimSuffix(fn, filepath.Ext(fn))
 
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-			fc, err := uis.Github.Repositories.DownloadContents(ctx, repo.Owner, repo.Repo, f.GetPath(), &github.RepositoryContentGetOptions{
-				Ref: repo.Revision,
-			})
+			fc, err := fp.Download(ctx, fn)
 			cancel()
 			if err != nil {
-				log.WithError(err).WithField("repo", repo).WithField("path", f.GetPath()).Warn("unable to download job spec while updating UI")
+				log.WithError(err).WithField("repo", repo).WithField("path", fn).Warn("unable to download job spec while updating UI")
 				continue
 			}
 
@@ -97,7 +91,7 @@ func (uis *UIService) updateJobSpecs() error {
 			err = yaml.NewDecoder(fc).Decode(&jobspec)
 			fc.Close()
 			if err != nil {
-				log.WithError(err).WithField("repo", repo).WithField("path", f.GetPath()).Warn("unable to unmarshal job spec while updating UI")
+				log.WithError(err).WithField("repo", repo).WithField("path", fn).Warn("unable to unmarshal job spec while updating UI")
 				continue
 			}
 
@@ -119,7 +113,7 @@ func (uis *UIService) updateJobSpecs() error {
 					Revision: repo.Revision,
 				},
 				Name:        jobName,
-				Path:        f.GetPath(),
+				Path:        fn,
 				Description: jobspec.Desc,
 				Arguments:   args,
 			}

@@ -87,6 +87,11 @@ type ContentProvider interface {
 type FileProvider interface {
 	// Download provides access to a single file
 	Download(ctx context.Context, path string) (io.ReadCloser, error)
+
+	// ListFiles lists all files in a directory. If path is not a directory
+	// an error may be returned or just an empty list of paths. The paths returned
+	// are all relative to the repo root.
+	ListFiles(ctx context.Context, path string) (paths []string, err error)
 }
 
 // LocalContentProvider provides access to local files

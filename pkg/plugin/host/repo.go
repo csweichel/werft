@@ -90,11 +90,12 @@ type pluginHostProvider struct {
 }
 
 var _ werft.RepositoryProvider = &pluginHostProvider{}
+var _ werft.FileProvider = &pluginContentProvider{}
 
 // Resolve resolves the repo's revision based on its ref(erence).
 // If the revision is already set, this operation does nothing.
 func (p *pluginHostProvider) Resolve(ctx context.Context, repo *v1.Repository) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	resp, err := p.C.Resolve(ctx, &common.ResolveRequest{
@@ -110,7 +111,7 @@ func (p *pluginHostProvider) Resolve(ctx context.Context, repo *v1.Repository) e
 // RemoteAnnotations extracts werft annotations form information associated
 // with a particular commit, e.g. the commit message, PRs or merge requests.
 func (p *pluginHostProvider) RemoteAnnotations(ctx context.Context, repo *v1.Repository) (annotations map[string]string, err error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	resp, err := p.C.GetRemoteAnnotations(ctx, &common.GetRemoteAnnotationsRequest{Repository: repo})
@@ -174,4 +175,19 @@ func (c *pluginContentProvider) Download(ctx context.Context, path string) (io.R
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(resp.Content)), nil
+}
+
+func (c *pluginContentProvider) ListFiles(ctx context.Context, path string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := c.C.ListFiles(ctx, &common.ListFilesRequest{
+		Repository: c.Repo,
+		Path:       path,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Paths, nil
 }
