@@ -19,6 +19,11 @@ service RepositoryPlugin {
 
     // Download downloads a file from the repository.
     rpc Download(DownloadRequest) returns (DownloadResponse) {};
+
+    // GetRemoteAnnotations extracts werft annotations form information associated
+    // with a particular commit, e.g. the commit message, PRs or merge requests.
+    // Implementors can expect the revision of the repo object to be set.
+    rpc GetRemoteAnnotations(GetRemoteAnnotationsRequest) returns (GetRemoteAnnotationsResponse) {};
 }
 
 message RepoHostRequest {}
@@ -50,4 +55,12 @@ message DownloadRequest {
 
 message DownloadResponse {
     bytes content = 1;
+}
+
+message GetRemoteAnnotationsRequest {
+    v1.Repository repository = 1;
+}
+
+message GetRemoteAnnotationsResponse {
+    map<string, string> annotations = 1;
 }

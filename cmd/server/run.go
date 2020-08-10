@@ -166,21 +166,7 @@ var runCmd = &cobra.Command{
 			Jobs:         jobStore,
 			Groups:       nrGroups,
 			Executor:     exec,
-			RepoProvider: make(map[string]werft.RepositoryProvider),
 			Cutter:       logcutter.DefaultCutter,
-			GitHub: werft.GitHubSetup{
-				WebhookSecret: []byte(cfg.GitHub.WebhookSecret),
-				Client:        ghClient,
-				Auth: func(ctx context.Context) (user string, pass string, err error) {
-					tkn, err := ghtr.Token(ctx)
-					if err != nil {
-						return
-					}
-					user = "x-access-token"
-					pass = tkn
-					return
-				},
-			},
 			Config: cfg.Werft,
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
@@ -192,8 +178,7 @@ var runCmd = &cobra.Command{
 		}
 
 		plugins, err := plugin.Start(cfg.Plugins, service, func(host string, provider werft.RepositoryProvider) {
-			// TODO(csweichel): properly synchronize this stuff
-			service.RepoProvider[host] = provider
+			service.RegisterRepoProvider(host, provider)
 		})
 		if err != nil {
 			log.WithError(err).Fatal("cannot start plugins")
@@ -322,7 +307,6 @@ func startWeb(service *werft.Service, uiservice v1.WerftUIServer, addr string, o
 	grpcWebServer := grpcweb.WrapServer(grpcServer)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/github/app", service.HandleGithubWebhook)
 	mux.HandleFunc("/version", serveVersion)
 	mux.Handle("/plugins/", http.StripPrefix("/plugins/", opts.Plugins))
 	mux.Handle("/", hstsHandler(

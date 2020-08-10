@@ -37,6 +37,20 @@ func (p *pluginHostProvider) Resolve(repo *v1.Repository) error {
 	return nil
 }
 
+// RemoteAnnotations extracts werft annotations form information associated
+// with a particular commit, e.g. the commit message, PRs or merge requests.
+func (p *pluginHostProvider) RemoteAnnotations(repo *v1.Repository) (annotations map[string]string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := p.C.GetRemoteAnnotations(ctx, &common.GetRemoteAnnotationsRequest{Repository: repo})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Annotations, nil
+}
+
 // ContentProvider produces a content provider for a particular repo
 func (p *pluginHostProvider) ContentProvider(repo *v1.Repository) (werft.ContentProvider, error) {
 	return &pluginContentProvider{
