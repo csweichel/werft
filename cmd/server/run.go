@@ -162,33 +162,34 @@ var runCmd = &cobra.Command{
 		}
 		exec.Run()
 		service := &werft.Service{
-			Logs:         logStore,
-			Jobs:         jobStore,
-			Groups:       nrGroups,
-			Executor:     exec,
-			Cutter:       logcutter.DefaultCutter,
-			Config: cfg.Werft,
+			Logs:     logStore,
+			Jobs:     jobStore,
+			Groups:   nrGroups,
+			Executor: exec,
+			Cutter:   logcutter.DefaultCutter,
+			Config:   cfg.Werft,
+			RepositoryProvider: werft.NoopRepositoryProvider{},
 		}
 		if val, _ := cmd.Flags().GetString("debug-webui-proxy"); val != "" {
 			cfg.Werft.DebugProxy = val
 		}
-		err = service.Start()
-		if err != nil {
-			log.WithError(err).Fatal("cannot start service")
-		}
 
-		plugins, err := plugin.Start(cfg.Plugins, service, func(host string, provider werft.RepositoryProvider) {
-			service.RegisterRepoProvider(host, provider)
-		})
+		plugins, err := plugin.Start(cfg.Plugins, service)
 		if err != nil {
 			log.WithError(err).Fatal("cannot start plugins")
 		}
 		go func() {
 			for e := range plugins.Errchan {
-				log.WithError(e.Err).WithField("plugin", e.Reg.Name).Warn("plugin error")
+				log.WithError(e.Err).WithField("plugin", e.Reg.Name).Fatal("plugin error")
 			}
 		}()
 		defer plugins.Stop()
+		service.RepositoryProvider = plugins.RepositoryProvider()
+
+		err = service.Start()
+		if err != nil {
+			log.WithError(err).Fatal("cannot start service")
+		}
 
 		grpcOpts := []grpc.ServerOption{
 			// We don't know how good our cients are at closing connections. If they don't close them properly

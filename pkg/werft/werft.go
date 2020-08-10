@@ -77,17 +77,17 @@ type jobLog struct {
 
 // Service ties everything together
 type Service struct {
-	Logs     store.Logs
-	Jobs     store.Jobs
-	Groups   store.NumberGroup
-	Executor *executor.Executor
-	Cutter   logcutter.Cutter
+	Logs               store.Logs
+	Jobs               store.Jobs
+	Groups             store.NumberGroup
+	Executor           *executor.Executor
+	Cutter             logcutter.Cutter
+	RepositoryProvider RepositoryProvider
 
 	Config Config
 
-	mu           sync.RWMutex
-	logListener  map[string]*jobLog
-	repoProvider map[string]RepositoryProvider
+	mu          sync.RWMutex
+	logListener map[string]*jobLog
 
 	events  emitter.Emitter
 	metrics struct {
@@ -99,24 +99,6 @@ type Service struct {
 // GitCredentialHelper can authenticate provide authentication credentials for a repository
 // TOOD(csweichel): move out of this package
 type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
-
-// RegisterRepoProvider registers a repository provider for a repo host
-func (srv *Service) RegisterRepoProvider(host string, prov RepositoryProvider) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-
-	if srv.repoProvider == nil {
-		srv.repoProvider = make(map[string]RepositoryProvider)
-	}
-	srv.repoProvider[host] = prov
-}
-
-func (srv *Service) getRepoProvider(host string) RepositoryProvider {
-	srv.mu.RLock()
-	defer srv.mu.RUnlock()
-
-	return srv.repoProvider[host]
-}
 
 // Start sets up everything to run this werft instance, including executor config
 func (srv *Service) Start() error {
@@ -150,6 +132,8 @@ func (srv *Service) Start() error {
 	if err != nil {
 		return xerrors.Errorf("cannot restore waiting jobs: %w", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	for _, j := range waitingJobs {
 		cancelJob := func(err error) {
 			log.WithError(err).Errorf("cannot restore waiting job %s", j.Name)
@@ -171,12 +155,7 @@ func (srv *Service) Start() error {
 		}
 
 		md := j.Metadata
-		repo := srv.getRepoProvider(md.Repository.Host)
-		if repo == nil {
-			cancelJob(fmt.Errorf("no repo provider found for %s", md.Repository.Host))
-			continue
-		}
-		cp, err := repo.ContentProvider(md.Repository)
+		cp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
 		if err != nil {
 			cancelJob(err)
 			continue
@@ -319,11 +298,6 @@ func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 	err = srv.Jobs.Store(context.Background(), *s)
 	if err != nil {
 		log.WithError(err).WithField("name", s.Name).Warn("cannot store job")
-	}
-
-	err = srv.updateGitHubStatus(s)
-	if err != nil {
-		log.WithError(err).WithField("name", s.Name).Warn("cannot update GitHub status")
 	}
 
 	// tell our Listen subscribers about this change
