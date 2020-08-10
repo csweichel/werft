@@ -13,6 +13,7 @@ import (
 	"time"
 
 	termtohtml "github.com/buildkite/terminal-to-html"
+	"github.com/csweichel/werft/pkg/api/repoconfig"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/filterexpr"
 	"github.com/csweichel/werft/pkg/logcutter"
@@ -21,8 +22,10 @@ import (
 	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
+	"golang.org/x/xerrors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopkg.in/yaml.v3"
 )
 
 // StartLocalJob starts a job whoose content is uploaded
@@ -142,7 +145,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	if req.Metadata.Repository.Host == "" {
-		req.Metadata.Repository.Host = defaultGitHubHost
+		req.Metadata.Repository.Host = "github.com"
 	}
 
 	return srv.StartJob(ctx, &v1.StartJobRequest{
@@ -156,33 +159,25 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 
 // StartJob starts a new job based on its specification.
 func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
-	var (
-		repoHost = req.Metadata.Repository.Host
-		repo = srv.getRepoProvider(repoHost)
-	)
-	if repo == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unsupported repo host: %v", repoHost)
-	}
-
 	md := req.Metadata
-	err = repo.Resolve(md.Repository)
+	err = srv.RepositoryProvider.Resolve(ctx, md.Repository)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot resolve request: %q", err)
 	}
 
-	atns, err := repo.RemoteAnnotations(md.Repository)
+	atns, err := srv.RepositoryProvider.RemoteAnnotations(ctx, md.Repository)
 	if err != nil {
 		return nil, err
 	}
 	for k, v := range atns {
 		md.Annotations = append(md.Annotations, &v1.Annotation{
-			Key: k,
+			Key:   k,
 			Value: v,
 		})
 	}
 
 	var cp ContentProvider
-	cp, err = repo.ContentProvider(md.Repository)
+	cp, err = srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
 	}
@@ -199,7 +194,7 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 	}
 
 	var fp FileProvider
-	fp, err = repo.FileProvider(md.Repository)
+	fp, err = srv.RepositoryProvider.FileProvider(ctx, md.Repository)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot produce file provider: %q", err)
 	}
@@ -281,6 +276,22 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 	}, nil
 }
 
+func getRepoCfg(ctx context.Context, fp FileProvider) (*repoconfig.C, error) {
+	// download werft config from branch
+	werftYAML, err := fp.Download(ctx, PathWerftConfig)
+	if err != nil {
+		// TODO handle repos without werft config more gracefully
+		return nil, xerrors.Errorf("cannot get repo config: %w", err)
+	}
+	var repoCfg repoconfig.C
+	err = yaml.NewDecoder(werftYAML).Decode(&repoCfg)
+	if err != nil {
+		return nil, xerrors.Errorf("cannot unmarshal repo config: %w", err)
+	}
+
+	return &repoCfg, nil
+}
+
 func cleanupPodName(name string) string {
 	name = strings.TrimSpace(name)
 	if len(name) == 0 {
@@ -355,11 +366,7 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 
 	md := oldJobStatus.Metadata
 	md.Finished = nil
-	repo := srv.getRepoProvider(md.Repository.Host)
-	if repo == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "no repo provider found for %s", md.Repository.Host)
-	}
-	cp, err := repo.ContentProvider(md.Repository)
+	cp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

@@ -11,12 +11,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
-
-	"github.com/csweichel/werft/pkg/werft"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/plugin/common"
+	"github.com/csweichel/werft/pkg/werft"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
@@ -38,10 +38,15 @@ type Config []Registration
 type Plugins struct {
 	Errchan chan Error
 
-	stopchan         chan struct{}
-	sockets          map[string]string
-	repoRegistration RepoRegistrationCallback
-	werftService     v1.WerftServiceServer
+	stopchan     chan struct{}
+	sockets      map[string]string
+	werftService v1.WerftServiceServer
+	repoProvider *compoundRepositoryProvider
+}
+
+// RepositoryProvider provides access to all repo providers contributed via plugins
+func (p *Plugins) RepositoryProvider() werft.RepositoryProvider {
+	return p.repoProvider
 }
 
 // Stop stops all plugins
@@ -60,25 +65,22 @@ type Error struct {
 	Reg *Registration
 }
 
-// RepoRegistrationCallback is called when a plugin registers a repo provider
-type RepoRegistrationCallback func(host string, repo werft.RepositoryProvider)
-
 // Start starts all configured plugins
-func Start(cfg Config, srv v1.WerftServiceServer, repoRegistration RepoRegistrationCallback) (*Plugins, error) {
+func Start(cfg Config, srv v1.WerftServiceServer) (*Plugins, error) {
 	errchan, stopchan := make(chan Error), make(chan struct{})
 
 	plugins := &Plugins{
-		Errchan:          errchan,
-		stopchan:         stopchan,
-		sockets:          make(map[string]string),
-		repoRegistration: repoRegistration,
-		werftService:     srv,
+		Errchan:      errchan,
+		stopchan:     stopchan,
+		sockets:      make(map[string]string),
+		werftService: srv,
+		repoProvider: &compoundRepositoryProvider{},
 	}
 
 	for _, pr := range cfg {
 		err := plugins.startPlugin(pr)
 		if err != nil {
-			return nil, xerrors.Errorf("cannot start integration plugin %s: %w", pr.Name, err)
+			return nil, xerrors.Errorf("cannot start plugin %s: %w", pr.Name, err)
 		}
 	}
 
@@ -204,6 +206,7 @@ func (p *Plugins) startPlugin(reg Registration) error {
 		cmd.Env = env
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		err = cmd.Start()
 		if err != nil {
 			stdout.Close()
@@ -234,30 +237,48 @@ func (p *Plugins) startPlugin(reg Registration) error {
 		}()
 
 		if t == common.TypeRepository {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
 			// repo plugins register repo provider at some point - listen for that
-			go p.tryAndRegisterRepoProvider(pluginLog, socket)
+			err := p.tryAndRegisterRepoProvider(ctx, pluginLog, socket)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (p *Plugins) tryAndRegisterRepoProvider(pluginLog *log.Entry, socket string) {
+func (p *Plugins) tryAndRegisterRepoProvider(ctx context.Context, pluginLog *log.Entry, socket string) error {
 	var (
 		t    = time.NewTicker(2 * time.Second)
+		firstrun = make(chan struct{}, 1)
 		conn *grpc.ClientConn
 		err  error
 	)
+	firstrun<-struct{}{}
+
 	defer t.Stop()
 	for {
+		select {
+		case <-firstrun:
+		case <-t.C:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-p.stopchan:
+			return nil
+		}
+
 		conn, err = grpc.Dial("unix://"+socket, grpc.WithInsecure())
 		if err != nil {
 			pluginLog.Debug("cannot connect to socket (yet)")
 			continue
 		}
 		client := common.NewRepositoryPluginClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		host, err := client.RepoHost(ctx, &common.RepoHostRequest{})
+		rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		host, err := client.RepoHost(rctx, &common.RepoHostRequest{})
 		cancel()
 		if err != nil {
 			pluginLog.WithError(err).Debug("cannot connect to socket (yet)")
@@ -266,14 +287,7 @@ func (p *Plugins) tryAndRegisterRepoProvider(pluginLog *log.Entry, socket string
 
 		defer conn.Close()
 		pluginLog.WithField("host", host.Host).Info("registered repo provider")
-		p.repoRegistration(host.Host, &pluginHostProvider{client})
-		<-p.stopchan
-
-		select {
-		case <-t.C:
-			continue
-		case <-p.stopchan:
-			return
-		}
+		p.repoProvider.registerProvider(host.Host, &pluginHostProvider{client})
+		return nil
 	}
 }

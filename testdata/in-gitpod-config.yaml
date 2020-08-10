@@ -35,7 +35,7 @@ plugins:
     command:
     - sh
     - -c
-    - go run plugins/repositories/github/main.go $*
+    - cd plugins/repositories/github; go build; cd -; plugins/repositories/github/github $*
     - -s
   - name: "github-trigger"
     type:
