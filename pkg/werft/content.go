@@ -5,12 +5,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"fmt"
 	"io"
 	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
-	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
@@ -206,79 +204,6 @@ func (t *tarWithReadyFile) Read(p []byte) (n int, err error) {
 		t.remainder = buf.Bytes()
 	}
 	return
-}
-
-// GitHubContentProvider provides access to GitHub content
-type GitHubContentProvider struct {
-	Owner    string
-	Repo     string
-	Revision string
-	Client   *github.Client
-	Auth     GitCredentialHelper
-}
-
-// GitHubContentProviderSideload enables side-loading of files after a Git clone
-type GitHubContentProviderSideload struct {
-	TarStream io.Reader
-
-	Namespace  string
-	Kubeconfig *rest.Config
-	Clientset  kubernetes.Interface
-}
-
-// Download provides access to a single file
-func (gcp *GitHubContentProvider) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	return gcp.Client.Repositories.DownloadContents(ctx, gcp.Owner, gcp.Repo, path, &github.RepositoryContentGetOptions{
-		Ref: gcp.Revision,
-	})
-}
-
-// InitContainer builds the container that will initialize the job content.
-func (gcp *GitHubContentProvider) InitContainer() ([]corev1.Container, error) {
-	var (
-		user string
-		pass string
-		err  error
-	)
-	if gcp.Auth != nil {
-		user, pass, err = gcp.Auth(context.Background())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	cloneCmd := "git clone"
-	if user != "" || pass != "" {
-		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
-	}
-	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, gcp.Owner, gcp.Repo, gcp.Revision)
-
-	return []corev1.Container{
-		corev1.Container{
-			Name:  "github-checkout",
-			Image: "alpine/git:latest",
-			Command: []string{
-				"sh", "-c",
-				cloneCmd,
-			},
-			Env: []corev1.EnvVar{
-				corev1.EnvVar{
-					Name:  "GHUSER_SECRET",
-					Value: user,
-				},
-				corev1.EnvVar{
-					Name:  "GHPASS_SECRET",
-					Value: pass,
-				},
-			},
-			WorkingDir: "/workspace",
-		},
-	}, nil
-}
-
-// Serve provides additional services required during initialization.
-func (gcp *GitHubContentProvider) Serve(jobName string) error {
-	return nil
 }
 
 // SideloadingContentProvider first runs the delegate and then sideloads files

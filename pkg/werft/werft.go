@@ -96,10 +96,6 @@ type Service struct {
 	}
 }
 
-// GitCredentialHelper can authenticate provide authentication credentials for a repository
-// TOOD(csweichel): move out of this package
-type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
-
 // Start sets up everything to run this werft instance, including executor config
 func (srv *Service) Start() error {
 	if srv.logListener == nil {
