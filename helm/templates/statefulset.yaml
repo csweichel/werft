@@ -31,9 +31,9 @@ spec:
     spec:
       serviceAccountName: {{ include "werft.fullname" . }}
       volumes:
-      - name: github
+      - name: secrets
         secret:
-          secretName: {{ include "werft.fullname" . }}-github
+          secretName: {{ include "werft.fullname" . }}-secret
       - name: config
         configMap:
           name: {{ include "werft.fullname" . }}-config
@@ -63,8 +63,8 @@ spec:
           - name: config
             mountPath: "/mnt/config"
             readOnly: true
-          - name: github
-            mountPath: "/mnt/github"
+          - name: secrets
+            mountPath: "/mnt/secrets"
             readOnly: true
           - name: logs
             mountPath: "/mnt/logs"
