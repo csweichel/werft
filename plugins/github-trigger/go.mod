@@ -1,12 +1,13 @@
-module github.com/csweichel/werft/integrations/github
+module github.com/csweichel/werft/plugins/github-trigger
 
 go 1.13
 
-replace github.com/csweichel/werft => ../../..
+replace github.com/csweichel/werft => ../..
 
 require (
-	github.com/bradleyfalzon/ghinstallation v1.0.0
+	github.com/bradleyfalzon/ghinstallation v1.1.1
 	github.com/csweichel/werft v0.0.0-00010101000000-000000000000
+	github.com/google/go-github/v28 v28.1.1 // indirect
 	github.com/google/go-github/v31 v31.0.0
 	github.com/sirupsen/logrus v1.4.2
 	google.golang.org/grpc v1.30.0

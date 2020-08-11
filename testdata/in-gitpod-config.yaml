@@ -35,7 +35,7 @@ plugins:
     command:
     - sh
     - -c
-    - cd plugins/repositories/github; go build; cd -; plugins/repositories/github/github $*
+    - cd plugins/github-repo; go build; cd -; plugins/github-repo/github-repo $*
     - -s
   - name: "github-trigger"
     type:
@@ -49,7 +49,7 @@ plugins:
     command:
     - sh
     - -c
-    - go run plugins/integrations/github-trigger/main.go $*
+    - go run plugins/github-trigger/main.go $*
     - -s
   - name: "example"
     type:
@@ -59,7 +59,7 @@ plugins:
     command:
     - sh
     - -c
-    - cd plugins/integrations/integration-example && go run main.go $*
+    - cd plugins/integration-example && go run main.go $*
     - -s
   - name: "webhook"
     type:
@@ -74,7 +74,7 @@ plugins:
     command:
     - sh
     - -c
-    - cd plugins/integrations/webhook && go run main.go $*
+    - cd plugins/webhook && go run main.go $*
     - -s
   - name: "cron"
     type:
@@ -86,5 +86,5 @@ plugins:
     command:
     - sh
     - -c
-    - cd plugins/integrations/cron && go run main.go $*
+    - cd plugins/cron && go run main.go $*
     - -s

@@ -6,13 +6,22 @@ require (
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Masterminds/sprig/v3 v3.0.2
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+<<<<<<< HEAD
 	github.com/bradleyfalzon/ghinstallation v1.0.0
+=======
+	github.com/bradleyfalzon/ghinstallation v1.1.1 // indirect
+>>>>>>> c6f4db9... mp
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang-migrate/migrate/v4 v4.7.1
 	github.com/golang/protobuf v1.3.5
+<<<<<<< HEAD
 	github.com/google/go-cmp v0.5.0
 	github.com/google/go-github/v31 v31.0.0
+=======
+	github.com/google/go-cmp v0.5.0 // indirect
+	github.com/google/go-github/v31 v31.0.0 // indirect
+>>>>>>> c6f4db9... mp
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/improbable-eng/grpc-web v0.11.0
 	github.com/lib/pq v1.2.0
