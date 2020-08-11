@@ -1,11 +1,15 @@
-github:
-  webhookSecret: my-webhook-secret
-  privateKeyPath: secrets/github-app.pem
-  appID: 000000
-  installationID: 0000000
+repositories:
+  github:
+    webhookSecret: my-webhook-secret
+    privateKeyPath: secrets/github-app.pem
+    appID: 000000
+    installationID: 0000000
 
 config:
   baseURL: https://demo.werft.dev
+  # Werft can run its web-UI readonly, s.t. no one can directly start jobs.
+  # Set this field to true to enable this mode.
+  webReadOnly: false
   ## By default Werft uses an empty-dir to share the workspace between the init container
   ## and actual job containers. If you want to use a HostPath mount instead (e.g. for performance reasons),
   ## set the path here. Werft will clean up after a job has finished and remove the workspaces
@@ -14,16 +18,15 @@ config:
   timeouts:
     preperation: 10m
     total: 60m
-  # additional:
-  #   plugins:
-  #     - name: "cron"
-  #       type:
-  #       - integration
-  #       config:
-  #         tasks:
-  #         - spec: "30 21 * * *"
-  #           repo: github.com/typefox/gitpod:master
-  #           jobPath: .werft/wipe-devstaging.yaml
+  # plugins:
+  #   - name: "cron"
+  #     type:
+  #     - integration
+  #     config:
+  #       tasks:
+  #       - spec: "30 21 * * *"
+  #         repo: github.com/typefox/gitpod:master
+  #         jobPath: .werft/wipe-devstaging.yaml
 
 replicaCount: 1
 

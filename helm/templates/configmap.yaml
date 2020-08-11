@@ -12,13 +12,16 @@ data:
     werft:
       baseURL: {{ .Values.config.baseURL }}
       workspaceNodePathPrefix: {{ .Values.config.workspaceNodePathPrefix }}
+    service:
+      webReadOnly: {{ .Values.config.webReadOnly }}
+      webPort: 8080
+      grpcPort: 7777
+      prometheusPort: 9500
+      pprofPort: 6060
 {{- if .Values.config.jobSpecRepos }}
       jobSpecRepos:
 {{ toYaml .Values.config.jobSpecRepos | indent 8 }}
 {{- end }}
-    service:
-      webPort: 8080
-      grpcPort: 7777
     executor:
       namespace: {{ .Release.Namespace }}
       preperationTimeout: {{ .Values.config.timeouts.perperation | default "10m" }}
@@ -26,11 +29,24 @@ data:
     storage:
       logsPath: /mnt/logs
       jobsConnectionString: {{ .Values.config.db | default (printf "host=werft-postgresql dbname=%s user=%s password=%s connect_timeout=5 sslmode=disable" .Values.postgresql.postgresqlDatabase .Values.postgresql.postgresqlUsername .Values.postgresql.postgresqlPassword) }}
-    github:
-      webhookSecret: {{ .Values.github.webhookSecret }}
-      privateKeyPath: /mnt/github/github-app.pem
-      appID: {{ .Values.github.appID }}
-      installationID: {{ .Values.github.installationID }}
-{{- if .Values.config.additional }}
-{{ toYaml .Values.config.additional | indent 4 }}
+    plugins:
+{{- if .Values.repositories.github }}
+      - name: "github-repo"
+        type:
+        - repository
+        config:
+          privateKeyPath: /mnt/secrets/github-app.pem
+          appID: {{ .Values.repositories.github.appID }}
+          installationID: {{ .Values.repositories.github.installationID }}
+      - name: "github-trigger"
+        type:
+        - integration
+        config:
+          webhookSecret: {{ .Values.repositories.github.webhookSecret }}
+          privateKeyPath: /mnt/secrets/github-app.pem
+          appID: {{ .Values.repositories.github.appID }}
+          installationID: {{ .Values.repositories.github.installationID }}
+{{- end }}
+{{- if .Values.config.plugins }}
+{{ toYaml .Values.config.plugins | indent 6 }}
 {{- end }}
