@@ -1,4 +1,4 @@
-module github.com/csweichel/werft/plugins/github-trigger
+module github.com/csweichel/werft/plugins/github-integration
 
 go 1.13
 

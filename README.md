@@ -46,12 +46,15 @@ When creating the app, please use following values:
 
 | Parameter | Value | Description |
 | --------- | ----------- | ------- |
-| `User authorization callback URL` | `https://your-werft-installation.com/github/app` | The `/github/app` path is important, the domain should match your installation's `config.baseURL` |
-| `Webhook URL` | `https://your-werft-installation.com/github/app` | The `/github/app` path is important, the domain should match your installation's `config.baseURL` |
+| `User authorization callback URL` | `https://your-werft-installation.com/plugins/github-integration` | The `/plugins/github-integration` path is important, the domain should match your installation's `config.baseURL` |
+| `Webhook URL` | `https://your-werft-installation.com/plugins/github-integration` | The `/plugins/github-integration` path is important, the domain should match your installation's `config.baseURL` |
 | `Permissions` | Contents: Read-Only | |
 | | Commit Status: Read & Write | |
+| | Issues: Read & Write | |
+| | Pull Requests: Read & Write | |
 | `Events` | Meta | |
 | | Push | |
+| | Issue Comments | |
 
 ### Configuration
 

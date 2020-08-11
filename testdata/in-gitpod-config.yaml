@@ -37,7 +37,7 @@ plugins:
     - -c
     - cd plugins/github-repo; go build; cd -; plugins/github-repo/github-repo $*
     - -s
-  - name: "github-trigger"
+  - name: "github-integration"
     type:
     - integration
     config:
@@ -52,7 +52,7 @@ plugins:
     command:
     - sh
     - -c
-    - go run plugins/github-trigger/main.go $*
+    - go run plugins/github-integration/main.go $*
     - -s
   - name: "example"
     type:

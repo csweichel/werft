@@ -419,5 +419,5 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	}
 
 	feedback.Success = true
-	feedback.Message = "started the job as " + resp.GetStatus().GetName()
+	feedback.Message = fmt.Sprintf("started the job as [%s](%s/job/%s)", resp.Status.Name, p.Config.BaseURL, resp.Status.Name)
 }
