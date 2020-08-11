@@ -2,11 +2,11 @@
     "folders": [
         {"path": ""},
         {"path": "pkg/webui"},
-        {"path": "plugins/integrations/cron"},
-        {"path": "plugins/integrations/integration-example"},
-        {"path": "plugins/integrations/github-trigger"},
-        {"path": "plugins/integrations/webhook"},
-        {"path": "plugins/repositories/github"}
+        {"path": "plugins/cron"},
+        {"path": "plugins/github-repo"},
+        {"path": "plugins/github-trigger"},
+        {"path": "plugins/integration-example"},
+        {"path": "plugins/webhook"}
     ],
     "settings": {
         "go.useLanguageServer": true

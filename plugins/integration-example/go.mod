@@ -1,8 +1,8 @@
-module github.com/csweichel/werft/webhook-plugin
+module github.com/csweichel/werft/plugins/integration-example
 
 go 1.13
 
-replace github.com/csweichel/werft => ../../..
+replace github.com/csweichel/werft => ../..
 
 require (
 	github.com/csweichel/werft v0.0.0-00010101000000-000000000000

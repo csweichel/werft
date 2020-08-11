@@ -9,7 +9,7 @@ import (
 
 	plugin "github.com/csweichel/werft/pkg/plugin/client"
 	"github.com/csweichel/werft/pkg/plugin/common"
-	"github.com/csweichel/werft/repos/github/pkg/provider"
+	"github.com/csweichel/werft/plugins/github-repo/pkg/provider"
 
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/google/go-github/v31/github"
