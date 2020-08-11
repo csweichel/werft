@@ -2,7 +2,7 @@ module github.com/csweichel/werft/plugins/github-repo
 
 go 1.13
 
-replace github.com/csweichel/werft => ../../..
+replace github.com/csweichel/werft => ../..
 
 require (
 	github.com/bradleyfalzon/ghinstallation v1.1.1

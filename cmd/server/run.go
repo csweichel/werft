@@ -479,5 +479,5 @@ type Config struct {
 	} `yaml:"storage"`
 	Executor   executor.Config `yaml:"executor"`
 	Kubeconfig string          `yaml:"kubeconfig,omitempty"`
-	Plugins plugin.Config
+	Plugins    plugin.Config
 }

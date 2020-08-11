@@ -1,13 +1,13 @@
 packages:
-- name: rice
-  type: generic
-  srcs:
-  - "migrations/*"
-  - "migration.go"
-  config:
-    commands:
-    - ["ls"]
-    - ["go", "get", "github.com/GeertJohan/go.rice/rice"]
-    - ["sh", "-c", "$GOPATH/bin/rice embed-go"]
-    - ["rm", "-rf", "migrations", "migration.go"]
-    - ["go", "fmt", "./..."]
+  - name: rice
+    type: generic
+    srcs:
+      - "migrations/*"
+      - "migration.go"
+    config:
+      commands:
+        - ["ls"]
+        - ["go", "get", "github.com/GeertJohan/go.rice/rice"]
+        - ["sh", "-c", "$GOPATH/bin/rice embed-go"]
+        - ["rm", "-rf", "migrations", "migration.go"]
+        - ["go", "fmt", "./..."]
