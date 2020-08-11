@@ -19,7 +19,6 @@ import (
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
@@ -324,18 +323,6 @@ func cleanupPodName(name string) string {
 	return name
 }
 
-func translateGitHubToGRPCError(err error, rev, ref string) error {
-	if gherr, ok := err.(*github.ErrorResponse); ok && gherr.Response.StatusCode == 422 {
-		msg := fmt.Sprintf("revision %s", rev)
-		if ref != "" {
-			msg = fmt.Sprintf("ref %s (revision %s)", ref, rev)
-		}
-		return status.Error(codes.NotFound, fmt.Sprintf("%s not found", msg))
-	}
-
-	return status.Error(codes.Internal, err.Error())
-}
-
 // StartFromPreviousJob starts a new job based on an old one
 func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromPreviousJobRequest) (*v1.StartJobResponse, error) {
 	oldJobStatus, err := srv.Jobs.Get(ctx, req.PreviousJob)
@@ -618,10 +605,4 @@ func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.St
 	}
 
 	return &v1.StopJobResponse{}, nil
-}
-
-func fixedOAuthTokenGitCreds(tkn string) GitCredentialHelper {
-	return func(ctx context.Context) (user string, pass string, err error) {
-		return tkn, "x-oauth-basic", nil
-	}
 }
