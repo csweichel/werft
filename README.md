@@ -1,4 +1,4 @@
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/csweichel/werft) 
+[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://repositories.github.com/csweichel/werft) 
 
 <center><img src="logo.png" width="200px"></center>
 
@@ -32,9 +32,15 @@ helm dep update
 helm upgrade --install werft .
 ```
 
-### GitHub
-For the time being Werft has a strong GitHub dependency. For a werft server to run you'll need a GitHub app.
-To create the app, please [follow the steps here](https://developer.github.com/apps/building-github-apps/creating-a-github-app/).
+### Git-hoster integration
+Werft integrates with Git hosting platforms using its plugin system.
+Currently, werft ships with support for GitHub only ([plugins/github-repo](https://repositories.github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-repo) and [plugins/github-trigger](https://repositories.github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-trigger)).
+
+To add support for other Git hoster, the `github-repo` plugin is a good starting point.
+
+#### GitHub
+To use werft with GitHub you'll need a GitHub app.
+To create the app, please [follow the steps here](https://developer.repositories.github.com/apps/building-github-apps/creating-a-github-app/).
 
 When creating the app, please use following values:
 
@@ -49,18 +55,18 @@ When creating the app, please use following values:
 
 ### Configuration
 
-The following table lists the configurable parameters of the Werft chart and their default values.
+The following table lists the (incomplete set of) configurable parameters of the Werft chart and their default values.
+The helm chart's `values.yaml` is the reference for chart's configuration surface.
 
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
-| `github.webhookSecret` | Webhook Secret of your GitHub application. See [GitHub Setup](#github) | `my-webhook-secret` |
-| `github.privateKeyPath` | Path to the private key for your GitHub application. See [GitHub setup](#github) | `secrets/github-app.com` |
-| `github.appID` | AppID of your GitHub application. See [GitHub setup](#github) | `secrets/github-app.com` |
-| `github.installationID` | InstallationID of your GitHub application. Have a look at the _Advanced_ page of your GitHub app to find thi s ID. | `secrets/github-app.com` |
+| `repositories.github.webhookSecret` | Webhook Secret of your GitHub application. See [GitHub Setup](#github) | `my-webhook-secret` |
+| `repositories.github.privateKeyPath` | Path to the private key for your GitHub application. See [GitHub setup](#github) | `secrets/github-app.com` |
+| `repositories.github.appID` | AppID of your GitHub application. See [GitHub setup](#github) | `secrets/github-app.com` |
+| `repositories.github.installationID` | InstallationID of your GitHub application. Have a look at the _Advanced_ page of your GitHub app to find thi s ID. | `secrets/github-app.com` |
 | `config.baseURL` | URL of your Werft installatin | `https://demo.werft.dev` |
 | `config.timeouts.preperation` | Time a job can take to initialize | `10m` |
 | `config.timeouts.total` | Total time a job can take | `60m` |
-| `github.appID` | AppID of your GitHub application. See [GitHub setup](#github) | `secrets/github-app.com` |
 | `image.repository` | Image repository | `csweichel/werft` |
 | `image.tag` | Image tag | `latest` |
 | `image.pullPolicy` | Image pull policy | `Always` |
@@ -69,7 +75,6 @@ The following table lists the configurable parameters of the Werft chart and the
 | `resources` | CPU/memory resource requests/limits | |
 | `nodeSelector` | Node labels for pod assignment | `{}` |
 | `affinity` | Node affinity for pod assignment | `{}` |
-
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 
@@ -82,11 +87,11 @@ $ helm install --name my-release -f values.yaml .
 
 
 ### OAuth
-Werft does not support OAuth by itself. However, using [Vouch](https://github.com/vouch/vouch-proxy) that's easy enough to add.
+Werft does not support OAuth by itself. However, using [OAuth Proxy](https://github.com/oauth2-proxy/oauth2-proxy) that's easy enough to add.
 
 ## Setting up jobs
 Wert jobs are files in your repository where one file represents one job.
-A Werft job file mainly consists of the [PodSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#podspec-v1-core) that will be run.
+A Werft job file mainly consists of the [PodSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#podspec-v1-core) that will be run.
 Werft will add a `/workspace` mount to your pod where you'll find the checked out repository the job is running on.
 
 For example:
@@ -142,7 +147,7 @@ The default cutter in Werft expects the following syntax:
 Werft sports a powerful CI which can be used to create, list, start and listen to jobs.
 
 ### Installation
-The Werft CLI is available on the [GitHub release page](https://github.com/csweichel/werft/releases), or using this one-liner:
+The Werft CLI is available on the [GitHub release page](https://repositories.github.com/csweichel/werft/releases), or using this one-liner:
 ```bash
 curl -L werft.dev/get-cli.sh | sh
 ```
@@ -197,7 +202,7 @@ Logo based on [Shipyard Vectors by Vecteezy](https://www.vecteezy.com/free-vecto
 ## Thank You
 Thank you to our contributors:
 
-- [csweichel](https://github.com/csweichel)
-- [corneliusludmann](https://github.com/corneliusludmann)
-- [jankeromnes](https://github.com/jankeromnes)
-- [JesterOrNot](https://github.com/JesterOrNot)
+- [csweichel](https://repositories.github.com/csweichel)
+- [corneliusludmann](https://repositories.github.com/corneliusludmann)
+- [jankeromnes](https://repositories.github.com/jankeromnes)
+- [JesterOrNot](https://repositories.github.com/JesterOrNot)
