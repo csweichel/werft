@@ -1,0 +1,13 @@
+packages:
+  - name: all
+    type: generic
+    deps:
+      - plugins/cron:app
+      - plugins/github-repo:app
+      - plugins/github-trigger:app
+      - plugins/integration-example:app
+      - plugins/webhook:app
+    config:
+      commands:
+        - ["mkdir", "bin"]
+        - ["sh", "-c", "find . -name \"werft-*\" -exec mv {} bin \\;"]

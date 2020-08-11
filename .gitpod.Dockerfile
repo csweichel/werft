@@ -16,7 +16,8 @@ RUN curl -L https://download.docker.com/linux/static/stable/x86_64/docker-19.03.
 RUN curl -o /usr/bin/k3s -L https://github.com/rancher/k3s/releases/download/v1.0.1/k3s && \
     chmod +x /usr/bin/k3s
 
-RUN curl -L https://github.com/TypeFox/leeway/releases/download/v0.0.8/leeway_0.0.8_Linux_x86_64.tar.gz | tar xz && \
+ENV LEEWAY_WORKSPACE_ROOT=/workspace/werft
+RUN curl -L https://github.com/TypeFox/leeway/releases/download/v0.1.0/leeway_0.1.0_Linux_x86_64.tar.gz | tar xz && \
     mv leeway /usr/bin/leeway && \
     rm README.md
 

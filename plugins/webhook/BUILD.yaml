@@ -1,11 +1,13 @@
 packages:
-- name: app
-  type: go
-  deps:
-  - //:plugin-client-lib
-  srcs:
-  - "**/*.go"
-  - "go.mod"
-  - "go.sum"
-  env:
-  - CGO_ENABLED=0
+  - name: app
+    type: go
+    deps:
+      - //:plugin-client-lib
+    srcs:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+    env:
+      - CGO_ENABLED=0
+    config:
+      buildFlags: ["-o", "werft-webhook"]

@@ -1,27 +1,27 @@
 packages:
-- name: dist
-  type: typescript
-  srcs:
-  - src/**/*
-  - public/**/*
-  - package.json
-  - .eslintignore
-  - .env
-  config:
-    packaging: archive
-    commands:
-      build: ["yarn", "build"]
-- name: rice
-  type: generic
-  deps:
-  - :dist
-  config:
-    commands:
-    - ["go", "get", "github.com/GeertJohan/go.rice/rice"]
-    - ["mkdir", "-p", "pkg/build", "pkg/webui"]
-    - ["mv", "pkg-webui--dist/build", "pkg/webui/build"]
-    - ["sh", "-c", "echo cGFja2FnZSB3ZWJ1aQoKaW1wb3J0IHJpY2UgImdpdGh1Yi5jb20vR2VlcnRKb2hhbi9nby5yaWNlIgoKZnVuYyBmb28oKSB7CglyaWNlLkZpbmRCb3goIi4uLy4uL3BrZy93ZWJ1aS9idWlsZCIpCn0K | base64 --decode > pkg/build/index.go"]
-    - ["sh", "-c", "cd pkg/build && $GOPATH/bin/rice embed-go"]
-    - ["mv", "pkg/build/rice-box.go", "."]
-    - ["rm", "-rf", "pkg-webui--dist", "pkg"]
-    - ["go", "fmt", "./..."]
+  - name: dist
+    type: yarn
+    srcs:
+      - src/**/*
+      - public/**/*
+      - package.json
+      - .eslintignore
+      - .env
+    config:
+      packaging: archive
+      commands:
+        build: ["yarn", "build"]
+  - name: rice
+    type: generic
+    deps:
+      - :dist
+    config:
+      commands:
+        - ["go", "get", "github.com/GeertJohan/go.rice/rice"]
+        - ["mkdir", "-p", "pkg/build", "pkg/webui"]
+        - ["mv", "pkg-webui--dist/build", "pkg/webui/build"]
+        - ["sh", "-c", "echo cGFja2FnZSB3ZWJ1aQoKaW1wb3J0IHJpY2UgImdpdGh1Yi5jb20vR2VlcnRKb2hhbi9nby5yaWNlIgoKZnVuYyBmb28oKSB7CglyaWNlLkZpbmRCb3goIi4uLy4uL3BrZy93ZWJ1aS9idWlsZCIpCn0K | base64 --decode > pkg/build/index.go"]
+        - ["sh", "-c", "cd pkg/build && $GOPATH/bin/rice embed-go"]
+        - ["mv", "pkg/build/rice-box.go", "."]
+        - ["rm", "-rf", "pkg-webui--dist", "pkg"]
+        - ["go", "fmt", "./..."]

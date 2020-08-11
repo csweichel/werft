@@ -2,8 +2,8 @@ packages:
   - name: server
     type: go
     deps:
-      - pkg/webui:rice
       - pkg/store/postgres:rice
+      - pkg/webui:rice
     argdeps:
       - version
       - commit
@@ -38,8 +38,7 @@ packages:
     type: docker
     deps:
       - :server
-      - integrations/plugins/webhook:app
-      - integrations/plugins/cron:app
+      - plugins:all
     argdeps:
       - version
       - latestOrNext

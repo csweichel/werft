@@ -10,4 +10,4 @@ packages:
     env:
       - CGO_ENABLED=0
     config:
-      buildFlags: ["-o", "werft-cron"]
+      buildFlags: ["-o", "werft-integration-example"]

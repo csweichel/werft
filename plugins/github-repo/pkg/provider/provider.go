@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/csweichel/werft/pkg/plugin/common"
-	"github.com/csweichel/werft/pkg/werft"
 
 	"github.com/google/go-github/v31/github"
 	log "github.com/sirupsen/logrus"
@@ -20,10 +19,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// GitCredentialHelper can authenticate provide authentication credentials for a repository
+type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
+
 // GithubRepoServer provides access to Github repos
 type GithubRepoServer struct {
 	Client *github.Client
-	Auth   werft.GitCredentialHelper
+	Auth   GitCredentialHelper
 }
 
 // RepoHost returns the host which this plugins integrates with

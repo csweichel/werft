@@ -17,8 +17,8 @@ import (
 // UIService implements api/v1/WerftUIServer
 type UIService struct {
 	RepositoryProvider RepositoryProvider
-	Repos    []string
-	Readonly bool
+	Repos              []string
+	Readonly           bool
 
 	cache []*v1.ListJobSpecsResponse
 	mu    sync.RWMutex
@@ -27,9 +27,9 @@ type UIService struct {
 // NewUIService produces a new UI service and initializes its repo list
 func NewUIService(repoprov RepositoryProvider, repos []string, readonly bool) (*UIService, error) {
 	r := &UIService{
-		RepositoryProvider:   repoprov,
-		Repos:    repos,
-		Readonly: readonly,
+		RepositoryProvider: repoprov,
+		Repos:              repos,
+		Readonly:           readonly,
 	}
 	err := r.updateJobSpecs()
 	if err != nil {
