@@ -46,6 +46,9 @@ data:
           privateKeyPath: /mnt/secrets/github-app.pem
           appID: {{ .Values.repositories.github.appID }}
           installationID: {{ .Values.repositories.github.installationID }}
+          {{- if .Values.repositories.github.integration }}
+{{ toYaml .Values.repositories.github.integration | indent 10 }}
+          {{- end }}
 {{- end }}
 {{- if .Values.config.plugins }}
 {{ toYaml .Values.config.plugins | indent 6 }}

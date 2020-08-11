@@ -46,6 +46,9 @@ plugins:
       privateKeyPath: testdata/example-app.pem
       appID: 48144
       installationID: 5647067
+      pullRequestComments:
+        enabled: true
+        updateComment: true
     command:
     - sh
     - -c
