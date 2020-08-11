@@ -4,6 +4,15 @@ repositories:
     privateKeyPath: secrets/github-app.pem
     appID: 000000
     installationID: 0000000
+    integration:
+      # This section enables users to start werft jobs by adding PR comments containing "/werft run".
+      pullRequestComments:
+        # To disable that feature set enabled to false.
+        enabled: true
+        # Werft provides feedback by updating that comment. To disable this feedback set updateComment to false.
+        updateComment: true
+        # To restrict this feature to users in particular GitHub organisations, add an entry to the requiresOrg list.
+        requiresOrg: []
 
 config:
   baseURL: https://demo.werft.dev

@@ -34,6 +34,17 @@ type Config struct {
 	PrivateKeyPath string `yaml:"privateKeyPath"`
 	InstallationID int64  `yaml:"installationID,omitempty"`
 	AppID          int64  `yaml:"appID"`
+
+	PRComments struct {
+		Enabled bool `yaml:"enabled"`
+
+		// If this is a non-empty list, the commenting user needs to be in at least one
+		// of the organisations listed here for the build to start.
+		RequiresOrganisation []string `yaml:"requiresOrg"`
+
+		// If true, we'll update the comment to give feedback about what werft understood.
+		UpdateComment bool `yaml:"updateComment"`
+	} `yaml:"pullRequestComments"`
 }
 
 func main() {
@@ -172,6 +183,7 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 		if err != nil {
 			log.WithError(err).WithField("job", job.Name).Warn("cannot update result status")
 		}
+
 	}
 
 	return nil
@@ -220,6 +232,8 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 		p.processPushEvent(event)
 	case *github.InstallationEvent:
 		p.processInstallationEvent(event)
+	case *github.IssueCommentEvent:
+		p.processIssueCommentEvent(r.Context(), event)
 	default:
 		log.WithField("event", event).Debug("unhandled GitHub event")
 		http.Error(w, "unhandled event", http.StatusInternalServerError)
@@ -229,17 +243,6 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 	ctx := context.Background()
 	rev := *event.After
-
-	// the ref is something like refs/heads/ or refs/tags/ ... we want to strip those prefixes
-	flatname := *event.Ref
-	if strings.HasPrefix(flatname, "refs/") {
-		flatname = strings.TrimPrefix(flatname, "refs/")
-		i := strings.IndexRune(flatname, '/')
-		if i > -1 {
-			flatname = flatname[i:]
-		}
-	}
-	flatname = strings.ToLower(strings.ReplaceAll(flatname, "/", "-"))
 
 	trigger := v1.JobTrigger_TRIGGER_PUSH
 	if event.Deleted != nil && *event.Deleted {
@@ -283,4 +286,138 @@ func (p *githubTriggerPlugin) processInstallationEvent(event *github.Installatio
 		"installationID": *event.Installation.ID,
 		"appID":          *event.Installation.AppID,
 	}).Info("someone just installed a GitHub app for this webhook")
+}
+
+func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, event *github.IssueCommentEvent) {
+	if !p.Config.PRComments.Enabled {
+		return
+	}
+	if event.GetAction() != "created" {
+		return
+	}
+	if !event.GetIssue().IsPullRequest() {
+		return
+	}
+
+	var (
+		segs  = strings.Split(event.GetRepo().GetFullName(), "/")
+		prRepoOwner = segs[0]
+		prRepoRepo  = segs[1]
+	)
+
+	var feedback struct {
+		Success bool
+		Message string
+	}
+	defer func() {
+		if !p.Config.PRComments.UpdateComment {
+			return
+		}
+
+		icon := ":white_check_mark:"
+		if !feedback.Success {
+			icon = ":x:"
+		}
+
+		comment := event.GetComment()
+		lines := strings.Split(comment.GetBody(), "\n")
+		newlines := make([]string, 0, len(lines)+2)
+		for _, l := range lines {
+			newlines = append(newlines, l)
+			if strings.HasPrefix(strings.TrimSpace(l), "/werft ") {
+				newlines = append(newlines, "", fmt.Sprintf("%s   %s", icon, feedback.Message))
+			}
+			body := strings.Join(newlines, "\n")
+			comment.Body = &body
+		}
+
+		p.Github.Issues.EditComment(ctx, prRepoOwner, prRepoRepo, event.GetComment().GetID(), comment)
+	}()
+
+	sender := event.GetSender().GetLogin()
+	if len(p.Config.PRComments.RequiresOrganisation) > 0 {
+		var allowed bool
+		for _, org := range p.Config.PRComments.RequiresOrganisation {
+			ok, _, err := p.Github.Organizations.IsMember(ctx, org, sender)
+			if err != nil {
+				log.WithError(err).WithField("org", org).WithField("user", sender).Warn("cannot check organisation membership")
+			}
+			if ok {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			feedback.Success = false
+			feedback.Message = "not authorized"
+			return
+		}
+	}
+
+	pr, _, err := p.Github.PullRequests.Get(ctx, prRepoOwner, prRepoRepo, event.GetIssue().GetNumber())
+	if err != nil {
+		log.WithError(err).Warn("GitHub webhook error")
+		feedback.Success = false
+		feedback.Message = "cannot find corresponding PR"
+		return
+	}
+
+	var run bool
+	lines := strings.Split(event.GetComment().GetBody(), "\n")
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if !strings.HasPrefix(l, "/werft") {
+			continue
+		}
+		l = strings.TrimPrefix(l, "/werft")
+		l = strings.TrimSpace(l)
+
+		fmt.Println(l)
+		if l == "run" {
+			run = true
+			break
+		} else {
+			feedback.Success = false
+			feedback.Message = fmt.Sprintf("unknown command `%s` - only `run` is supported", l)
+		}
+	}
+	if !run {
+		return
+	}
+
+	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
+	var (
+		owner = segs[0]
+		repo = segs[1]
+	)
+	metadata := v1.JobMetadata{
+		Owner: event.GetSender().GetLogin(),
+		Repository: &v1.Repository{
+			Host:     defaultGitHubHost,
+			Owner:    owner,
+			Repo:     repo,
+			Ref:      pr.GetHead().GetRef(),
+			Revision: pr.GetHead().GetSHA(),
+		},
+		Trigger: v1.JobTrigger_TRIGGER_MANUAL,
+		Annotations: []*v1.Annotation{
+			&v1.Annotation{
+				Key:   annotationStatusUpdate,
+				Value: "true",
+			},
+		},
+	}
+	resp, err := p.Werft.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
+		Metadata: &metadata,
+	})
+	if err != nil {
+		log.WithError(err).Warn("GitHub webhook error")
+		feedback.Success = false
+		feedback.Message = "cannot start job - please talk to whoever's in charge of your Werft installation"
+		return
+	}
+
+	feedback.Success = true
+	feedback.Message = "started the job as " + resp.GetStatus().GetName()
 }
