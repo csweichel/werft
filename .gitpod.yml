@@ -2,6 +2,7 @@ workspaceLocation: werft/werft.theia-workspace
 tasks:
   - init: go get && go build ./... && go test ./...
     command: |
+      echo $SECRET_KUBECONFIG | base64 -d > ~/.kube/config
       sleep 10
       echo CREATE DATABASE werft | psql -f -
       mkdir /tmp/logs

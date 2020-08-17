@@ -4,7 +4,7 @@ packages:
     deps:
       - plugins/cron:app
       - plugins/github-repo:app
-      - plugins/github-trigger:app
+      - plugins/github-integration:app
       - plugins/integration-example:app
       - plugins/webhook:app
     config:

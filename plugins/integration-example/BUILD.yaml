@@ -10,4 +10,4 @@ packages:
     env:
       - CGO_ENABLED=0
     config:
-      buildFlags: ["-o", "werft-integration-example"]
+      buildFlags: ["-o", "werft-plugin-integration-example"]

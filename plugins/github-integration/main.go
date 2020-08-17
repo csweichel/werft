@@ -300,7 +300,7 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	}
 
 	var (
-		segs  = strings.Split(event.GetRepo().GetFullName(), "/")
+		segs        = strings.Split(event.GetRepo().GetFullName(), "/")
 		prRepoOwner = segs[0]
 		prRepoRepo  = segs[1]
 	)
@@ -389,7 +389,7 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
 	var (
 		owner = segs[0]
-		repo = segs[1]
+		repo  = segs[1]
 	)
 	metadata := v1.JobMetadata{
 		Owner: event.GetSender().GetLogin(),

@@ -21,6 +21,6 @@ RUN curl -L https://github.com/TypeFox/leeway/releases/download/v0.1.0/leeway_0.
     mv leeway /usr/bin/leeway && \
     rm README.md
 
-RUN go get golang.org/dl/go1.15 && \
-    go1.15 download && \
-    mv $(which go1.15) $(which go)
+RUN curl -L https://get.helm.sh/helm-v3.3.0-rc.2-linux-amd64.tar.gz | tar xz linux-amd64/helm && \
+    mv linux-amd64/helm /usr/bin && \
+    rm -r linux-amd64
