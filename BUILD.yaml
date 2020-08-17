@@ -68,12 +68,8 @@ packages:
         - client
         - -ldflags
         - -X 'github.com/csweichel/werft/pkg/version.Version=${version}' -X 'github.com/csweichel/werft/pkg/version.Commit=${commit}' -X 'github.com/csweichel/werft/pkg/version.Date=${date}'
-  - name: nonesense-darwin
-    type: generic
   - name: client-darwin-amd64
     type: go
-    deps:
-      - :nonesense-darwin
     srcs:
       - "**/*.go"
       - "go.mod"
@@ -147,6 +143,10 @@ packages:
   - name: all
     type: generic
     deps:
+      - plugins:all
       - :client-darwin-amd64
       - :client-linux-amd64
       - :server
+    config:
+      commands:
+        - ["touch", "x"]

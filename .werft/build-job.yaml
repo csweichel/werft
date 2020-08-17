@@ -10,9 +10,9 @@ pod:
       - -c
       - |
         apk add --no-cache sed curl go yarn git coreutils
-        curl -L https://github.com/TypeFox/leeway/releases/download/v0.0.5/leeway_0.0.5_Linux_x86_64.tar.gz | tar xz
+        curl -L https://github.com/TypeFox/leeway/releases/download/v0.1.0/leeway_0.1.0_Linux_x86_64.tar.gz | tar xz
         chmod +x leeway
         export PATH=$PWD:$PATH
         cd /workspace
         echo "[build|PHASE] build"
-        leeway build
+        leeway build --werft -Dversion={{ .Name }} -Dcommit={{ .Repository.Revision }} -Ddate="$(date)"
