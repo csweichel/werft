@@ -117,8 +117,8 @@ func (srv *Service) Start() error {
 
 	// we might still have waiting jobs which we must load back into the executor
 	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v1.FilterExpression{
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{
-			&v1.FilterTerm{
+		{Terms: []*v1.FilterTerm{
+			{
 				Field:     "phase",
 				Value:     "waiting",
 				Operation: v1.FilterOp_OP_EQUALS,
@@ -180,7 +180,7 @@ func (srv *Service) doHousekeeping() {
 		log.Debug("performing werft service housekeeping")
 
 		ctx := context.Background()
-		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)
+		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{{Terms: []*v1.FilterTerm{{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
 			<-tick.C
@@ -609,7 +609,7 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 		Trigger:    v1.JobTrigger_TRIGGER_UNKNOWN,
 		Created:    ptypes.TimestampNow(),
 		Annotations: []*v1.Annotation{
-			&v1.Annotation{
+			{
 				Key:   annotationCleanupJob,
 				Value: "true",
 			},
@@ -639,7 +639,7 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 		Command:    []string{"sh", "-c", "rm -rf *"},
 		WorkingDir: "/workspace",
 		VolumeMounts: []corev1.VolumeMount{
-			corev1.VolumeMount{
+			{
 				Name:      "werft-workspace",
 				MountPath: "/workspace",
 			},

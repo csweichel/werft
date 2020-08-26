@@ -300,9 +300,9 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	}
 
 	var (
-		segs        = strings.Split(event.GetRepo().GetFullName(), "/")
-		prRepoOwner = segs[0]
-		prRepoRepo  = segs[1]
+		segs       = strings.Split(event.GetRepo().GetFullName(), "/")
+		prDstOwner = segs[0]
+		prDstRepo  = segs[1]
 	)
 
 	var feedback struct {
@@ -331,10 +331,10 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			comment.Body = &body
 		}
 
-		p.Github.Issues.EditComment(ctx, prRepoOwner, prRepoRepo, event.GetComment().GetID(), comment)
+		p.Github.Issues.EditComment(ctx, prDstOwner, prDstRepo, event.GetComment().GetID(), comment)
 	}()
 
-	pr, _, err := p.Github.PullRequests.Get(ctx, prRepoOwner, prRepoRepo, event.GetIssue().GetNumber())
+	pr, _, err := p.Github.PullRequests.Get(ctx, prDstOwner, prDstRepo, event.GetIssue().GetNumber())
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
 		feedback.Success = false
@@ -343,8 +343,8 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	}
 	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
 	var (
-		owner = segs[0]
-		repo  = segs[1]
+		prSrcOwner = segs[0]
+		prSrcRepo  = segs[1]
 	)
 
 	var (
@@ -364,9 +364,9 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			}
 		}
 	}
-	permissions, _, err := p.Github.Repositories.GetPermissionLevel(ctx, owner, repo, sender)
+	permissions, _, err := p.Github.Repositories.GetPermissionLevel(ctx, prDstOwner, prDstRepo, sender)
 	if err != nil {
-		log.WithError(err).WithField("repo", fmt.Sprintf("%s/%s", owner, repo)).WithField("user", sender).Warn("cannot permission level")
+		log.WithError(err).WithField("repo", fmt.Sprintf("%s/%s", prDstOwner, prDstRepo)).WithField("user", sender).Warn("cannot get permission level")
 	}
 	switch permissions.GetPermission() {
 	case "admin", "write":
@@ -403,13 +403,18 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		return
 	}
 
+	ref := pr.GetHead().GetRef()
+	if !strings.HasPrefix(ref, "refs/") {
+		// we assume this is a branch
+		ref = "refs/heads/" + ref
+	}
 	metadata := v1.JobMetadata{
 		Owner: event.GetSender().GetLogin(),
 		Repository: &v1.Repository{
 			Host:     defaultGitHubHost,
-			Owner:    owner,
-			Repo:     repo,
-			Ref:      pr.GetHead().GetRef(),
+			Owner:    prSrcOwner,
+			Repo:     prSrcRepo,
+			Ref:      ref,
 			Revision: pr.GetHead().GetSHA(),
 		},
 		Trigger: v1.JobTrigger_TRIGGER_MANUAL,

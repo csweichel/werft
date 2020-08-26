@@ -18,6 +18,7 @@ import (
 	"github.com/csweichel/werft/pkg/filterexpr"
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
@@ -158,6 +159,8 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 
 // StartJob starts a new job based on its specification.
 func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
+	log.WithField("req", proto.MarshalTextString(req)).Info("StartJob request")
+
 	md := req.Metadata
 	err = srv.RepositoryProvider.Resolve(ctx, md.Repository)
 	if err != nil {
@@ -210,6 +213,9 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 			tplpath = repoCfg.TemplatePath(req.Metadata)
+		}
+		if tplpath == "" {
+			return nil, status.Errorf(codes.NotFound, "no jobspec found in repo config")
 		}
 
 		in, err := fp.Download(ctx, tplpath)
