@@ -42,6 +42,7 @@ data:
         type:
         - integration
         config:
+          baseURL: {{ .Values.config.baseURL }}
           webhookSecret: {{ .Values.repositories.github.webhookSecret }}
           privateKeyPath: /mnt/secrets/github-app.pem
           appID: {{ .Values.repositories.github.appID }}
