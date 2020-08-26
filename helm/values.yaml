@@ -11,6 +11,8 @@ repositories:
         enabled: true
         # Werft provides feedback by updating that comment. To disable this feedback set updateComment to false.
         updateComment: true
+        # To restrict this feature to users with write access to the repo, set this field to true
+        requiresWriteAccess: true
         # To restrict this feature to users in particular GitHub organisations, add an entry to the requiresOrg list.
         requiresOrg: []
 

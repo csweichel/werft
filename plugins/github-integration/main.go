@@ -260,7 +260,7 @@ func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 		},
 		Trigger: trigger,
 		Annotations: []*v1.Annotation{
-			&v1.Annotation{
+			{
 				Key:   annotationStatusUpdate,
 				Value: "true",
 			},
@@ -314,9 +314,9 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			return
 		}
 
-		icon := ":white_check_mark:"
+		icon := ":+1:"
 		if !feedback.Success {
-			icon = ":x:"
+			icon = ":-1:"
 		}
 
 		comment := event.GetComment()
@@ -334,9 +334,25 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		p.Github.Issues.EditComment(ctx, prRepoOwner, prRepoRepo, event.GetComment().GetID(), comment)
 	}()
 
-	sender := event.GetSender().GetLogin()
+	pr, _, err := p.Github.PullRequests.Get(ctx, prRepoOwner, prRepoRepo, event.GetIssue().GetNumber())
+	if err != nil {
+		log.WithError(err).Warn("GitHub webhook error")
+		feedback.Success = false
+		feedback.Message = "cannot find corresponding PR"
+		return
+	}
+	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
+	var (
+		owner = segs[0]
+		repo  = segs[1]
+	)
+
+	var (
+		sender  = event.GetSender().GetLogin()
+		allowed = true
+	)
 	if len(p.Config.PRComments.RequiresOrganisation) > 0 {
-		var allowed bool
+		allowed = false
 		for _, org := range p.Config.PRComments.RequiresOrganisation {
 			ok, _, err := p.Github.Organizations.IsMember(ctx, org, sender)
 			if err != nil {
@@ -347,19 +363,20 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 				break
 			}
 		}
-
-		if !allowed {
-			feedback.Success = false
-			feedback.Message = "not authorized"
-			return
-		}
 	}
-
-	pr, _, err := p.Github.PullRequests.Get(ctx, prRepoOwner, prRepoRepo, event.GetIssue().GetNumber())
+	permissions, _, err := p.Github.Repositories.GetPermissionLevel(ctx, owner, repo, sender)
 	if err != nil {
-		log.WithError(err).Warn("GitHub webhook error")
+		log.WithError(err).WithField("repo", fmt.Sprintf("%s/%s", owner, repo)).WithField("user", sender).Warn("cannot permission level")
+	}
+	switch permissions.GetPermission() {
+	case "admin", "write":
+		// leave allowed as it stands
+	default:
+		allowed = false
+	}
+	if !allowed {
 		feedback.Success = false
-		feedback.Message = "cannot find corresponding PR"
+		feedback.Message = "not authorized"
 		return
 	}
 
@@ -386,11 +403,6 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		return
 	}
 
-	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
-	var (
-		owner = segs[0]
-		repo  = segs[1]
-	)
 	metadata := v1.JobMetadata{
 		Owner: event.GetSender().GetLogin(),
 		Repository: &v1.Repository{
@@ -402,7 +414,7 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		},
 		Trigger: v1.JobTrigger_TRIGGER_MANUAL,
 		Annotations: []*v1.Annotation{
-			&v1.Annotation{
+			{
 				Key:   annotationStatusUpdate,
 				Value: "true",
 			},
