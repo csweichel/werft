@@ -19,6 +19,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	// defaultContainerImage is the image we use to clone the code, unless configured otherwise
+	defaultContainerImage = "alpine/git:latest"
+)
+
 // GitCredentialHelper can authenticate provide authentication credentials for a repository
 type GitCredentialHelper func(ctx context.Context) (user string, pass string, err error)
 
@@ -26,6 +31,13 @@ type GitCredentialHelper func(ctx context.Context) (user string, pass string, er
 type GithubRepoServer struct {
 	Client *github.Client
 	Auth   GitCredentialHelper
+
+	Config Config
+}
+
+// Config configures the GithubRepoServer
+type Config struct {
+	ContainerImage string
 }
 
 // RepoHost returns the host which this plugins integrates with
@@ -138,6 +150,11 @@ func parseAnnotations(message string) (res map[string]string) {
 // ContentInitContainer produces the init container YAML required to initialize
 // the build context from this repository in /workspace.
 func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common.ContentInitContainerRequest) (*common.ContentInitContainerResponse, error) {
+	image := s.Config.ContainerImage
+	if image == "" {
+		image = defaultContainerImage
+	}
+	
 	var (
 		repo = req.Repository
 		user string
@@ -150,7 +167,7 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 			return nil, err
 		}
 	}
-
+	
 	cloneCmd := "git clone"
 	if user != "" || pass != "" {
 		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
@@ -160,17 +177,17 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 	c := []corev1.Container{
 		{
 			Name:  "github-checkout",
-			Image: "alpine/git:latest",
+			Image: image,
 			Command: []string{
 				"sh", "-c",
 				cloneCmd,
 			},
 			Env: []corev1.EnvVar{
-				corev1.EnvVar{
+				{
 					Name:  "GHUSER_SECRET",
 					Value: user,
 				},
-				corev1.EnvVar{
+				{
 					Name:  "GHPASS_SECRET",
 					Value: pass,
 				},

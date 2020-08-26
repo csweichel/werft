@@ -20,6 +20,8 @@ type Config struct {
 	PrivateKeyPath string `yaml:"privateKeyPath"`
 	InstallationID int64  `yaml:"installationID,omitempty"`
 	AppID          int64  `yaml:"appID"`
+
+	ContainerImage string `yaml:"containerImage"`
 }
 
 func main() {
@@ -53,6 +55,9 @@ func (*githubRepoPlugin) Run(ctx context.Context, config interface{}) (common.Re
 			user = "x-access-token"
 			pass = tkn
 			return
+		},
+		Config: provider.Config{
+			ContainerImage: cfg.ContainerImage,
 		},
 	}, nil
 }
