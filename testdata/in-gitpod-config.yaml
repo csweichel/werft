@@ -44,6 +44,8 @@ plugins:
       pullRequestComments:
         enabled: true
         updateComment: true
+        requiresOrg: []
+        requiresWriteAccess: true
     command:
     - sh
     - -c

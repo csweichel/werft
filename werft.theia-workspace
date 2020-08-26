@@ -4,7 +4,7 @@
         {"path": "pkg/webui"},
         {"path": "plugins/cron"},
         {"path": "plugins/github-repo"},
-        {"path": "plugins/github-trigger"},
+        {"path": "plugins/github-integration"},
         {"path": "plugins/integration-example"},
         {"path": "plugins/webhook"}
     ],

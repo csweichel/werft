@@ -154,7 +154,7 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 	if image == "" {
 		image = defaultContainerImage
 	}
-	
+
 	var (
 		repo = req.Repository
 		user string
@@ -167,7 +167,7 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 			return nil, err
 		}
 	}
-	
+
 	cloneCmd := "git clone"
 	if user != "" || pass != "" {
 		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
