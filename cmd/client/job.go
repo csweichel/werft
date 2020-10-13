@@ -82,9 +82,9 @@ func getLocalContextJobFilter() ([]*v1.FilterExpression, error) {
 	}
 
 	return []*v1.FilterExpression{
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.owner", Value: md.Repository.Owner}}},
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.repo", Value: md.Repository.Repo}}},
-		&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: md.Repository.Ref}}},
+		{Terms: []*v1.FilterTerm{{Field: "repo.owner", Value: md.Repository.Owner}}},
+		{Terms: []*v1.FilterTerm{{Field: "repo.repo", Value: md.Repository.Repo}}},
+		{Terms: []*v1.FilterTerm{{Field: "repo.ref", Value: md.Repository.Ref}}},
 	}, nil
 }
 
@@ -96,7 +96,7 @@ func findJobByLocalContext(ctx context.Context, client v1.WerftServiceClient) (n
 
 	resp, err := client.ListJobs(ctx, &v1.ListJobsRequest{
 		Filter: filter,
-		Order: []*v1.OrderExpression{&v1.OrderExpression{
+		Order: []*v1.OrderExpression{{
 			Field:     "created",
 			Ascending: false,
 		}},
