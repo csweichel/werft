@@ -25,7 +25,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "echo",
     "eject": "react-scripts eject",
     "protoc": "protoc --plugin=\"protoc-gen-ts=$(which protoc-gen-ts)\" --js_out=import_style=commonjs,binary:src/api --ts_out=service=grpc-web:src/api -I../api/v1 werft.proto werft-ui.proto"
   },
