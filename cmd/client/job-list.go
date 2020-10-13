@@ -67,7 +67,7 @@ For example:
 			return err
 		}
 		filter := []*v1.FilterExpression{
-			&v1.FilterExpression{Terms: filterterms},
+			{Terms: filterterms},
 		}
 
 		useLocalContext, _ := cmd.Flags().GetBool("local")

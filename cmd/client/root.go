@@ -140,7 +140,7 @@ func dial() (res closableGrpcClientConnInterface) {
 	case dialModeKubernetes:
 		res, err = dialKubernetes()
 	default:
-		log.Fatal("unknown dial mode: %s", rootCmdOpts.DialMode)
+		log.Fatalf("unknown dial mode: %s", rootCmdOpts.DialMode)
 	}
 
 	if err != nil {
