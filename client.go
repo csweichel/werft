@@ -23,6 +23,8 @@ package main
 
 import (
 	cmd "github.com/csweichel/werft/cmd/client"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 func main() {
