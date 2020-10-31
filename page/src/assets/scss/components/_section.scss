@@ -50,6 +50,15 @@
 				}
 			}
 		}
+
+        .primary {
+            background: #9C63AB;
+            margin-right: 8px;
+
+            &:hover{
+                background: #815DA1;
+            }
+        }
 	}
 
 	footer {
