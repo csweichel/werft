@@ -55,8 +55,12 @@
             background: #9C63AB;
             margin-right: 8px;
 
-            &:hover{
-                background: #815DA1;
+            &:hover {
+                background: #A76AB8;
+            }
+
+            &:active {
+                background: #C267B8;
             }
         }
 	}
