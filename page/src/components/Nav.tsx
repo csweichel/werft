@@ -24,9 +24,6 @@ const Nav: React.SFC<NavProps> = React.forwardRef((props, ref: Ref<HTMLElement>)
                     <a href="#getting-started">Getting Started</a>
                 </Scroll>
             </li>
-            <li>
-                <a href="https://github.com/csweichel/werft">GitHub</a>
-            </li>
         </Scrollspy>
     </nav>
 ))
