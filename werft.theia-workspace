@@ -1,6 +1,6 @@
 {
     "folders": [
-        {"path": ""},
+        {"path": "."},
         {"path": "pkg/webui"},
         {"path": "plugins/cron"},
         {"path": "plugins/github-repo"},
