@@ -31,6 +31,15 @@ type WerftServiceStartFromPreviousJob = {
   readonly responseType: typeof werft_pb.StartJobResponse;
 };
 
+type WerftServiceStartJob = {
+  readonly methodName: string;
+  readonly service: typeof WerftService;
+  readonly requestStream: false;
+  readonly responseStream: false;
+  readonly requestType: typeof werft_pb.StartJobRequest;
+  readonly responseType: typeof werft_pb.StartJobResponse;
+};
+
 type WerftServiceListJobs = {
   readonly methodName: string;
   readonly service: typeof WerftService;
@@ -81,6 +90,7 @@ export class WerftService {
   static readonly StartLocalJob: WerftServiceStartLocalJob;
   static readonly StartGitHubJob: WerftServiceStartGitHubJob;
   static readonly StartFromPreviousJob: WerftServiceStartFromPreviousJob;
+  static readonly StartJob: WerftServiceStartJob;
   static readonly ListJobs: WerftServiceListJobs;
   static readonly Subscribe: WerftServiceSubscribe;
   static readonly GetJob: WerftServiceGetJob;
@@ -137,6 +147,15 @@ export class WerftServiceClient {
   ): UnaryResponse;
   startFromPreviousJob(
     requestMessage: werft_pb.StartFromPreviousJobRequest,
+    callback: (error: ServiceError|null, responseMessage: werft_pb.StartJobResponse|null) => void
+  ): UnaryResponse;
+  startJob(
+    requestMessage: werft_pb.StartJobRequest,
+    metadata: grpc.Metadata,
+    callback: (error: ServiceError|null, responseMessage: werft_pb.StartJobResponse|null) => void
+  ): UnaryResponse;
+  startJob(
+    requestMessage: werft_pb.StartJobRequest,
     callback: (error: ServiceError|null, responseMessage: werft_pb.StartJobResponse|null) => void
   ): UnaryResponse;
   listJobs(

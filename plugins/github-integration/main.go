@@ -441,8 +441,13 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			},
 		},
 	}
+	var nameSuffix string
+	if prDstOwner != prSrcOwner {
+		nameSuffix = "fork"
+	}
 	resp, err := p.Werft.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
-		Metadata: &metadata,
+		Metadata:   &metadata,
+		NameSuffix: nameSuffix,
 	})
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")

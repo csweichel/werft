@@ -245,6 +245,13 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 		refname = moniker.New().NameSep("-")
 	}
 	name := cleanupPodName(fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname))
+	if req.NameSuffix != "" {
+		if len(req.NameSuffix) > 20 {
+			return nil, status.Error(codes.InvalidArgument, "name suffix must be less than 20 characters")
+		}
+
+		name += "-" + req.NameSuffix
+	}
 
 	if refname != "" {
 		// we have a valid refname, hence need to acquire job number

@@ -115,6 +115,9 @@ export class StartGitHubJobRequest extends jspb.Message {
   getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
   setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
 
+  getNameSuffix(): string;
+  setNameSuffix(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StartGitHubJobRequest.AsObject;
   static toObject(includeInstance: boolean, msg: StartGitHubJobRequest): StartGitHubJobRequest.AsObject;
@@ -133,6 +136,55 @@ export namespace StartGitHubJobRequest {
     githubToken: string,
     sideload: Uint8Array | string,
     waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+    nameSuffix: string,
+  }
+}
+
+export class StartJobRequest extends jspb.Message {
+  hasMetadata(): boolean;
+  clearMetadata(): void;
+  getMetadata(): JobMetadata | undefined;
+  setMetadata(value?: JobMetadata): void;
+
+  getJobPath(): string;
+  setJobPath(value: string): void;
+
+  getJobYaml(): Uint8Array | string;
+  getJobYaml_asU8(): Uint8Array;
+  getJobYaml_asB64(): string;
+  setJobYaml(value: Uint8Array | string): void;
+
+  getSideload(): Uint8Array | string;
+  getSideload_asU8(): Uint8Array;
+  getSideload_asB64(): string;
+  setSideload(value: Uint8Array | string): void;
+
+  hasWaitUntil(): boolean;
+  clearWaitUntil(): void;
+  getWaitUntil(): google_protobuf_timestamp_pb.Timestamp | undefined;
+  setWaitUntil(value?: google_protobuf_timestamp_pb.Timestamp): void;
+
+  getNameSuffix(): string;
+  setNameSuffix(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StartJobRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: StartJobRequest): StartJobRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StartJobRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StartJobRequest;
+  static deserializeBinaryFromReader(message: StartJobRequest, reader: jspb.BinaryReader): StartJobRequest;
+}
+
+export namespace StartJobRequest {
+  export type AsObject = {
+    metadata?: JobMetadata.AsObject,
+    jobPath: string,
+    jobYaml: Uint8Array | string,
+    sideload: Uint8Array | string,
+    waitUntil?: google_protobuf_timestamp_pb.Timestamp.AsObject,
+    nameSuffix: string,
   }
 }
 
