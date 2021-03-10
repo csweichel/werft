@@ -107,10 +107,14 @@ func (p *githubTriggerPlugin) Run(ctx context.Context, config interface{}, srv v
 }
 
 func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
-	var wantsUpdate bool
+	var (
+		wantsUpdate   bool
+		statusDstRepo string
+	)
 	for _, a := range job.Metadata.Annotations {
 		if a.Key == annotationStatusUpdate {
 			wantsUpdate = true
+			statusDstRepo = a.Value
 			break
 		}
 	}
@@ -142,9 +146,21 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 		Context:     &werftGithubContext,
 		TargetURL:   &url,
 	}
+
+	var (
+		segs  = strings.Split(statusDstRepo, "/")
+		owner string
+		repo  string
+	)
+	if len(segs) == 2 {
+		owner, repo = segs[0], segs[1]
+	} else {
+		owner, repo = job.Metadata.Owner, job.Metadata.Repository.Repo
+	}
+
 	log.WithField("status", ghstatus).Debugf("updating GitHub status for %s", job.Name)
 	ctx := context.Background()
-	_, _, err := p.Github.Repositories.CreateStatus(ctx, job.Metadata.Repository.Owner, job.Metadata.Repository.Repo, job.Metadata.Repository.Revision, ghstatus)
+	_, _, err := p.Github.Repositories.CreateStatus(ctx, owner, repo, job.Metadata.Repository.Revision, ghstatus)
 	if err != nil {
 		return err
 	}
@@ -170,8 +186,8 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 		success := "success"
 		ghcontext := fmt.Sprintf("%s-%03d", werftResultGithubContext, idx)
 		_, _, err := p.Github.Repositories.CreateStatus(ctx,
-			job.Metadata.Repository.Owner,
-			job.Metadata.Repository.Repo,
+			owner,
+			repo,
 			job.Metadata.Repository.Revision,
 			&github.RepoStatus{
 				State:       &success,
@@ -253,16 +269,16 @@ func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 		Owner: *event.Pusher.Name,
 		Repository: &v1.Repository{
 			Host:     defaultGitHubHost,
-			Owner:    *event.Repo.Owner.Name,
-			Repo:     *event.Repo.Name,
-			Ref:      *event.Ref,
+			Owner:    event.Repo.Owner.GetName(),
+			Repo:     event.Repo.GetName(),
+			Ref:      event.GetRef(),
 			Revision: rev,
 		},
 		Trigger: trigger,
 		Annotations: []*v1.Annotation{
 			{
 				Key:   annotationStatusUpdate,
-				Value: "true",
+				Value: event.Repo.Owner.GetName() + "/" + event.Repo.GetName(),
 			},
 		},
 	}
@@ -421,7 +437,7 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		Annotations: []*v1.Annotation{
 			{
 				Key:   annotationStatusUpdate,
-				Value: "true",
+				Value: prDstOwner + "/" + prDstRepo,
 			},
 		},
 	}
