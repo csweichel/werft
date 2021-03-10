@@ -2,6 +2,7 @@ package executor
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -68,7 +69,7 @@ func (ll *logListener) Close() error {
 }
 
 func (ll *logListener) Start() {
-	podwatch, err := ll.Clientset.CoreV1().Pods(ll.Namespace).Watch(metav1.ListOptions{
+	podwatch, err := ll.Clientset.CoreV1().Pods(ll.Namespace).Watch(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=%s", ll.Labels.LabelJobName, ll.Job),
 	})
 	if err != nil {
@@ -140,7 +141,7 @@ func (ll *logListener) tail(pod, container, prefix string) {
 		Follow:    true,
 		Previous:  false,
 	})
-	logs, err := req.Stream()
+	logs, err := req.Stream(context.Background())
 	if err != nil {
 		log.WithError(err).Debug("cannot connect to logs")
 		return

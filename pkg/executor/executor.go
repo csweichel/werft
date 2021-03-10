@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -248,7 +249,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		poddesc.ObjectMeta.Labels[labelMutex] = opts.Mutex
 
 		// enforce mutex by marking all other jobs with the same mutex as failed
-		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", labelMutex, opts.Mutex)})
+		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(context.Background(), metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=%s", labelMutex, opts.Mutex)})
 		if err != nil {
 			return nil, xerrors.Errorf("cannot enforce mutex: %w", err)
 		}
@@ -282,7 +283,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 			log.Debugf("scheduling job\n%s", dbg)
 		}
 
-		job, err := js.Client.CoreV1().Pods(js.Config.Namespace).Create(&poddesc)
+		job, err := js.Client.CoreV1().Pods(js.Config.Namespace).Create(context.Background(), &poddesc, metav1.CreateOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -351,7 +352,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 func (js *Executor) monitorJobs() {
 	reconnectionTimeout := 500 * time.Millisecond
 	for {
-		incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(metav1.ListOptions{
+		incoming, err := js.Client.CoreV1().Pods(js.Config.Namespace).Watch(context.Background(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 		})
 		if err != nil {
@@ -401,7 +402,7 @@ func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) erro
 		gracePeriod := int64(5)
 		policy := metav1.DeletePropagationForeground
 
-		err := js.Client.CoreV1().Pods(js.Config.Namespace).Delete(obj.Name, &metav1.DeleteOptions{
+		err := js.Client.CoreV1().Pods(js.Config.Namespace).Delete(context.Background(), obj.Name, metav1.DeleteOptions{
 			GracePeriodSeconds: &gracePeriod,
 			PropagationPolicy:  &policy,
 		})
@@ -459,7 +460,7 @@ func (js *Executor) doHousekeeping() {
 	tick := time.NewTicker(js.Config.JobPrepTimeout.Duration / 2)
 	for {
 		// check our state and watch for non-existent jobs/events that we missed
-		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+		pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 		})
 		if err != nil {
@@ -507,7 +508,7 @@ var errNotFound = xerrors.Errorf("unknown job")
 
 // Finds the pod executing a job
 func (js *Executor) getJobPod(name string) (*corev1.Pod, error) {
-	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=%s", js.labels.LabelJobName, name),
 	})
 	if err != nil {
@@ -560,7 +561,7 @@ func (js *Executor) GetKnownJobs() (jobs []werftv1.JobStatus, err error) {
 	}
 	js.mu.RUnlock()
 
-	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(metav1.ListOptions{
+	pods, err := js.Client.CoreV1().Pods(js.Config.Namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("%s=true", js.labels.LabelWerftMarker),
 	})
 	if err != nil {
@@ -588,7 +589,7 @@ func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error
 
 	client := js.Client.CoreV1().Pods(js.Config.Namespace)
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		pod, err := client.Get(podname, metav1.GetOptions{})
+		pod, err := client.Get(context.Background(), podname, metav1.GetOptions{})
 		if err != nil {
 			return xerrors.Errorf("cannot find job pod %s: %w", podname, err)
 		}
@@ -610,7 +611,7 @@ func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error
 		}
 		pod.Annotations[js.labels.AnnotationResults] = string(ra)
 
-		_, err = client.Update(pod)
+		_, err = client.Update(context.Background(), pod, metav1.UpdateOptions{})
 		return err
 	})
 	return err
@@ -620,7 +621,7 @@ func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error
 func (js *Executor) addAnnotation(podname string, annotations map[string]string) error {
 	client := js.Client.CoreV1().Pods(js.Config.Namespace)
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		pod, err := client.Get(podname, metav1.GetOptions{})
+		pod, err := client.Get(context.Background(), podname, metav1.GetOptions{})
 		if err != nil {
 			return xerrors.Errorf("cannot find job pod %s: %w", podname, err)
 		}
@@ -632,7 +633,7 @@ func (js *Executor) addAnnotation(podname string, annotations map[string]string)
 			pod.Annotations[k] = v
 		}
 
-		_, err = client.Update(pod)
+		_, err = client.Update(context.Background(), pod, metav1.UpdateOptions{})
 		return err
 	})
 	return err
