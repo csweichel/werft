@@ -60,6 +60,7 @@ message StartGitHubJobRequest {
     string github_token = 4;
     bytes sideload = 5; 
     google.protobuf.Timestamp wait_until = 6;
+    string name_suffix = 7;
 }
 
 message StartJobRequest {
@@ -68,6 +69,7 @@ message StartJobRequest {
     bytes job_yaml = 3;
     bytes sideload = 4; 
     google.protobuf.Timestamp wait_until = 5;
+    string name_suffix = 6;
 }
 
 message StartFromPreviousJobRequest {
