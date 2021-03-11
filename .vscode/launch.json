@@ -28,7 +28,7 @@
                 "run",
                 "--verbose=true",
                 "--debug-webui-proxy=http://localhost:3000",
-                "testdata/example-config.json"
+                "testdata/in-gitpod-config.yaml"
             ]
         },
         {
