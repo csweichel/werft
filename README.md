@@ -7,6 +7,23 @@ Werft is a Kubernetes-native CI system. It knows no pipelines, just jobs and eac
 What you do in that pod is up to you. We do not impose a "declarative pipeline syntax" or some groovy scripting language.
 Instead, Werft jobs have run Node, Golang or bash scripts in production environments.
 
+---
+- [Installation](#installation)
+  * [Github](#github)
+  * [Configuration](#configuration)
+  * [OAuth](#oauth)
+- [Setting up jobs](#setting-up-jobs)
+  * [GitHub events](#gitHub-events)
+- [Log Cutting](#log-cutting)
+  * [GitHub events](#gitHub-events)
+- [Command Line Interface](#command-line-interface)
+  * [Installation](#installation-1)
+  * [Usage](#usage)
+- [Annotations](#annotations)
+- [Attribution](#attribution)
+- [Thank You](#thank-you)
+---
+
 ## Installation
 The easiest way to install Werft is using its [Helm chart](helm/).
 Clone this repo, cd into `helm/` and install using 
@@ -153,6 +170,26 @@ Flags:
 Use "werft [command] --help" for more information about a command.
 ```
 
+## Annotations
+Annotations are used by your werft job to make runtime decesions. Werft supports passing annotation in three ways:
+
+1. From PR description
+
+You can add annotations in the following form to your Pull request description and werft will pick them up
+```sh
+/werft someAnnotation
+/werft someAnnotation=foobar
+- [x] /werft someAnnotation
+- [x] /werft someAnnotation=foobar
+```
+2. From Git commit
+
+Werft supports same format as above to pass annotations via commit message. Werft will use the top most commit only.
+
+3. From CLI
+```sh
+werft run github -a someAnnotation=foobar
+```
 ## Attribution
 
 Logo based on [Shipyard Vectors by Vecteezy](https://www.vecteezy.com/free-vector/shipyard)
