@@ -18,6 +18,7 @@ import (
 var (
 	werftGithubContext       = "continuous-integration/werft"
 	werftResultGithubContext = "continuous-integration/werft/result"
+	werftResultChannelPrefix = "github-check-"
 
 	// annotationStatusUpdate is set on jobs whoose status needs to be updated on GitHub.
 	// This is set only on jobs created through GitHub events.
@@ -168,10 +169,20 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 	// update all result statuses
 	var idx int
 	for _, r := range job.Results {
-		var ok bool
+		var (
+			ok    bool
+			ghctx string
+		)
 		for _, c := range r.Channels {
 			if c == "github" {
 				ok = true
+				ghctx = fmt.Sprintf("%s-%03d", werftResultGithubContext, idx)
+				idx++
+				break
+			}
+			if strings.HasPrefix(c, werftResultChannelPrefix) {
+				ok = true
+				ghctx = fmt.Sprintf("%s-%s", werftResultGithubContext, strings.TrimPrefix(c, werftResultChannelPrefix))
 				break
 			}
 		}
@@ -184,7 +195,9 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 			resultURL = r.Payload
 		}
 		success := "success"
-		ghcontext := fmt.Sprintf("%s-%03d", werftResultGithubContext, idx)
+		if r.Type == "conclusion" {
+			success = r.Payload
+		}
 		_, _, err := p.Github.Repositories.CreateStatus(ctx,
 			owner,
 			repo,
@@ -193,7 +206,7 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 				State:       &success,
 				TargetURL:   &resultURL,
 				Description: &r.Description,
-				Context:     &ghcontext,
+				Context:     &ghctx,
 			},
 		)
 		if err != nil {
