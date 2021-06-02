@@ -11,7 +11,7 @@ import (
 	"github.com/bradleyfalzon/ghinstallation"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	plugin "github.com/csweichel/werft/pkg/plugin/client"
-	"github.com/google/go-github/v31/github"
+	"github.com/google/go-github/v35/github"
 	log "github.com/sirupsen/logrus"
 )
 

@@ -7,7 +7,7 @@ replace github.com/csweichel/werft => ../..
 require (
 	github.com/bradleyfalzon/ghinstallation v1.1.1
 	github.com/csweichel/werft v0.0.0-00010101000000-000000000000
-	github.com/google/go-github/v31 v31.0.0
+	github.com/google/go-github/v35 v35.2.0
 	github.com/sirupsen/logrus v1.8.1
 )
 

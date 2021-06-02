@@ -49,7 +49,7 @@ plugins:
     command:
     - sh
     - -c
-    - go run plugins/github-integration/main.go $*
+    - cd plugins/github-integration; go build; cd -; plugins/github-integration/github-integration $*
     - -s
   - name: "example"
     type:
