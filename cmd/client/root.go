@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -236,7 +235,7 @@ func getKubeconfig(kubeconfig string) (res *rest.Config, namespace string, err e
 
 // findWerftPod returns the first pod we found for a particular component
 func findWerftPod(clientSet kubernetes.Interface, namespace, selector string) (podName string, err error) {
-	pods, err := clientSet.CoreV1().Pods(namespace).List(metav1.ListOptions{
+	pods, err := clientSet.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: selector,
 	})
 	if err != nil {
@@ -247,8 +246,6 @@ func findWerftPod(clientSet kubernetes.Interface, namespace, selector string) (p
 	}
 	return pods.Items[0].Name, nil
 }
-
-var kubernetesDialerAddrRegexp = regexp.MustCompile(`(?P<namespace>[\w-\.]+)\/(?P<label>[\w-\.]+):(?P<port>\d+)`)
 
 // ForwardPort establishes a TCP port forwarding to a Kubernetes pod
 func forwardPort(ctx context.Context, config *rest.Config, namespace, pod, port string) (readychan chan struct{}, errchan chan error) {
