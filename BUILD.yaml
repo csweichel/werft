@@ -41,12 +41,10 @@ packages:
       - plugins:all
     argdeps:
       - version
-      - latestOrNext
     config:
       dockerfile: "server.Dockerfile"
       image:
         - csweichel/werft:${version}
-        - csweichel/werft:${latestOrNext}
   - name: client-linux-amd64
     type: go
     srcs:
