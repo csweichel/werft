@@ -26,4 +26,5 @@ packages:
         - ["sh", "-c", "cd pkg/build && $GOPATH/bin/rice embed-go"]
         - ["mv", "pkg/build/rice-box.go", "."]
         - ["rm", "-rf", "pkg-webui--dist", "pkg"]
+        - ["go", "mod", "init", "werft"]
         - ["go", "fmt", "./..."]

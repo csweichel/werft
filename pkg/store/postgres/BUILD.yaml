@@ -6,7 +6,7 @@ packages:
       - "migration.go"
     config:
       commands:
-        - ["ls"]
+        - ["go", "mod", "init", "github.com/csweichel/werft/pg"]
         - ["go", "get", "github.com/GeertJohan/go.rice/rice"]
         - ["sh", "-c", "$GOPATH/bin/rice embed-go"]
         - ["rm", "-rf", "migrations", "migration.go"]
