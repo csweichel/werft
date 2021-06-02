@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { WerftServiceClient } from './api/werft_pb_service';
-import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, ListJobsRequest, OrderExpression, Annotation } from './api/werft_pb';
+import { JobStatus, GetJobRequest, GetJobResponse, LogSliceEvent, ListenRequest, ListenRequestLogs, JobPhase, StopJobRequest, StartFromPreviousJobRequest, SubscribeRequest, FilterExpression, FilterTerm, FilterOp, ListJobsRequest, OrderExpression } from './api/werft_pb';
 import ReactTimeago from 'react-timeago';
 import './components/terminal.css';
 import { LogView } from './components/LogView';
@@ -12,7 +12,6 @@ import CloseIcon from '@material-ui/icons/Close';
 import StopIcon from '@material-ui/icons/Stop';
 import ReplayIcon from '@material-ui/icons/Replay';
 import InfoIcon from '@material-ui/icons/Info';
-import MoreVertIcon from '@material-ui/icons/MoreVert';
 import { ColorUnknown, ColorFailure, ColorSuccess, ColorRunning, ColorWarning } from './components/colors';
 import { debounce, phaseToString } from './components/util';
 import * as moment from 'moment';
