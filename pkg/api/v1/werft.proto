@@ -166,6 +166,7 @@ message JobMetadata {
     google.protobuf.Timestamp created = 4;
     google.protobuf.Timestamp finished = 5;
     repeated Annotation annotations = 6;
+    string job_spec_name = 7;
 }
 
 message Repository {

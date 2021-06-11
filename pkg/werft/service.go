@@ -229,8 +229,9 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 		}
 	}
 	if tplpath != "" {
-		jobSpecName = strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath))
+		jobSpecName = strings.TrimSpace(strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath)))
 	}
+	md.JobSpecName = jobSpecName
 
 	// build job name
 	refname := md.Repository.Ref
