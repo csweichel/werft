@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	werftGithubContext       = "continuous-integration/werft"
-	werftResultGithubContext = "continuous-integration/werft/result"
+	werftGithubContextPrefix = "ci/werft"
 	werftResultChannelPrefix = "github-check-"
 
 	// annotationStatusUpdate is set on jobs whoose status needs to be updated on GitHub.
@@ -141,10 +140,11 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 		}
 	}
 	url := fmt.Sprintf("%s/job/%s", p.Config.BaseURL, job.Name)
+	jobGHctx := werftGithubContextPrefix + "/" + job.Metadata.JobSpecName
 	ghstatus := &github.RepoStatus{
 		State:       &state,
 		Description: &desc,
-		Context:     &werftGithubContext,
+		Context:     &jobGHctx,
 		TargetURL:   &url,
 	}
 
@@ -176,13 +176,13 @@ func (p *githubTriggerPlugin) updateGitHubStatus(job *v1.JobStatus) error {
 		for _, c := range r.Channels {
 			if c == "github" {
 				ok = true
-				ghctx = fmt.Sprintf("%s-%03d", werftResultGithubContext, idx)
+				ghctx = fmt.Sprintf("%s/results/%03d", jobGHctx, idx)
 				idx++
 				break
 			}
 			if strings.HasPrefix(c, werftResultChannelPrefix) {
 				ok = true
-				ghctx = fmt.Sprintf("%s-%s", werftResultGithubContext, strings.TrimPrefix(c, werftResultChannelPrefix))
+				ghctx = fmt.Sprintf("%s/results/%s", jobGHctx, strings.TrimPrefix(c, werftResultChannelPrefix))
 				break
 			}
 		}
