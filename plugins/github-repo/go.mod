@@ -11,5 +11,5 @@ require (
 	github.com/google/go-github/v31 v31.0.0
 	github.com/sirupsen/logrus v1.8.1
 	google.golang.org/grpc v1.36.0
-	k8s.io/api v0.20.4
+	k8s.io/api v0.21.1
 )
