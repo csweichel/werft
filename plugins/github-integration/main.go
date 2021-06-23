@@ -24,6 +24,13 @@ var (
 	annotationStatusUpdate = "updateGitHubStatus"
 
 	defaultGitHubHost = "github.com"
+
+	commandHelp = `You can interact with werft using: ` + "`" + `/werft command <args>` + "`" + `.
+Available commands are:
+ - ` + "`" + `/werft run [annotation=value]` + "`" + ` which starts a new werft job from this context.
+    You can optionally pass multiple whitespace-separated annotations.
+ - ` + "`" + `/werft help` + "`" + ` displays this help
+`
 )
 
 // Config configures this plugin
@@ -420,8 +427,10 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		switch cmd {
 		case "run":
 			resp, err = p.handleCommandRun(ctx, event, pr, args)
+		case "help":
+			resp = commandHelp
 		default:
-			err = fmt.Errorf("unknown command: %s", cmd)
+			err = fmt.Errorf("unknown command: %s\nUse `/werft help` to list the available commands", cmd)
 		}
 		if err != nil {
 			log.WithError(err).Warn("GitHub webhook error")
