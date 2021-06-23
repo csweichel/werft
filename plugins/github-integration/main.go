@@ -370,11 +370,6 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		feedback.Message = "cannot find corresponding PR"
 		return
 	}
-	segs = strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
-	var (
-		prSrcOwner = segs[0]
-		prSrcRepo  = segs[1]
-	)
 
 	var (
 		sender  = event.GetSender().GetLogin()
@@ -409,27 +404,67 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		return
 	}
 
-	var run bool
 	lines := strings.Split(event.GetComment().GetBody(), "\n")
 	for _, l := range lines {
-		l = strings.TrimSpace(l)
-		if !strings.HasPrefix(l, "/werft") {
+		cmd, args, err := parseCommand(l)
+		if err != nil {
+			feedback.Success = false
+			feedback.Message = fmt.Sprintf("cannot parse %s: %v", l, err)
 			continue
 		}
-		l = strings.TrimPrefix(l, "/werft")
-		l = strings.TrimSpace(l)
-
-		fmt.Println(l)
-		if l == "run" {
-			run = true
-			break
-		} else {
-			feedback.Success = false
-			feedback.Message = fmt.Sprintf("unknown command `%s` - only `run` is supported", l)
+		if cmd == "" {
+			continue
 		}
+
+		var resp string
+		switch cmd {
+		case "run":
+			resp, err = p.handleCommandRun(ctx, event, pr, args)
+		default:
+			err = fmt.Errorf("unknown command: %s", cmd)
+		}
+		if err != nil {
+			log.WithError(err).Warn("GitHub webhook error")
+			feedback.Success = false
+			feedback.Message = err.Error()
+			return
+		}
+
+		feedback.Success = true
+		feedback.Message = resp
 	}
-	if !run {
-		return
+}
+
+func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *github.IssueCommentEvent, pr *github.PullRequest, args []string) (msg string, err error) {
+	segs := strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
+	var (
+		prSrcOwner = segs[0]
+		prSrcRepo  = segs[1]
+	)
+	segs = strings.Split(event.GetRepo().GetFullName(), "/")
+	var (
+		prDstOwner = segs[0]
+		prDstRepo  = segs[1]
+	)
+
+	argm := make(map[string]string)
+	for _, arg := range args {
+		var key, value string
+		if segs := strings.Split(arg, "="); len(segs) == 1 {
+			key = arg
+		} else {
+			key, value = segs[0], strings.Join(segs[1:], "=")
+		}
+		argm[key] = value
+	}
+	argm[annotationStatusUpdate] = prDstOwner + "/" + prDstRepo
+
+	annotations := make([]*v1.Annotation, 0, len(argm))
+	for k, v := range argm {
+		annotations = append(annotations, &v1.Annotation{
+			Key:   k,
+			Value: v,
+		})
 	}
 
 	ref := pr.GetHead().GetRef()
@@ -446,13 +481,8 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			Ref:      ref,
 			Revision: pr.GetHead().GetSHA(),
 		},
-		Trigger: v1.JobTrigger_TRIGGER_MANUAL,
-		Annotations: []*v1.Annotation{
-			{
-				Key:   annotationStatusUpdate,
-				Value: prDstOwner + "/" + prDstRepo,
-			},
-		},
+		Trigger:     v1.JobTrigger_TRIGGER_MANUAL,
+		Annotations: annotations,
 	}
 	var nameSuffix string
 	if prDstOwner != prSrcOwner {
@@ -464,11 +494,24 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 	})
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
-		feedback.Success = false
-		feedback.Message = "cannot start job - please talk to whoever's in charge of your Werft installation"
-		return
+		return "", fmt.Errorf("cannot start job - please talk to whoever's in charge of your Werft installation")
 	}
 
-	feedback.Success = true
-	feedback.Message = fmt.Sprintf("started the job as [%s](%s/job/%s)", resp.Status.Name, p.Config.BaseURL, resp.Status.Name)
+	return fmt.Sprintf("started the job as [%s](%s/job/%s)", resp.Status.Name, p.Config.BaseURL, resp.Status.Name), nil
+}
+
+func parseCommand(l string) (cmd string, args []string, err error) {
+	l = strings.TrimSpace(l)
+	if !strings.HasPrefix(l, "/werft") {
+		return
+	}
+	l = strings.TrimPrefix(l, "/werft")
+	l = strings.TrimSpace(l)
+
+	segs := strings.Fields(l)
+	if len(segs) < 1 {
+		return "", nil, fmt.Errorf("missing command")
+	}
+
+	return segs[0], segs[1:], nil
 }
