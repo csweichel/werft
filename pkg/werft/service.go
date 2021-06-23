@@ -149,11 +149,12 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 	}
 
 	return srv.StartJob(ctx, &v1.StartJobRequest{
-		JobPath:   req.JobPath,
-		JobYaml:   req.JobYaml,
-		Metadata:  req.Metadata,
-		Sideload:  req.Sideload,
-		WaitUntil: req.WaitUntil,
+		JobPath:    req.JobPath,
+		JobYaml:    req.JobYaml,
+		Metadata:   req.Metadata,
+		Sideload:   req.Sideload,
+		WaitUntil:  req.WaitUntil,
+		NameSuffix: req.NameSuffix,
 	})
 }
 
