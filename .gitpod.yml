@@ -14,7 +14,7 @@ tasks:
     command: yarn --cwd pkg/webui start
     openMode: split-right
   - command: k3s server --disable-agent
-    openMode: split-bottom
+    openMode: split-left
 image:
   file: .gitpod.Dockerfile
 ports:
@@ -25,4 +25,4 @@ ports:
     onOpen: ignore
 vscode:
   extensions:
-    - zxh404.vscode-proto3@0.3.0:4f1jn72vQA2/LVoVSSmMtQ==
+    - zxh404.vscode-proto3
