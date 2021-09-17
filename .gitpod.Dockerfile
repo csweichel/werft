@@ -1,4 +1,5 @@
 FROM gitpod/workspace-postgres
+ARG TRIGGER_REBUILD=1
 
 USER root
 

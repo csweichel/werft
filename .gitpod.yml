@@ -1,4 +1,5 @@
-workspaceLocation: werft/werft.theia-workspace
+image:
+  file: .gitpod.Dockerfile
 tasks:
   - init: go get && go build ./... && go test ./...
     command: |
@@ -15,14 +16,13 @@ tasks:
     openMode: split-right
   - command: k3s server --disable-agent
     openMode: split-right
-image:
-  file: .gitpod.Dockerfile
 ports:
   - port: 6443
   - port: 8080
     onOpen: open-preview
   - port: 2999-3001
     onOpen: ignore
+workspaceLocation: werft/werft.theia-workspace
 vscode:
   extensions:
     - zxh404.vscode-proto3@0.3.0
