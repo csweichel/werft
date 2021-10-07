@@ -91,8 +91,10 @@ type Service struct {
 
 	events  emitter.Emitter
 	metrics struct {
-		GithubJobPreparationSeconds   prometheus.Histogram
-		ExecutorJobPreperationSeconds prometheus.Histogram
+		GithubJobPreparationSeconds    prometheus.Histogram
+		ExecutorJobPreperationSeconds  prometheus.Histogram
+		ExecutorJobStartsCounter       prometheus.Counter
+		ExecutorJobFailedStartsCounter prometheus.Counter
 	}
 }
 
@@ -110,9 +112,23 @@ func (srv *Service) Start() error {
 		Buckets: []float64{0, 0.25, 0.5, 0.75, 1},
 	})
 	srv.metrics.ExecutorJobPreperationSeconds = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "executor_job_preparation_seconds",
-		Help:    "Time it took to start executing the job",
-		Buckets: []float64{0, 0.25, 0.5, 0.75, 1},
+		Namespace: "werft",
+		Subsystem: "executor",
+		Name:      "job_preparation_seconds",
+		Help:      "Time it took to start executing the job",
+		Buckets:   []float64{0, 0.25, 0.5, 0.75, 1},
+	})
+	srv.metrics.ExecutorJobStartsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "werft",
+		Subsystem: "executor",
+		Name:      "job_starts_total",
+		Help:      "Total amount of jobs executor tried to start.",
+	})
+	srv.metrics.ExecutorJobFailedStartsCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "werft",
+		Subsystem: "executor",
+		Name:      "job_starts_failed_total",
+		Help:      "Total amount of jobs executor failed to start.",
 	})
 
 	// we might still have waiting jobs which we must load back into the executor
@@ -172,6 +188,8 @@ func (srv *Service) Start() error {
 func (srv *Service) RegisterPrometheusMetrics(reg prometheus.Registerer) {
 	reg.MustRegister(srv.metrics.GithubJobPreparationSeconds)
 	reg.MustRegister(srv.metrics.ExecutorJobPreperationSeconds)
+	reg.MustRegister(srv.metrics.ExecutorJobFailedStartsCounter)
+	reg.MustRegister(srv.metrics.ExecutorJobStartsCounter)
 }
 
 func (srv *Service) doHousekeeping() {
@@ -580,7 +598,9 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		executor.WithMutex(jobspec.Mutex),
 		executor.WithSidecars(jobspec.Sidecars),
 	)
+	srv.metrics.ExecutorJobStartsCounter.Inc()	
 	if err != nil {
+		srv.metrics.ExecutorJobFailedStartsCounter.Inc()
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
 	}
 	name = status.Name
