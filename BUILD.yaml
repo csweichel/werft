@@ -137,7 +137,7 @@ packages:
         - ["mv", "client-linux-amd64/werft", "dist/werft-client-linux-amd64"]
         - ["sh", "-c", "cd dist; for i in $(ls); do echo tar cvvfz $i.tar.gz $i; done | sh"]
         - ["sh", "-c", "curl -L https://github.com/c4milo/github-release/releases/download/v1.1.0/github-release_v1.1.0_linux_amd64.tar.gz | tar xz"]
-        - ["sh", "-c", "./github-release csweichel/werft ${version} master \"$(cat desc.txt)\" 'dist/*.tar.gz'"]
+        - ["sh", "-c", "./github-release csweichel/werft ${version} main \"$(cat desc.txt)\" 'dist/*.tar.gz'"]
   - name: all
     type: generic
     deps:
