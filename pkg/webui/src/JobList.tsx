@@ -254,7 +254,7 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
                     count={this.state.totalJobs}
                     page={this.state.page}
                     rowsPerPage={this.state.rowsPerPage}
-                    onChangePage={(_, page) => {
+                    onPageChange={(_, page) => {
                         this.update({ page });
                     }}
                     onChangeRowsPerPage={(src) => {
