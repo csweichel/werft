@@ -1,4 +1,6 @@
+//go:build client
 // +build client
+
 // Copyright © 2019 Christian Weichel
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy

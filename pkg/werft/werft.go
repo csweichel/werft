@@ -598,7 +598,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 		executor.WithMutex(jobspec.Mutex),
 		executor.WithSidecars(jobspec.Sidecars),
 	)
-	srv.metrics.ExecutorJobStartsCounter.Inc()	
+	srv.metrics.ExecutorJobStartsCounter.Inc()
 	if err != nil {
 		srv.metrics.ExecutorJobFailedStartsCounter.Inc()
 		return nil, xerrors.Errorf("cannot handle job for %s: %w", name, err)
