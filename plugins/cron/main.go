@@ -60,16 +60,17 @@ func (*cronPlugin) Run(ctx context.Context, config interface{}, srv v1.WerftServ
 			})
 		}
 
+		request := &v1.StartGitHubJobRequest{
+			Metadata: &v1.JobMetadata{
+				Owner:       "cron",
+				Annotations: annotations,
+				Trigger:     trigger,
+				Repository:  repo,
+			},
+			JobPath: task.JobPath,
+		}
 		_, err = c.AddFunc(task.Spec, func() {
-			_, err := srv.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
-				Metadata: &v1.JobMetadata{
-					Owner:       "cron",
-					Annotations: annotations,
-					Trigger:     trigger,
-					Repository:  repo,
-				},
-				JobPath: task.JobPath,
-			})
+			_, err := srv.StartGitHubJob(ctx, request)
 			if err != nil {
 				log.WithError(err).WithField("idx", idx).WithField("spec", task.Spec).Error("cannot start job")
 			}
