@@ -25,16 +25,27 @@ type UIService struct {
 }
 
 // NewUIService produces a new UI service and initializes its repo list
-func NewUIService(repoprov RepositoryProvider, repos []string, readonly bool) (*UIService, error) {
+func NewUIService(repoprov RepositoryProvider, repos []string, readonly bool, updateInterval time.Duration) (*UIService, error) {
 	r := &UIService{
 		RepositoryProvider: repoprov,
 		Repos:              repos,
 		Readonly:           readonly,
 	}
+
 	err := r.updateJobSpecs()
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		t := time.NewTicker(updateInterval)
+		for range t.C {
+			err := r.updateJobSpecs()
+			if err != nil {
+				log.WithError(err).Error("cannot update job specs")
+			}
+		}
+	}()
+
 	return r, nil
 }
 

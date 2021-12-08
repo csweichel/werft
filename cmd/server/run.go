@@ -173,7 +173,15 @@ var runCmd = &cobra.Command{
 		defer plugins.Stop()
 		service.RepositoryProvider = plugins.RepositoryProvider()
 
-		uiservice, err := werft.NewUIService(plugins.RepositoryProvider(), cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly)
+		specUpdateInterval := 10 * time.Minute
+		if cfg.Service.SpecUpdateInterval != "" {
+			specUpdateInterval, err = time.ParseDuration(cfg.Service.SpecUpdateInterval)
+			if err != nil {
+				log.WithError(err).WithField("configValue", cfg.Service.SpecUpdateInterval).Fatal("cannot parse spec update interval")
+			}
+		}
+
+		uiservice, err := werft.NewUIService(plugins.RepositoryProvider(), cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly, specUpdateInterval)
 		if err != nil {
 			return err
 		}
@@ -464,12 +472,13 @@ func init() {
 type Config struct {
 	Werft   werft.Config `yaml:"werft"`
 	Service struct {
-		WebPort      int      `yaml:"webPort"`
-		GRPCPort     int      `yaml:"grpcPort"`
-		PromPort     int      `yaml:"prometheusPort,omitempty"`
-		PprofPort    int      `yaml:"pprofPort,omitempty"`
-		JobSpecRepos []string `yaml:"jobSpecRepos"`
-		WebReadOnly  bool     `yaml:"webReadOnly,omitempty"`
+		WebPort            int      `yaml:"webPort"`
+		GRPCPort           int      `yaml:"grpcPort"`
+		PromPort           int      `yaml:"prometheusPort,omitempty"`
+		PprofPort          int      `yaml:"pprofPort,omitempty"`
+		JobSpecRepos       []string `yaml:"jobSpecRepos"`
+		SpecUpdateInterval string   `yaml:"specUpdateInterval"`
+		WebReadOnly        bool     `yaml:"webReadOnly,omitempty"`
 	}
 	Storage struct {
 		LogStore                   string `yaml:"logsPath"`
