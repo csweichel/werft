@@ -147,7 +147,7 @@ The default cutter in Werft expects the following syntax:
 > **Tip**: You can produce this kind of log output using the Werft CLI: `werft log`
 
 ## Command Line Interface
-Werft sports a powerful CI which can be used to create, list, start and listen to jobs.
+Werft sports a powerful CLI which can be used to create, list, start and listen to jobs.
 
 ### Installation
 The Werft CLI is available on the [GitHub release page](https://repositories.github.com/csweichel/werft/releases), or using this one-liner:
