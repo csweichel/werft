@@ -143,17 +143,22 @@ func (s *inMemoryLogStore) Read(id string) (io.ReadCloser, error) {
 	}), nil
 }
 
+type jobspec struct {
+	YAML []byte
+	Spec v1.JobSpec
+}
+
 // NewInMemoryJobStore creates a new in-memory job store
 func NewInMemoryJobStore() Jobs {
 	return &inMemoryJobStore{
 		jobs:  make(map[string]v1.JobStatus),
-		specs: make(map[string][]byte),
+		specs: make(map[string]*jobspec),
 	}
 }
 
 type inMemoryJobStore struct {
 	jobs  map[string]v1.JobStatus
-	specs map[string][]byte
+	specs map[string]*jobspec
 	mu    sync.RWMutex
 }
 
@@ -197,21 +202,24 @@ func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpressi
 	return res, len(res), nil
 }
 
-func (s *inMemoryJobStore) StoreJobSpec(name string, data []byte) error {
+func (s *inMemoryJobStore) StoreJobSpec(name string, spec v1.JobSpec, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.specs[name] = data
+	s.specs[name] = &jobspec{
+		YAML: data,
+		Spec: spec,
+	}
 	return nil
 }
 
-func (s *inMemoryJobStore) GetJobSpec(name string) (data []byte, err error) {
+func (s *inMemoryJobStore) GetJobSpec(name string) (spec *v1.JobSpec, data []byte, err error) {
 	s.mu.RLock()
 	s.mu.RUnlock()
 
-	data, ok := s.specs[name]
+	res, ok := s.specs[name]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
-	return data, nil
+	return &res.Spec, res.YAML, nil
 }

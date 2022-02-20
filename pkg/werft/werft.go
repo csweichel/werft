@@ -131,54 +131,6 @@ func (srv *Service) Start() error {
 		Help:      "Total amount of jobs executor failed to start.",
 	})
 
-	// we might still have waiting jobs which we must load back into the executor
-	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v1.FilterExpression{
-		{Terms: []*v1.FilterTerm{
-			{
-				Field:     "phase",
-				Value:     "waiting",
-				Operation: v1.FilterOp_OP_EQUALS,
-			},
-		}},
-	}, []*v1.OrderExpression{}, 0, 0)
-	if err != nil {
-		return xerrors.Errorf("cannot restore waiting jobs: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	for _, j := range waitingJobs {
-		cancelJob := func(err error) {
-			log.WithError(err).Errorf("cannot restore waiting job %s", j.Name)
-			j.Phase = v1.JobPhase_PHASE_DONE
-			j.Details = fmt.Sprintf("cannot restore execution context upon werft restart: %v", err)
-			j.Conditions.Success = false
-			srv.handleJobUpdate(nil, &j)
-		}
-
-		jobYAML, err := srv.Jobs.GetJobSpec(j.Name)
-		if err != nil {
-			cancelJob(err)
-			continue
-		}
-		waitUntil, err := ptypes.Timestamp(j.Conditions.WaitUntil)
-		if err != nil {
-			cancelJob(err)
-			continue
-		}
-
-		md := j.Metadata
-		cp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
-		if err != nil {
-			cancelJob(err)
-			continue
-		}
-		_, err = srv.RunJob(context.Background(), j.Name, *md, cp, jobYAML, true, waitUntil)
-		if err != nil {
-			cancelJob(err)
-			continue
-		}
-	}
-
 	go srv.doHousekeeping()
 
 	return nil
@@ -446,7 +398,7 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 }
 
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool, waitUntil time.Time) (status *v1.JobStatus, err error) {
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, spec v1.JobSpec, cp ContentProvider, jobYAML []byte, canReplay bool) (status *v1.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr != nil {
@@ -477,7 +429,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 
 	if canReplay {
 		// save job yaml
-		err = srv.Jobs.StoreJobSpec(name, jobYAML)
+		err = srv.Jobs.StoreJobSpec(name, spec, jobYAML)
 		if err != nil {
 			log.WithError(err).Warn("cannot store job YAML - job will not be replayable")
 		}
@@ -594,7 +546,6 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 	status, err = srv.Executor.Start(*podspec, metadata,
 		executor.WithName(name),
 		executor.WithCanReplay(canReplay),
-		executor.WithWaitUntil(waitUntil),
 		executor.WithMutex(jobspec.Mutex),
 		executor.WithSidecars(jobspec.Sidecars),
 	)
