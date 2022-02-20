@@ -7,6 +7,7 @@ replace github.com/csweichel/werft => ../..
 require (
 	github.com/bradleyfalzon/ghinstallation v1.1.1
 	github.com/csweichel/werft v0.1.5
+	github.com/golang/mock v1.4.3
 	github.com/google/go-cmp v0.5.7
 	github.com/google/go-github/v35 v35.3.0
 	github.com/sirupsen/logrus v1.8.1

@@ -9,6 +9,7 @@ require (
 	github.com/buildkite/terminal-to-html v3.2.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-migrate/migrate/v4 v4.11.0
+	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.3
 	github.com/improbable-eng/grpc-web v0.14.0
 	github.com/lib/pq v1.10.0

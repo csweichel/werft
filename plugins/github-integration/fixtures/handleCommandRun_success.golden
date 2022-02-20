@@ -1,0 +1,25 @@
+{
+  "req": {
+    "metadata": {
+      "owner": "csweichel",
+      "repository": {
+        "host": "github.com",
+        "owner": "csweichel",
+        "repo": "test-repo",
+        "ref": "refs/heads/werft",
+        "revision": "37cb8b8f7fc3499bdf65d662793dd2d968ae3bac"
+      },
+      "trigger": "TRIGGER_MANUAL",
+      "annotations": [
+        {
+          "key": "updateGitHubStatus",
+          "value": "csweichel/test-repo"
+        }
+      ]
+    },
+    "spec": {
+      "jobPath": ""
+    }
+  },
+  "msg": "started the job as [foo](/job/foo)"
+}
