@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"reflect"
@@ -37,11 +39,11 @@ Available commands are:
 type Config struct {
 	BaseURL string `yaml:"baseURL"`
 
-	WebhookSecret  string            `yaml:"webhookSecret"`
-	PrivateKeyPath string            `yaml:"privateKeyPath"`
-	InstallationID int64             `yaml:"installationID,omitempty"`
-	AppID          int64             `yaml:"appID"`
-	JobProtection  JobProtectedLevel `yaml:"jobProtection"`
+	WebhookSecret  string             `yaml:"webhookSecret"`
+	PrivateKeyPath string             `yaml:"privateKeyPath"`
+	InstallationID int64              `yaml:"installationID,omitempty"`
+	AppID          int64              `yaml:"appID"`
+	JobProtection  JobProtectionLevel `yaml:"jobProtection"`
 
 	PRComments struct {
 		Enabled bool `yaml:"enabled"`
@@ -55,11 +57,11 @@ type Config struct {
 	} `yaml:"pullRequestComments"`
 }
 
-type JobProtectedLevel string
+type JobProtectionLevel string
 
 const (
-	JobProtectionOff           JobProtectedLevel = ""
-	JobProtectionDefaultBranch JobProtectedLevel = "default-branch"
+	JobProtectionOff           JobProtectionLevel = ""
+	JobProtectionDefaultBranch JobProtectionLevel = "default-branch"
 )
 
 func main() {
@@ -309,10 +311,10 @@ type githubRepo interface {
 
 func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner *github.User, src, dst githubRepo, ref, rev string, trigger v1.JobTrigger) *v1.StartJobRequest2 {
 	metadata := v1.JobMetadata{
-		Owner: *pusher.Name,
+		Owner: pusher.GetLogin(),
 		Repository: &v1.Repository{
 			Host:     defaultGitHubHost,
-			Owner:    srcOwner.GetName(),
+			Owner:    srcOwner.GetLogin(),
 			Repo:     src.GetName(),
 			Ref:      ref,
 			Revision: rev,
@@ -321,13 +323,13 @@ func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner 
 		Annotations: []*v1.Annotation{
 			{
 				Key:   annotationStatusUpdate,
-				Value: dstOwner.GetName() + "/" + dst.GetName(),
+				Value: dstOwner.GetLogin() + "/" + dst.GetName(),
 			},
 		},
 	}
 
 	var spec v1.JobSpec
-	if dstOwner.ID != srcOwner.ID {
+	if dstOwner.GetID() != srcOwner.GetID() {
 		spec.NameSuffix = "fork"
 	}
 
@@ -335,7 +337,7 @@ func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner 
 	case JobProtectionDefaultBranch:
 		defaultBranch := &v1.Repository{
 			Host:  defaultGitHubHost,
-			Owner: dstOwner.GetName(),
+			Owner: dstOwner.GetLogin(),
 			Repo:  dst.GetName(),
 			Ref:   "refs/heads/" + dst.GetDefaultBranch(),
 		}
@@ -518,9 +520,12 @@ func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *githu
 		ref = "refs/heads/" + ref
 	}
 
+	fc, _ := json.Marshal(pr)
+	ioutil.WriteFile("/tmp/pr.json", fc, 0644)
+
 	src := pr.GetHead().GetRepo()
 	dst := event.GetRepo()
-	req := p.prepareStartJobRequest(event.Sender, src.Owner, dst.Owner, src, dst, ref, pr.GetHead().GetSHA(), v1.JobTrigger_TRIGGER_MANUAL)
+	req := p.prepareStartJobRequest(event.Comment.User, src.Owner, dst.Owner, src, dst, ref, pr.GetHead().GetSHA(), v1.JobTrigger_TRIGGER_MANUAL)
 	resp, err := p.Werft.StartJob2(ctx, req)
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")

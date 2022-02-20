@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -60,7 +61,7 @@ func (NoopRepositoryProvider) RemoteAnnotations(ctx context.Context, repo *v1.Re
 }
 
 // ContentProvider produces a content provider for a particular repo
-func (NoopRepositoryProvider) ContentProvider(ctx context.Context, repo *v1.Repository) (ContentProvider, error) {
+func (NoopRepositoryProvider) ContentProvider(ctx context.Context, repo *v1.Repository, paths ...string) (ContentProvider, error) {
 	return nil, errNotSupported
 }
 
@@ -292,11 +293,14 @@ var _ ContentProvider = CompositeContentProvider{}
 func (c CompositeContentProvider) InitContainer() ([]corev1.Container, error) {
 	var res []corev1.Container
 	for _, contentProv := range c {
-		ic, err := contentProv.InitContainer()
+		ics, err := contentProv.InitContainer()
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, ic...)
+		for _, ic := range ics {
+			ic.Name = fmt.Sprintf("%s-%03d", ic.Name, len(res))
+			res = append(res, ic)
+		}
 	}
 	return res, nil
 }

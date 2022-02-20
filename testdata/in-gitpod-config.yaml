@@ -41,6 +41,7 @@ plugins:
       privateKeyPath: testdata/example-app.pem
       appID: 48144
       installationID: 5647067
+      jobProtection: "default-branch"
       pullRequestComments:
         enabled: true
         updateComment: true

@@ -173,10 +173,15 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 	if user != "" || pass != "" {
 		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
 	}
-	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git %s && git checkout %s", cloneCmd, repo.Owner, repo.Repo, cloneDir, repo.Revision)
+	cloneTarget := repo.Ref
+	if repo.Revision != "" {
+		cloneTarget = repo.Revision
+	}
+	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git %s && git checkout %s", cloneCmd, repo.Owner, repo.Repo, cloneDir, cloneTarget)
 
 	if len(req.Paths) > 0 {
 		var cmds []string
+		cmds = append(cmds, cloneCmd)
 		for _, p := range req.Paths {
 			cmds = append(cmds, fmt.Sprintf("rm -rf %s", p))
 			cmds = append(cmds, fmt.Sprintf("cp -Rf %s %s", filepath.Join(cloneDir, p), p))
