@@ -280,6 +280,8 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 		p.processInstallationEvent(event)
 	case *github.IssueCommentEvent:
 		p.processIssueCommentEvent(r.Context(), event)
+	case *github.DeleteEvent:
+		// handled by the push event already
 	default:
 		log.WithField("event", event).Debug("unhandled GitHub event")
 		http.Error(w, "unhandled event", http.StatusInternalServerError)
@@ -288,11 +290,14 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 
 func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 	ctx := context.Background()
-	rev := *event.After
+	rev := event.GetAfter()
 
 	trigger := v1.JobTrigger_TRIGGER_PUSH
 	if event.Deleted != nil && *event.Deleted {
 		trigger = v1.JobTrigger_TRIGGER_DELETED
+
+		// rev after deletion makes no sense
+		rev = ""
 	}
 
 	req := p.prepareStartJobRequest(event.Pusher, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, event.GetRef(), rev, trigger)
@@ -313,19 +318,22 @@ func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner 
 	metadata := v1.JobMetadata{
 		Owner: pusher.GetLogin(),
 		Repository: &v1.Repository{
-			Host:     defaultGitHubHost,
-			Owner:    srcOwner.GetLogin(),
-			Repo:     src.GetName(),
-			Ref:      ref,
-			Revision: rev,
+			Host:          defaultGitHubHost,
+			Owner:         srcOwner.GetLogin(),
+			Repo:          src.GetName(),
+			Ref:           ref,
+			Revision:      rev,
+			DefaultBranch: src.GetDefaultBranch(),
 		},
 		Trigger: trigger,
-		Annotations: []*v1.Annotation{
+	}
+	if trigger != v1.JobTrigger_TRIGGER_DELETED {
+		metadata.Annotations = []*v1.Annotation{
 			{
 				Key:   annotationStatusUpdate,
 				Value: dstOwner.GetLogin() + "/" + dst.GetName(),
 			},
-		},
+		}
 	}
 
 	var spec v1.JobSpec
@@ -333,13 +341,14 @@ func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner 
 		spec.NameSuffix = "fork"
 	}
 
-	switch p.Config.JobProtection {
-	case JobProtectionDefaultBranch:
+	if p.Config.JobProtection == JobProtectionDefaultBranch ||
+		trigger == v1.JobTrigger_TRIGGER_DELETED {
 		defaultBranch := &v1.Repository{
-			Host:  defaultGitHubHost,
-			Owner: dstOwner.GetLogin(),
-			Repo:  dst.GetName(),
-			Ref:   "refs/heads/" + dst.GetDefaultBranch(),
+			Host:          defaultGitHubHost,
+			Owner:         dstOwner.GetLogin(),
+			Repo:          dst.GetName(),
+			Ref:           "refs/heads/" + dst.GetDefaultBranch(),
+			DefaultBranch: dst.GetDefaultBranch(),
 		}
 		spec.Source = &v1.JobSpec_Repo{
 			Repo: &v1.JobSpec_FromRepo{
@@ -350,7 +359,7 @@ func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner 
 			Repo: defaultBranch,
 			Path: ".werft",
 		})
-	default:
+	} else {
 		// let werft decide where to get the job from
 		spec.Source = &v1.JobSpec_JobPath{}
 	}
