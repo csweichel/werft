@@ -5,29 +5,29 @@ import (
 	"testing"
 
 	"github.com/alecthomas/repr"
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/filterexpr"
 )
 
 func TestValidBasics(t *testing.T) {
 	tests := []struct {
 		Input  string
-		Result *v1.FilterTerm
+		Result *v2.FilterTerm
 		Error  string
 	}{
-		{"foo==bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
-		{"foo!==bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
-		{"foo~=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: false}, ""},
-		{"foo!~=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_CONTAINS, Negate: true}, ""},
-		{"foo|=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: false}, ""},
-		{"foo!|=bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_STARTS_WITH, Negate: true}, ""},
-		{"foo=|bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: false}, ""},
-		{"foo!=|bar", &v1.FilterTerm{Field: "foo", Value: "bar", Operation: v1.FilterOp_OP_ENDS_WITH, Negate: true}, ""},
-		{"success==true", &v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
-		{"success==false", &v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
-		{"success!==true", &v1.FilterTerm{Field: "success", Value: "1", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
-		{"success!==false", &v1.FilterTerm{Field: "success", Value: "0", Operation: v1.FilterOp_OP_EQUALS, Negate: true}, ""},
-		{"trim == whitespace", &v1.FilterTerm{Field: "trim", Value: "whitespace", Operation: v1.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"foo==bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"foo!==bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"foo~=bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_CONTAINS, Negate: false}, ""},
+		{"foo!~=bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_CONTAINS, Negate: true}, ""},
+		{"foo|=bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_STARTS_WITH, Negate: false}, ""},
+		{"foo!|=bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_STARTS_WITH, Negate: true}, ""},
+		{"foo=|bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_ENDS_WITH, Negate: false}, ""},
+		{"foo!=|bar", &v2.FilterTerm{Field: "foo", Value: "bar", Operation: v2.FilterOp_OP_ENDS_WITH, Negate: true}, ""},
+		{"success==true", &v2.FilterTerm{Field: "success", Value: "1", Operation: v2.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"success==false", &v2.FilterTerm{Field: "success", Value: "0", Operation: v2.FilterOp_OP_EQUALS, Negate: false}, ""},
+		{"success!==true", &v2.FilterTerm{Field: "success", Value: "1", Operation: v2.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"success!==false", &v2.FilterTerm{Field: "success", Value: "0", Operation: v2.FilterOp_OP_EQUALS, Negate: true}, ""},
+		{"trim == whitespace", &v2.FilterTerm{Field: "trim", Value: "whitespace", Operation: v2.FilterOp_OP_EQUALS, Negate: false}, ""},
 		{"foo", nil, filterexpr.ErrMissingOp.Error()},
 		{"phase==blabla", nil, "invalid phase: blabla"},
 	}
@@ -53,23 +53,23 @@ func TestValidBasics(t *testing.T) {
 }
 
 func TestMatchesFilter(t *testing.T) {
-	md := &v1.JobMetadata{
+	md := &v2.JobMetadata{
 		Owner:      "foo",
-		Repository: &v1.Repository{},
+		Repository: &v2.Repository{},
 	}
 	tests := []struct {
-		Job     *v1.JobStatus
-		Expr    []*v1.FilterExpression
+		Job     *v2.JobStatus
+		Expr    []*v2.FilterExpression
 		Matches bool
 	}{
 		{
-			&v1.JobStatus{Metadata: md, Phase: v1.JobPhase_PHASE_DONE},
-			[]*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS}}}},
+			&v2.JobStatus{Metadata: md, Phase: v2.JobPhase_PHASE_DONE},
+			[]*v2.FilterExpression{{Terms: []*v2.FilterTerm{{Field: "phase", Value: "done", Operation: v2.FilterOp_OP_EQUALS}}}},
 			true,
 		},
 		{
-			&v1.JobStatus{Metadata: md, Name: "foobar.1"},
-			[]*v1.FilterExpression{&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "name", Value: "foobar", Operation: v1.FilterOp_OP_STARTS_WITH}}}},
+			&v2.JobStatus{Metadata: md, Name: "foobar.1"},
+			[]*v2.FilterExpression{{Terms: []*v2.FilterTerm{{Field: "name", Value: "foobar", Operation: v2.FilterOp_OP_STARTS_WITH}}}},
 			true,
 		},
 	}

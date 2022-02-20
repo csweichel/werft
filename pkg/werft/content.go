@@ -8,7 +8,7 @@ import (
 	"io"
 	"time"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	corev1 "k8s.io/api/core/v1"
@@ -27,18 +27,18 @@ const (
 type RepositoryProvider interface {
 	// Resolve resolves the repo's revision based on its ref(erence).
 	// If the revision is already set, this operation does nothing.
-	Resolve(ctx context.Context, repo *v1.Repository) error
+	Resolve(ctx context.Context, repo *v2.Repository) error
 
 	// RemoteAnnotations extracts werft annotations form information associated
 	// with a particular commit, e.g. the commit message, PRs or merge requests.
 	// Implementors can expect the revision of the repo object to be set.
-	RemoteAnnotations(ctx context.Context, repo *v1.Repository) (annotations map[string]string, err error)
+	RemoteAnnotations(ctx context.Context, repo *v2.Repository) (annotations map[string]string, err error)
 
 	// ContentProvider produces a content provider for a particular repo
-	ContentProvider(ctx context.Context, repo *v1.Repository) (ContentProvider, error)
+	ContentProvider(ctx context.Context, repo *v2.Repository) (ContentProvider, error)
 
 	// FileProvider provides direct access to repository content
-	FileProvider(ctx context.Context, repo *v1.Repository) (FileProvider, error)
+	FileProvider(ctx context.Context, repo *v2.Repository) (FileProvider, error)
 }
 
 var errNotSupported = xerrors.Errorf("not supported")
@@ -48,24 +48,24 @@ type NoopRepositoryProvider struct{}
 
 // Resolve resolves the repo's revision based on its ref(erence).
 // If the revision is already set, this operation does nothing.
-func (NoopRepositoryProvider) Resolve(ctx context.Context, repo *v1.Repository) error {
+func (NoopRepositoryProvider) Resolve(ctx context.Context, repo *v2.Repository) error {
 	return errNotSupported
 }
 
 // RemoteAnnotations extracts werft annotations form information associated
 // with a particular commit, e.g. the commit message, PRs or merge requests.
 // Implementors can expect the revision of the repo object to be set.
-func (NoopRepositoryProvider) RemoteAnnotations(ctx context.Context, repo *v1.Repository) (annotations map[string]string, err error) {
+func (NoopRepositoryProvider) RemoteAnnotations(ctx context.Context, repo *v2.Repository) (annotations map[string]string, err error) {
 	return nil, errNotSupported
 }
 
 // ContentProvider produces a content provider for a particular repo
-func (NoopRepositoryProvider) ContentProvider(ctx context.Context, repo *v1.Repository) (ContentProvider, error) {
+func (NoopRepositoryProvider) ContentProvider(ctx context.Context, repo *v2.Repository) (ContentProvider, error) {
 	return nil, errNotSupported
 }
 
 // FileProvider provides direct access to repository content
-func (NoopRepositoryProvider) FileProvider(ctx context.Context, repo *v1.Repository) (FileProvider, error) {
+func (NoopRepositoryProvider) FileProvider(ctx context.Context, repo *v2.Repository) (FileProvider, error) {
 	return nil, errNotSupported
 }
 

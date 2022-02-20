@@ -15,7 +15,7 @@ import (
 
 	sprig "github.com/Masterminds/sprig/v3"
 	"github.com/csweichel/werft/pkg/api/repoconfig"
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/executor"
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
@@ -132,15 +132,15 @@ func (srv *Service) Start() error {
 	})
 
 	// we might still have waiting jobs which we must load back into the executor
-	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v1.FilterExpression{
-		{Terms: []*v1.FilterTerm{
+	waitingJobs, _, err := srv.Jobs.Find(context.Background(), []*v2.FilterExpression{
+		{Terms: []*v2.FilterTerm{
 			{
 				Field:     "phase",
 				Value:     "waiting",
-				Operation: v1.FilterOp_OP_EQUALS,
+				Operation: v2.FilterOp_OP_EQUALS,
 			},
 		}},
-	}, []*v1.OrderExpression{}, 0, 0)
+	}, []*v2.OrderExpression{}, 0, 0)
 	if err != nil {
 		return xerrors.Errorf("cannot restore waiting jobs: %w", err)
 	}
@@ -149,7 +149,7 @@ func (srv *Service) Start() error {
 	for _, j := range waitingJobs {
 		cancelJob := func(err error) {
 			log.WithError(err).Errorf("cannot restore waiting job %s", j.Name)
-			j.Phase = v1.JobPhase_PHASE_DONE
+			j.Phase = v2.JobPhase_PHASE_DONE
 			j.Details = fmt.Sprintf("cannot restore execution context upon werft restart: %v", err)
 			j.Conditions.Success = false
 			srv.handleJobUpdate(nil, &j)
@@ -198,7 +198,7 @@ func (srv *Service) doHousekeeping() {
 		log.Debug("performing werft service housekeeping")
 
 		ctx := context.Background()
-		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{{Terms: []*v1.FilterTerm{{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)
+		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v2.FilterExpression{{Terms: []*v2.FilterTerm{{Field: "phase", Value: "done", Operation: v2.FilterOp_OP_EQUALS, Negate: true}}}}, []*v2.OrderExpression{}, 0, 0)
 		if err != nil {
 			log.WithError(err).Warn("cannot perform housekeeping")
 			<-tick.C
@@ -212,7 +212,7 @@ func (srv *Service) doHousekeeping() {
 			continue
 		}
 
-		knownJobsIdx := make(map[string]v1.JobStatus)
+		knownJobsIdx := make(map[string]v2.JobStatus)
 		for _, s := range knownJobs {
 			knownJobsIdx[s.Name] = s
 		}
@@ -221,7 +221,7 @@ func (srv *Service) doHousekeeping() {
 			knownStatus, exists := knownJobsIdx[job.Name]
 			if !exists {
 				log.WithField("name", job.Name).Warn("executor does not know about this job - we have missed an event. Marking as failed.")
-				job.Phase = v1.JobPhase_PHASE_DONE
+				job.Phase = v2.JobPhase_PHASE_DONE
 				job.Conditions.Success = false
 				job.Details = "Werft missed updates for this job and the job is no longer running."
 				srv.handleJobUpdate(nil, &job)
@@ -251,7 +251,7 @@ func redactContainerEnv(c corev1.Container) corev1.Container {
 	return c
 }
 
-func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
+func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v2.JobStatus) {
 	var isCleanupJob bool
 	for _, annotation := range s.Metadata.Annotations {
 		if annotation.Key == annotationCleanupJob {
@@ -292,7 +292,7 @@ func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 	// }
 	// }
 
-	if s.Phase == v1.JobPhase_PHASE_CLEANUP {
+	if s.Phase == v2.JobPhase_PHASE_CLEANUP {
 		srv.mu.Lock()
 		if jl, ok := srv.logListener[s.Name]; ok {
 			if jl.CancelExecutorListener != nil {
@@ -318,8 +318,8 @@ func (srv *Service) handleJobUpdate(pod *corev1.Pod, s *v1.JobStatus) {
 	<-srv.events.Emit("job", s)
 }
 
-func (srv *Service) ensureLogging(s *v1.JobStatus) {
-	if s.Phase > v1.JobPhase_PHASE_DONE {
+func (srv *Service) ensureLogging(s *v2.JobStatus) {
+	if s.Phase > v2.JobPhase_PHASE_DONE {
 		return
 	}
 
@@ -403,18 +403,18 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 			log.WithError(err).WithField("name", name).Warn("listening for build results failed")
 			continue
 		case evt := <-evtchan:
-			if evt.Type != v1.LogSliceType_SLICE_RESULT {
+			if evt.Type != v2.LogSliceType_SLICE_RESULT {
 				continue
 			}
 
-			var res *v1.JobResult
+			var res *v2.JobResult
 			var body struct {
 				P string   `json:"payload"`
 				C []string `json:"channels"`
 				D string   `json:"description"`
 			}
 			if err := json.Unmarshal([]byte(evt.Payload), &body); err == nil {
-				res = &v1.JobResult{
+				res = &v2.JobResult{
 					Type:        strings.TrimSpace(evt.Name),
 					Payload:     body.P,
 					Description: body.D,
@@ -423,7 +423,7 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 			} else {
 				segs := strings.Fields(evt.Payload)
 				payload, desc := segs[0], strings.Join(segs[1:], " ")
-				res = &v1.JobResult{
+				res = &v2.JobResult{
 					Type:        strings.TrimSpace(evt.Name),
 					Payload:     payload,
 					Description: desc,
@@ -446,17 +446,17 @@ func (srv *Service) listenToLogs(ctx context.Context, name string, inc io.Reader
 }
 
 // RunJob starts a build job from some context
-func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool, waitUntil time.Time) (status *v1.JobStatus, err error) {
+func (srv *Service) RunJob(ctx context.Context, name string, metadata v2.JobMetadata, cp ContentProvider, jobYAML []byte, canReplay bool, waitUntil time.Time) (status *v2.JobStatus, err error) {
 	var logs io.WriteCloser
 	defer func(perr *error) {
 		if *perr != nil {
 			// make sure we tell the world about this failed job startup attempt
 			if status == nil {
-				status = &v1.JobStatus{}
+				status = &v2.JobStatus{}
 			}
 			status.Name = name
-			status.Phase = v1.JobPhase_PHASE_DONE
-			status.Conditions = &v1.JobConditions{Success: false, FailureCount: 1}
+			status.Phase = v2.JobPhase_PHASE_DONE
+			status.Conditions = &v2.JobConditions{Success: false, FailureCount: 1}
 			status.Metadata = &metadata
 			if status.Metadata.Created == nil {
 				status.Metadata.Created = ptypes.TimestampNow()
@@ -615,7 +615,7 @@ func (srv *Service) RunJob(ctx context.Context, name string, metadata v1.JobMeta
 }
 
 // cleanupWorkspace starts a cleanup job for a previously run job
-func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
+func (srv *Service) cleanupJobWorkspace(s *v2.JobStatus) {
 	if srv.Config.WorkspaceNodePathPrefix == "" {
 		// we don't have a workspace node path prefix, hence used an emptydir volume,
 		// hence don't have to clean up after ourselves.
@@ -623,12 +623,12 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 	}
 
 	name := s.Name
-	md := v1.JobMetadata{
+	md := v2.JobMetadata{
 		Owner:      s.Metadata.Owner,
 		Repository: s.Metadata.Repository,
-		Trigger:    v1.JobTrigger_TRIGGER_UNKNOWN,
+		Trigger:    v2.JobTrigger_TRIGGER_UNKNOWN,
 		Created:    ptypes.TimestampNow(),
-		Annotations: []*v1.Annotation{
+		Annotations: []*v2.Annotation{
 			{
 				Key:   annotationCleanupJob,
 				Value: "true",
@@ -675,12 +675,12 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 type templateObj struct {
 	Name        string
 	Owner       string
-	Repository  v1.Repository
+	Repository  v2.Repository
 	Trigger     string
 	Annotations map[string]string
 }
 
-func newTemplateObj(name string, md *v1.JobMetadata) templateObj {
+func newTemplateObj(name string, md *v2.JobMetadata) templateObj {
 	annotations := make(map[string]string)
 	for _, a := range md.Annotations {
 		annotations[a.Key] = a.Value

@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package v2;
+option go_package = "github.com/csweichel/werft/pkg/api/v2";
+import "google/protobuf/timestamp.proto";
+
+service WerftService {
+    // StartFromPreviousJob starts a new job based on a previous one.
+    // If the previous job does not have the can-replay condition set this call will result in an error.
+    rpc StartFromPreviousJob(StartFromPreviousJobRequest) returns (StartJobResponse) {};
+
+    // StartJobRequest starts a new job based on its specification.
+    rpc StartJob(StartJobRequest) returns (StartJobResponse) {};
+
+    // Searches for jobs known to this instance
+    rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
+
+    // Subscribe listens to new jobs/job updates
+    rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {};
+
+    // GetJob retrieves details of a single job
+    rpc GetJob(GetJobRequest) returns (GetJobResponse) {};
+
+    // Listen listens to job updates and log output of a running job
+    rpc Listen(ListenRequest) returns (stream ListenResponse) {};
+
+    // StopJob stops a currently running job
+    rpc StopJob(StopJobRequest) returns (StopJobResponse) {};
+}
+
+message StartJobResponse {
+    JobStatus status = 1;
+}
+
+message StartJobRequest {
+    JobMetadata metadata = 1;
+    JobSpec spec = 2;
+}
+
+message JobSpec {
+    message FromRepo {
+        Repository repo = 1;
+        string path = 2;
+    }
+
+    oneof source {
+        bytes job_yaml = 2;
+        string job_path = 3;
+        FromRepo repo = 4;
+    }
+    bytes direct_sideload = 5;
+    repeated FromRepo repo_sideload = 6;
+    string name_suffix = 7;
+}
+
+message StartFromPreviousJobRequest {
+    string previous_job = 1;
+    string github_token = 2;
+    google.protobuf.Timestamp wait_until = 3;
+}
+
+message ListJobsRequest {
+    repeated FilterExpression filter = 1;
+    repeated OrderExpression order = 2;
+    int32 start = 3;
+    int32 limit = 4;
+}
+
+message FilterExpression {
+    repeated FilterTerm terms = 1;
+}
+
+message FilterTerm {
+    string field = 1;
+    string value = 2;
+    FilterOp operation = 3;
+    bool negate = 4;
+}
+
+enum FilterOp {
+    OP_EQUALS = 0;
+    OP_STARTS_WITH = 1;
+    OP_ENDS_WITH = 2;
+    OP_CONTAINS = 3;
+    OP_EXISTS = 4;
+}
+
+message OrderExpression {
+    string field = 1;
+    bool ascending = 2;
+}
+
+message ListJobsResponse {
+    int32 total = 1;
+    repeated JobStatus result = 2;
+}
+
+message SubscribeRequest {
+    repeated FilterExpression filter = 1;
+}
+
+message SubscribeResponse {
+    JobStatus result = 1;
+}
+
+message GetJobRequest {
+    string name = 1;
+}
+
+message GetJobResponse {
+    JobStatus result = 1;
+}
+
+message ListenRequest {
+    string name = 1;
+    bool updates = 2;
+    ListenRequestLogs logs = 3;
+}
+
+enum ListenRequestLogs {
+    LOGS_DISABLED = 0;
+    LOGS_UNSLICED = 1;
+    LOGS_RAW = 2;
+    LOGS_HTML = 3;
+}
+
+message ListenResponse {
+    oneof content {
+        JobStatus update = 1;
+        LogSliceEvent slice = 2;
+    };
+}
+
+message JobStatus {
+    string name = 1;
+    JobMetadata metadata = 2;
+    JobPhase phase = 3;
+    JobConditions conditions = 4;
+    JobSpec spec = 7;
+    string details = 5;
+    repeated JobResult results = 6;
+}
+
+message JobMetadata {
+    string owner = 1;
+    Repository repository = 2;
+    JobTrigger trigger = 3;
+    google.protobuf.Timestamp created = 4;
+    google.protobuf.Timestamp finished = 5;
+    repeated Annotation annotations = 6;
+    string job_spec_name = 7;
+}
+
+message Repository {
+    string host = 1;
+    string owner = 2;
+    string repo = 3;
+    string ref = 4;
+    string revision = 5;
+}
+
+message Annotation {
+    string key = 1;
+    string value = 2;
+}
+
+enum JobTrigger {
+    TRIGGER_UNKNOWN = 0;
+    TRIGGER_MANUAL = 1;
+    TRIGGER_PUSH = 2;
+    TRIGGER_DELETED = 3;
+}
+
+enum JobPhase {
+    // Unknown means we don't know what state the job is in
+    PHASE_UNKNOWN = 0;
+
+    // Preparing means the job hasn't started yet and isn't consuming resources in the system
+    PHASE_PREPARING = 1;
+
+    // Starting means the job has been scheduled and is waiting to run. Things that might prevent it
+	// from running already are pod scheduling, image pull or container startup.
+    PHASE_STARTING = 2;
+
+    // Running means the job is actually running and doing work.
+    PHASE_RUNNING = 3;
+
+    // Done means the job has run and is finished
+    PHASE_DONE = 4;
+
+    // Cleaning means the job is in post-run cleanup
+    PHASE_CLEANUP = 5;
+
+    // Waiting means the job is waiting for its start time or some other condition to be met
+    PHASE_WAITING = 6;
+}
+
+message JobConditions {
+    bool success = 1;
+    int32 failure_count = 2;
+    bool can_replay = 3;
+    google.protobuf.Timestamp wait_until = 4;
+    bool did_execute = 5;
+}
+
+message JobResult {
+    string type = 1;
+    string payload = 2;
+    string description = 3;
+    repeated string channels = 4;
+}
+
+message LogSliceEvent {
+    string name = 1;
+    LogSliceType type = 2;
+    string payload = 3;
+}
+
+enum LogSliceType {
+    SLICE_ABANDONED = 0;
+    SLICE_PHASE = 1;
+    SLICE_START = 2;
+    SLICE_CONTENT = 3;
+    SLICE_DONE = 4;
+    SLICE_FAIL = 5;
+    SLICE_RESULT = 6;
+}
+
+message StopJobRequest {
+    string name = 1;
+}
+
+message StopJobResponse { }

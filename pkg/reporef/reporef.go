@@ -3,14 +3,14 @@ package reporef
 import (
 	"strings"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"golang.org/x/xerrors"
 )
 
 // Parse interprets a string pointing to a (GitHub) repository.
 // We expect the string to be in the form of:
 //    (host)/owner/repo(:ref|@sha)
-func Parse(spec string) (*v1.Repository, error) {
+func Parse(spec string) (*v2.Repository, error) {
 	if strings.Contains(spec, ":") {
 		segs := strings.Split(spec, ":")
 		rep, ref := segs[0], segs[1]
@@ -34,13 +34,13 @@ func Parse(spec string) (*v1.Repository, error) {
 	return parseRep(spec)
 }
 
-func parseRep(rep string) (*v1.Repository, error) {
+func parseRep(rep string) (*v2.Repository, error) {
 	segs := strings.Split(rep, "/")
 	if len(segs) < 2 || len(segs) > 3 {
 		return nil, xerrors.Errorf("invalid repository spec")
 	}
 
-	res := &v1.Repository{}
+	res := &v2.Repository{}
 	if len(segs) == 3 {
 		res.Host = segs[0]
 		segs = segs[1:]

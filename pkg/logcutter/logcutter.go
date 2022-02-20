@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 )
 
 // Cutter splits a log stream into slices for more structured display
@@ -13,7 +13,7 @@ type Cutter interface {
 	// Slice reads on the in reader line-by-line. For each line it can produce several events
 	// on the events channel. Once the reader returns EOF the events and errchan are closed.
 	// If anything goes wrong while reading a single error is written to errchan, but nothing is closed.
-	Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-chan error)
+	Slice(in io.Reader) (events <-chan *v2.LogSliceEvent, errchan <-chan error)
 }
 
 const (
@@ -27,8 +27,8 @@ var NoCutter Cutter = noCutter{}
 type noCutter struct{}
 
 // Slice returns all log lines
-func (noCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-chan error) {
-	evts := make(chan *v1.LogSliceEvent)
+func (noCutter) Slice(in io.Reader) (events <-chan *v2.LogSliceEvent, errchan <-chan error) {
+	evts := make(chan *v2.LogSliceEvent)
 	errc := make(chan error)
 	events, errchan = evts, errc
 
@@ -36,9 +36,9 @@ func (noCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-
 	go func() {
 		for scanner.Scan() {
 			line := scanner.Text()
-			evts <- &v1.LogSliceEvent{
+			evts <- &v2.LogSliceEvent{
 				Name:    DefaultSlice,
-				Type:    v1.LogSliceType_SLICE_CONTENT,
+				Type:    v2.LogSliceType_SLICE_CONTENT,
 				Payload: line + "\n",
 			}
 		}
@@ -58,8 +58,8 @@ var DefaultCutter Cutter = defaultCutter{}
 type defaultCutter struct{}
 
 // Slice cuts a log stream into pieces based on a configurable delimiter
-func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errchan <-chan error) {
-	evts := make(chan *v1.LogSliceEvent)
+func (defaultCutter) Slice(in io.Reader) (events <-chan *v2.LogSliceEvent, errchan <-chan error) {
+	evts := make(chan *v2.LogSliceEvent)
 	errc := make(chan error)
 	events, errchan = evts, errc
 
@@ -95,30 +95,30 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			switch verb {
 			case "DONE":
 				delete(idx, name)
-				evts <- &v1.LogSliceEvent{
+				evts <- &v2.LogSliceEvent{
 					Name: name,
-					Type: v1.LogSliceType_SLICE_DONE,
+					Type: v2.LogSliceType_SLICE_DONE,
 				}
 				continue
 			case "FAIL":
 				delete(idx, name)
-				evts <- &v1.LogSliceEvent{
+				evts <- &v2.LogSliceEvent{
 					Name:    name,
 					Payload: payload,
-					Type:    v1.LogSliceType_SLICE_FAIL,
+					Type:    v2.LogSliceType_SLICE_FAIL,
 				}
 				continue
 			case "RESULT":
-				evts <- &v1.LogSliceEvent{
+				evts <- &v2.LogSliceEvent{
 					Name:    name,
-					Type:    v1.LogSliceType_SLICE_RESULT,
+					Type:    v2.LogSliceType_SLICE_RESULT,
 					Payload: payload,
 				}
 				continue
 			case "PHASE":
-				evts <- &v1.LogSliceEvent{
+				evts <- &v2.LogSliceEvent{
 					Name:    name,
-					Type:    v1.LogSliceType_SLICE_PHASE,
+					Type:    v2.LogSliceType_SLICE_PHASE,
 					Payload: payload,
 				}
 				phase = name
@@ -128,14 +128,14 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 			_, exists := idx[name]
 			if !exists {
 				idx[name] = struct{}{}
-				evts <- &v1.LogSliceEvent{
+				evts <- &v2.LogSliceEvent{
 					Name: name,
-					Type: v1.LogSliceType_SLICE_START,
+					Type: v2.LogSliceType_SLICE_START,
 				}
 			}
-			evts <- &v1.LogSliceEvent{
+			evts <- &v2.LogSliceEvent{
 				Name:    name,
-				Type:    v1.LogSliceType_SLICE_CONTENT,
+				Type:    v2.LogSliceType_SLICE_CONTENT,
 				Payload: string([]byte(payload)),
 			}
 		}
@@ -144,9 +144,9 @@ func (defaultCutter) Slice(in io.Reader) (events <-chan *v1.LogSliceEvent, errch
 		}
 
 		for name := range idx {
-			evts <- &v1.LogSliceEvent{
+			evts <- &v2.LogSliceEvent{
 				Name: name,
-				Type: v1.LogSliceType_SLICE_ABANDONED,
+				Type: v2.LogSliceType_SLICE_ABANDONED,
 			}
 		}
 

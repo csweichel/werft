@@ -7,13 +7,15 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 )
+
+var _ store.Jobs = &JobStore{}
 
 // JobStore stores jobs in a Postgres database
 type JobStore struct {
@@ -59,7 +61,7 @@ func (s *JobStore) RegisterPrometheusMetrics(reg prometheus.Registerer) {
 }
 
 // Store stores job information in the store.
-func (s *JobStore) Store(ctx context.Context, job v1.JobStatus) error {
+func (s *JobStore) Store(ctx context.Context, job v2.JobStatus) error {
 	defer func(start time.Time) {
 		s.metrics.PostgresStoreJobDurationSecond.Observe(time.Since(start).Seconds())
 	}(time.Now())
@@ -128,7 +130,7 @@ func (s *JobStore) Store(ctx context.Context, job v1.JobStatus) error {
 }
 
 // Get retrieves a particular job bassd on its name.
-func (s *JobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) {
+func (s *JobStore) Get(ctx context.Context, name string) (*v2.JobStatus, error) {
 	var data string
 	err := s.DB.QueryRow("SELECT data FROM job_status WHERE name = $1", name).Scan(&data)
 	if err == sql.ErrNoRows {
@@ -138,7 +140,7 @@ func (s *JobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) 
 		return nil, err
 	}
 
-	var res v1.JobStatus
+	var res v2.JobStatus
 	err = jsonpb.UnmarshalString(data, &res)
 	if err != nil {
 		return nil, err
@@ -148,7 +150,7 @@ func (s *JobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) 
 }
 
 // Find searches for jobs based on their annotations. If filter is empty no filter is applied.
-func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
+func (s *JobStore) Find(ctx context.Context, filter []*v2.FilterExpression, order []*v2.OrderExpression, start, limit int) (slice []v2.JobStatus, total int, err error) {
 	fieldMap := map[string]string{
 		"name":       "name",
 		"owner":      "owner",
@@ -185,15 +187,15 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 
 			var op string
 			switch t.Operation {
-			case v1.FilterOp_OP_CONTAINS:
+			case v2.FilterOp_OP_CONTAINS:
 				op = "LIKE '%' || ? || '%'"
-			case v1.FilterOp_OP_ENDS_WITH:
+			case v2.FilterOp_OP_ENDS_WITH:
 				op = "LIKE '%' || ?"
-			case v1.FilterOp_OP_EQUALS:
+			case v2.FilterOp_OP_EQUALS:
 				op = "= ?"
-			case v1.FilterOp_OP_STARTS_WITH:
+			case v2.FilterOp_OP_STARTS_WITH:
 				op = "LIKE ? || '%'"
-			case v1.FilterOp_OP_EXISTS:
+			case v2.FilterOp_OP_EXISTS:
 				op = "IS NOT NULL"
 			default:
 				return nil, 0, xerrors.Errorf("unknown operation %v", t.Operation)
@@ -254,7 +256,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 	}
 	defer rows.Close()
 
-	var result []v1.JobStatus
+	var result []v2.JobStatus
 	for rows.Next() {
 		var data string
 		err = rows.Scan(&data)
@@ -262,7 +264,7 @@ func (s *JobStore) Find(ctx context.Context, filter []*v1.FilterExpression, orde
 			return nil, 0, err
 		}
 
-		var res v1.JobStatus
+		var res v2.JobStatus
 		err = jsonpb.UnmarshalString(data, &res)
 		if err != nil {
 			return nil, 0, err

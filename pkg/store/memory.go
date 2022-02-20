@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/filterexpr"
 	"golang.org/x/xerrors"
 )
@@ -146,13 +146,13 @@ func (s *inMemoryLogStore) Read(id string) (io.ReadCloser, error) {
 // NewInMemoryJobStore creates a new in-memory job store
 func NewInMemoryJobStore() Jobs {
 	return &inMemoryJobStore{
-		jobs:  make(map[string]v1.JobStatus),
+		jobs:  make(map[string]v2.JobStatus),
 		specs: make(map[string][]byte),
 	}
 }
 
 type inMemoryJobStore struct {
-	jobs  map[string]v1.JobStatus
+	jobs  map[string]v2.JobStatus
 	specs map[string][]byte
 	mu    sync.RWMutex
 }
@@ -160,7 +160,7 @@ type inMemoryJobStore struct {
 // Store stores job information in the store.
 // Storing a job whose name we already have in store will override the previously
 // stored job.
-func (s *inMemoryJobStore) Store(ctx context.Context, job v1.JobStatus) error {
+func (s *inMemoryJobStore) Store(ctx context.Context, job v2.JobStatus) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -170,7 +170,7 @@ func (s *inMemoryJobStore) Store(ctx context.Context, job v1.JobStatus) error {
 
 // Retrieves a particular job bassd on its name.
 // If the job is unknown we'll return ErrNotFound.
-func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus, error) {
+func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v2.JobStatus, error) {
 	s.mu.RLock()
 	job, ok := s.jobs[name]
 	s.mu.RUnlock()
@@ -183,11 +183,11 @@ func (s *inMemoryJobStore) Get(ctx context.Context, name string) (*v1.JobStatus,
 }
 
 // Searches for jobs based on their annotations
-func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error) {
+func (s *inMemoryJobStore) Find(ctx context.Context, filter []*v2.FilterExpression, order []*v2.OrderExpression, start, limit int) (slice []v2.JobStatus, total int, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var res []v1.JobStatus
+	var res []v2.JobStatus
 	for _, js := range s.jobs {
 		if !filterexpr.MatchesFilter(&js, filter) {
 			continue

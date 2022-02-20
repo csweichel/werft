@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	werftv2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -15,9 +15,9 @@ import (
 )
 
 // extracts the phase from the job object
-func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err error) {
+func getStatus(obj *corev1.Pod, labels labelSet) (status *werftv2.JobStatus, err error) {
 	defer func() {
-		if status != nil && status.Phase == v1.JobPhase_PHASE_DONE {
+		if status != nil && status.Phase == werftv2.JobPhase_PHASE_DONE {
 			status.Metadata.Finished = ptypes.TimestampNow()
 		}
 	}()
@@ -31,13 +31,13 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 	if !ok {
 		return nil, xerrors.Errorf("job has no metadata")
 	}
-	var md v1.JobMetadata
+	var md werftv2.JobMetadata
 	err = jsonpb.UnmarshalString(rawmd, &md)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot unmarshal metadata %v :%w", rawmd, err)
 	}
 
-	var results []*v1.JobResult
+	var results []*werftv2.JobResult
 	if c, ok := obj.Annotations[labels.AnnotationResults]; ok {
 		err = json.Unmarshal([]byte(c), &results)
 		if err != nil {
@@ -61,11 +61,11 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 		}
 	}
 
-	status = &v1.JobStatus{
+	status = &werftv2.JobStatus{
 		Name:     name,
 		Metadata: &md,
-		Phase:    v1.JobPhase_PHASE_UNKNOWN,
-		Conditions: &v1.JobConditions{
+		Phase:    werftv2.JobPhase_PHASE_UNKNOWN,
+		Conditions: &werftv2.JobConditions{
 			Success:   true,
 			CanReplay: canReplay,
 			WaitUntil: waitUntil,
@@ -81,7 +81,7 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 	)
 	for _, cs := range statuses {
 		if w := cs.State.Waiting; w != nil && w.Reason == "ErrImagePull" {
-			status.Phase = v1.JobPhase_PHASE_DONE
+			status.Phase = werftv2.JobPhase_PHASE_DONE
 			status.Conditions.Success = false
 			status.Details = w.Message
 			return
@@ -105,9 +105,9 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 	status.Conditions.DidExecute = obj.Status.Phase != "" || len(statuses) > 0
 
 	if msg, failed := obj.Annotations[labels.AnnotationFailed]; failed {
-		status.Phase = v1.JobPhase_PHASE_DONE
+		status.Phase = werftv2.JobPhase_PHASE_DONE
 		if obj.DeletionTimestamp != nil {
-			status.Phase = v1.JobPhase_PHASE_CLEANUP
+			status.Phase = werftv2.JobPhase_PHASE_CLEANUP
 		}
 		status.Conditions.Success = false
 		status.Details = msg
@@ -115,24 +115,24 @@ func getStatus(obj *corev1.Pod, labels labelSet) (status *v1.JobStatus, err erro
 		return
 	}
 	if obj.DeletionTimestamp != nil {
-		status.Phase = v1.JobPhase_PHASE_CLEANUP
+		status.Phase = werftv2.JobPhase_PHASE_CLEANUP
 		return
 	}
 	if maxRestart > getFailureLimit(obj, labels) {
-		status.Phase = v1.JobPhase_PHASE_DONE
+		status.Phase = werftv2.JobPhase_PHASE_DONE
 		return
 	}
 	if allTerminated {
-		status.Phase = v1.JobPhase_PHASE_DONE
+		status.Phase = werftv2.JobPhase_PHASE_DONE
 		return
 	}
 
 	switch obj.Status.Phase {
 	case corev1.PodPending:
-		status.Phase = v1.JobPhase_PHASE_PREPARING
+		status.Phase = werftv2.JobPhase_PHASE_PREPARING
 		return
 	case corev1.PodRunning:
-		status.Phase = v1.JobPhase_PHASE_RUNNING
+		status.Phase = werftv2.JobPhase_PHASE_RUNNING
 	}
 
 	return

@@ -26,3 +26,4 @@ workspaceLocation: werft/werft.theia-workspace
 vscode:
   extensions:
     - zxh404.vscode-proto3
+    - golang.go

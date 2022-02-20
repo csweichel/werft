@@ -1,7 +1,7 @@
 package repoconfig
 
 import (
-	werftv1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/filterexpr"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -15,7 +15,7 @@ type C struct {
 // JobStartRule determines if a job will be started
 type JobStartRule struct {
 	Path string                      `yaml:"path"`
-	Expr []*werftv1.FilterExpression `yaml:"matchesAll"`
+	Expr []*v2.FilterExpression `yaml:"matchesAll"`
 }
 
 // UnmarshalYAML unmarshals the filter expressions
@@ -35,7 +35,7 @@ func (r *JobStartRule) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if err != nil {
 			return err
 		}
-		r.Expr = append(r.Expr, &werftv1.FilterExpression{Terms: terms})
+		r.Expr = append(r.Expr, &v2.FilterExpression{Terms: terms})
 	}
 
 	return nil
@@ -47,8 +47,8 @@ type JobStartRuleOr struct {
 }
 
 // TemplatePath returns the path to the job template in the repo
-func (rc *C) TemplatePath(md *werftv1.JobMetadata) string {
-	js := &werftv1.JobStatus{Metadata: md}
+func (rc *C) TemplatePath(md *v2.JobMetadata) string {
+	js := &v2.JobStatus{Metadata: md}
 	for _, rule := range rc.Rules {
 		if filterexpr.MatchesFilter(js, rule.Expr) {
 			return rule.Path
@@ -59,7 +59,7 @@ func (rc *C) TemplatePath(md *werftv1.JobMetadata) string {
 }
 
 // ShouldRun determines based on the repo config if the job should run
-func (rc *C) ShouldRun(md *werftv1.JobMetadata) bool {
+func (rc *C) ShouldRun(md *v2.JobMetadata) bool {
 	return rc.TemplatePath(md) != ""
 }
 

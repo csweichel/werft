@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	werftv1 "github.com/csweichel/werft/pkg/api/v1"
+	werftv2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
@@ -73,7 +73,7 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 	}
 
 	return &Executor{
-		OnUpdate: func(pod *corev1.Pod, status *werftv1.JobStatus) {},
+		OnUpdate: func(pod *corev1.Pod, status *werftv2.JobStatus) {},
 
 		Config:     config,
 		Client:     kubeClient,
@@ -88,7 +88,7 @@ func NewExecutor(config Config, kubeConfig *rest.Config) (*Executor, error) {
 type Executor struct {
 	// OnUpdate is called when the status of a job changes.
 	// Beware: this function can be called several times with the same status.
-	OnUpdate func(pod *corev1.Pod, status *werftv1.JobStatus)
+	OnUpdate func(pod *corev1.Pod, status *werftv2.JobStatus)
 
 	Client     kubernetes.Interface
 	Config     Config
@@ -104,7 +104,7 @@ type waitingJob struct {
 	Cancel func(reason string)
 	Start  func()
 	Mutex  string
-	Status *werftv1.JobStatus
+	Status *werftv2.JobStatus
 }
 
 // Run starts the executor and returns immediately
@@ -189,7 +189,7 @@ func WithSidecars(names []string) StartOpt {
 }
 
 // Start starts a new job
-func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, options ...StartOpt) (status *werftv1.JobStatus, err error) {
+func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv2.JobMetadata, options ...StartOpt) (status *werftv2.JobStatus, err error) {
 	opts := startOptions{
 		JobName: fmt.Sprintf("werft-%s", strings.ReplaceAll(moniker.New().Name(), " ", "-")),
 	}
@@ -277,7 +277,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		js.mu.Unlock()
 	}
 
-	startJob := func() (*werftv1.JobStatus, error) {
+	startJob := func() (*werftv2.JobStatus, error) {
 		if log.GetLevel() == log.DebugLevel {
 			dbg, _ := json.MarshalIndent(poddesc, "", "  ")
 			log.Debugf("scheduling job\n%s", dbg)
@@ -329,14 +329,14 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 				run()
 			case reason := <-cancelChan:
 				log.WithField("name", opts.JobName).Debug("canceled this waiting job")
-				status.Phase = werftv1.JobPhase_PHASE_DONE
+				status.Phase = werftv2.JobPhase_PHASE_DONE
 				status.Conditions.Success = false
 				status.Details = reason
 				js.OnUpdate(&poddesc, status)
 			}
 		}()
 
-		status.Phase = werftv1.JobPhase_PHASE_WAITING
+		status.Phase = werftv2.JobPhase_PHASE_WAITING
 
 		// normally we'd see a Kubernetes event as the job would start immediately. This Kubernetes event would propagate
 		// throughout the system. However, waiting jobs do not produce Kubernetes events right away, hence we have to
@@ -397,8 +397,8 @@ func (js *Executor) handleJobEvent(evttpe watch.EventType, obj *corev1.Pod) {
 	}
 }
 
-func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) error {
-	if status.Phase == werftv1.JobPhase_PHASE_DONE {
+func (js *Executor) actOnUpdate(status *werftv2.JobStatus, obj *corev1.Pod) error {
+	if status.Phase == werftv2.JobPhase_PHASE_DONE {
 		gracePeriod := int64(5)
 		policy := metav1.DeletePropagationForeground
 
@@ -418,7 +418,7 @@ func (js *Executor) actOnUpdate(status *werftv1.JobStatus, obj *corev1.Pod) erro
 	return nil
 }
 
-func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Pod) {
+func (js *Executor) writeEventTraceLog(status *werftv2.JobStatus, obj *corev1.Pod) {
 	// make sure we recover from a panic in this function - not that we expect this to ever happen
 	//nolint:errcheck
 	defer recover()
@@ -442,7 +442,7 @@ func (js *Executor) writeEventTraceLog(status *werftv1.JobStatus, obj *corev1.Po
 
 	type eventTraceEntry struct {
 		Time   string             `yaml:"time"`
-		Status *werftv1.JobStatus `yaml:"status"`
+		Status *werftv2.JobStatus `yaml:"status"`
 		Job    *corev1.Pod        `yaml:"job"`
 	}
 	// If writing the event trace log fails that does nothing to harm the function of ws-manager.
@@ -483,7 +483,7 @@ func (js *Executor) doHousekeeping() {
 			}
 
 			var ttl time.Duration
-			if status.Phase == werftv1.JobPhase_PHASE_PREPARING {
+			if status.Phase == werftv2.JobPhase_PHASE_PREPARING {
 				ttl = js.Config.JobPrepTimeout.Duration
 			} else {
 				ttl = js.Config.JobTotalTimeout.Duration
@@ -554,7 +554,7 @@ func (js *Executor) Stop(name, reason string) error {
 }
 
 // GetKnownJobs returns a list of all jobs the executor knows about
-func (js *Executor) GetKnownJobs() (jobs []werftv1.JobStatus, err error) {
+func (js *Executor) GetKnownJobs() (jobs []werftv2.JobStatus, err error) {
 	js.mu.RLock()
 	for _, wj := range js.waitingJobs {
 		jobs = append(jobs, *wj.Status)
@@ -568,7 +568,7 @@ func (js *Executor) GetKnownJobs() (jobs []werftv1.JobStatus, err error) {
 		return nil, err
 	}
 	for _, pod := range pods.Items {
-		var status *werftv1.JobStatus
+		var status *werftv2.JobStatus
 		status, err = getStatus(&pod, js.labels)
 		if err != nil {
 			return nil, err
@@ -580,7 +580,7 @@ func (js *Executor) GetKnownJobs() (jobs []werftv1.JobStatus, err error) {
 }
 
 // RegisterResult registers a result produced by a job
-func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error {
+func (js *Executor) RegisterResult(jobname string, res *werftv2.JobResult) error {
 	pod, err := js.getJobPod(jobname)
 	if err != nil {
 		return err
@@ -597,7 +597,7 @@ func (js *Executor) RegisterResult(jobname string, res *werftv1.JobResult) error
 			return xerrors.Errorf("job pod %s does not exist", podname)
 		}
 
-		var results []werftv1.JobResult
+		var results []werftv2.JobResult
 		if c, ok := pod.Annotations[js.labels.AnnotationResults]; ok {
 			err := json.Unmarshal([]byte(c), &results)
 			if err != nil {

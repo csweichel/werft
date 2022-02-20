@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/csweichel/werft/pkg/api/repoconfig"
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -60,26 +60,26 @@ func TestUnmarshalC(t *testing.T) {
 func TestTemplatePath(t *testing.T) {
 	tests := []struct {
 		C repoconfig.C
-		M v1.JobMetadata
+		M v2.JobMetadata
 		E string
 	}{
-		{repoconfig.C{}, v1.JobMetadata{}, ""},
-		{repoconfig.C{}, v1.JobMetadata{Owner: "foo", Repository: &v1.Repository{Owner: "foo"}, Trigger: v1.JobTrigger_TRIGGER_MANUAL}, ""},
-		{repoconfig.C{DefaultJob: "foo"}, v1.JobMetadata{}, "foo"},
-		{repoconfig.C{DefaultJob: "foo", Rules: []*repoconfig.JobStartRule{&repoconfig.JobStartRule{Path: "bar"}}}, v1.JobMetadata{}, "bar"},
+		{repoconfig.C{}, v2.JobMetadata{}, ""},
+		{repoconfig.C{}, v2.JobMetadata{Owner: "foo", Repository: &v2.Repository{Owner: "foo"}, Trigger: v2.JobTrigger_TRIGGER_MANUAL}, ""},
+		{repoconfig.C{DefaultJob: "foo"}, v2.JobMetadata{}, "foo"},
+		{repoconfig.C{DefaultJob: "foo", Rules: []*repoconfig.JobStartRule{&repoconfig.JobStartRule{Path: "bar"}}}, v2.JobMetadata{}, "bar"},
 		{
 			repoconfig.C{
 				DefaultJob: "foo",
 				Rules: []*repoconfig.JobStartRule{
 					&repoconfig.JobStartRule{
 						Path: "bar",
-						Expr: []*v1.FilterExpression{
-							&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS}}},
+						Expr: []*v2.FilterExpression{
+							&v2.FilterExpression{Terms: []*v2.FilterTerm{&v2.FilterTerm{Field: "repo.ref", Value: "test", Operation: v2.FilterOp_OP_EQUALS}}},
 						},
 					},
 				},
 			},
-			v1.JobMetadata{},
+			v2.JobMetadata{},
 			"foo",
 		},
 		{
@@ -88,14 +88,14 @@ func TestTemplatePath(t *testing.T) {
 				Rules: []*repoconfig.JobStartRule{
 					&repoconfig.JobStartRule{
 						Path: "bar",
-						Expr: []*v1.FilterExpression{
-							&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS}}},
+						Expr: []*v2.FilterExpression{
+							&v2.FilterExpression{Terms: []*v2.FilterTerm{&v2.FilterTerm{Field: "repo.ref", Value: "test", Operation: v2.FilterOp_OP_EQUALS}}},
 						},
 					},
 				},
 			},
-			v1.JobMetadata{
-				Repository: &v1.Repository{
+			v2.JobMetadata{
+				Repository: &v2.Repository{
 					Ref: "test",
 				},
 			},

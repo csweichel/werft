@@ -28,8 +28,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ServiceV1 struct {
+	*Service
+}
+
 // StartLocalJob starts a job whoose content is uploaded
-func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error {
+func (srv *ServiceV1) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error {
 	req, err := inc.Recv()
 	if err != nil {
 		return err
@@ -139,7 +143,7 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 }
 
 // StartGitHubJob starts a job on a Git context, possibly with a custom job.
-func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
+func (srv *ServiceV1) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRequest) (resp *v1.StartJobResponse, err error) {
 	if req.GithubToken != "" {
 		return nil, status.Errorf(codes.InvalidArgument, "Per-job GitHub tokens are no longer supported")
 	}
@@ -159,7 +163,7 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 }
 
 // StartJob starts a new job based on its specification.
-func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
+func (srv *ServiceV1) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
 	log.WithField("req", proto.MarshalTextString(req)).Info("StartJob request")
 
 	md := req.Metadata
@@ -339,7 +343,7 @@ func cleanupPodName(name string) string {
 }
 
 // StartFromPreviousJob starts a new job based on an old one
-func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromPreviousJobRequest) (*v1.StartJobResponse, error) {
+func (srv *ServiceV1) StartFromPreviousJob(ctx context.Context, req *v1.StartFromPreviousJobRequest) (*v1.StartJobResponse, error) {
 	oldJobStatus, err := srv.Jobs.Get(ctx, req.PreviousJob)
 	if err == store.ErrNotFound {
 		return nil, status.Error(codes.NotFound, "job spec not found")
@@ -435,7 +439,7 @@ func (tsa *tarStreamAdapter) Read(p []byte) (n int, err error) {
 }
 
 // ListJobs lists jobs
-func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp *v1.ListJobsResponse, err error) {
+func (srv *ServiceV1) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp *v1.ListJobsResponse, err error) {
 	result, total, err := srv.Jobs.Find(ctx, req.Filter, req.Order, int(req.Start), int(req.Limit))
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -453,7 +457,7 @@ func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp
 }
 
 // Subscribe listens to job updates
-func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.WerftService_SubscribeServer) (err error) {
+func (srv *ServiceV1) Subscribe(req *v1.SubscribeRequest, resp v1.WerftService_SubscribeServer) (err error) {
 	evts := srv.events.On("job")
 	for evt := range evts {
 		job := evt.Args[0].(*v1.JobStatus)
@@ -469,7 +473,7 @@ func (srv *Service) Subscribe(req *v1.SubscribeRequest, resp v1.WerftService_Sub
 }
 
 // GetJob returns the information about a particular job
-func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1.GetJobResponse, err error) {
+func (srv *ServiceV1) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1.GetJobResponse, err error) {
 	job, err := srv.Jobs.Get(ctx, req.Name)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -484,7 +488,7 @@ func (srv *Service) GetJob(ctx context.Context, req *v1.GetJobRequest) (resp *v1
 }
 
 // Listen listens to logs
-func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServer) error {
+func (srv *ServiceV1) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServer) error {
 	// TOOD: if one of the listeners fails, all have to fail
 	job, err := srv.Jobs.Get(ls.Context(), req.Name)
 	if err == store.ErrNotFound {
@@ -601,7 +605,7 @@ func (srv *Service) Listen(req *v1.ListenRequest, ls v1.WerftService_ListenServe
 }
 
 // StopJob stops a running job
-func (srv *Service) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.StopJobResponse, error) {
+func (srv *ServiceV1) StopJob(ctx context.Context, req *v1.StopJobRequest) (*v1.StopJobResponse, error) {
 	job, err := srv.Jobs.Get(ctx, req.Name)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())

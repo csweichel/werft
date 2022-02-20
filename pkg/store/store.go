@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 )
 
 var (
@@ -39,21 +39,21 @@ type Jobs interface {
 	// Store stores job information in the store.
 	// Storing a job whose name we already have in store will override the previously
 	// stored job.
-	Store(ctx context.Context, job v1.JobStatus) error
+	Store(ctx context.Context, job v2.JobStatus) error
 
 	// StoreJobSpec stores job YAML data.
 	StoreJobSpec(name string, data []byte) error
 
 	// Retrieves a particular job bassd on its name.
 	// If the job is unknown we'll return ErrNotFound.
-	Get(ctx context.Context, name string) (*v1.JobStatus, error)
+	Get(ctx context.Context, name string) (*v2.JobStatus, error)
 
 	// Get retrieves previously stored job spec data
 	GetJobSpec(name string) (data []byte, err error)
 
 	// Searches for jobs based on their annotations. If filter is empty no filter is applied.
 	// If limit is 0, no limit is applied.
-	Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error)
+	Find(ctx context.Context, filter []*v2.FilterExpression, order []*v2.OrderExpression, start, limit int) (slice []v2.JobStatus, total int, err error)
 }
 
 // NumberGroup enables to atomic generation and storage of numbers.

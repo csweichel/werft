@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"golang.org/x/xerrors"
 )
 
@@ -12,18 +12,18 @@ import (
 var ErrMissingOp = fmt.Errorf("missing operator")
 
 // Parse parses a list of expressions
-func Parse(exprs []string) ([]*v1.FilterTerm, error) {
-	ops := map[string]v1.FilterOp{
-		"==": v1.FilterOp_OP_EQUALS,
-		"~=": v1.FilterOp_OP_CONTAINS,
-		"|=": v1.FilterOp_OP_STARTS_WITH,
-		"=|": v1.FilterOp_OP_ENDS_WITH,
+func Parse(exprs []string) ([]*v2.FilterTerm, error) {
+	ops := map[string]v2.FilterOp{
+		"==": v2.FilterOp_OP_EQUALS,
+		"~=": v2.FilterOp_OP_CONTAINS,
+		"|=": v2.FilterOp_OP_STARTS_WITH,
+		"=|": v2.FilterOp_OP_ENDS_WITH,
 	}
 
-	res := make([]*v1.FilterTerm, len(exprs))
+	res := make([]*v2.FilterTerm, len(exprs))
 	for i, expr := range exprs {
 		var (
-			op  v1.FilterOp
+			op  v2.FilterOp
 			opn string
 			neg bool
 		)
@@ -55,12 +55,12 @@ func Parse(exprs []string) ([]*v1.FilterTerm, error) {
 		}
 		if field == "phase" {
 			phn := strings.ToUpper(fmt.Sprintf("PHASE_%s", val))
-			if _, ok := v1.JobPhase_value[phn]; !ok {
+			if _, ok := v2.JobPhase_value[phn]; !ok {
 				return nil, xerrors.Errorf("invalid phase: %s", val)
 			}
 		}
 
-		res[i] = &v1.FilterTerm{
+		res[i] = &v2.FilterTerm{
 			Field:     field,
 			Value:     val,
 			Operation: op,
@@ -72,7 +72,7 @@ func Parse(exprs []string) ([]*v1.FilterTerm, error) {
 }
 
 // MatchesFilter returns true if the annotations are matched by the filter
-func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches bool) {
+func MatchesFilter(js *v2.JobStatus, filter []*v2.FilterExpression) (matches bool) {
 	if len(filter) == 0 {
 		return true
 	}
@@ -109,15 +109,15 @@ func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches boo
 			}
 
 			switch alt.Operation {
-			case v1.FilterOp_OP_CONTAINS:
+			case v2.FilterOp_OP_CONTAINS:
 				tm = strings.Contains(val, alt.Value)
-			case v1.FilterOp_OP_ENDS_WITH:
+			case v2.FilterOp_OP_ENDS_WITH:
 				tm = strings.HasSuffix(val, alt.Value)
-			case v1.FilterOp_OP_EQUALS:
+			case v2.FilterOp_OP_EQUALS:
 				tm = val == alt.Value
-			case v1.FilterOp_OP_STARTS_WITH:
+			case v2.FilterOp_OP_STARTS_WITH:
 				tm = strings.HasPrefix(val, alt.Value)
-			case v1.FilterOp_OP_EXISTS:
+			case v2.FilterOp_OP_EXISTS:
 				tm = true
 			}
 

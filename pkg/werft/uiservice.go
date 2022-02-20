@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/csweichel/werft/pkg/api/repoconfig"
-	v1 "github.com/csweichel/werft/pkg/api/v1"
+	v2 "github.com/csweichel/werft/pkg/api/v2"
 	"github.com/csweichel/werft/pkg/reporef"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -20,7 +20,7 @@ type UIService struct {
 	Repos              []string
 	Readonly           bool
 
-	cache []*v1.ListJobSpecsResponse
+	cache []*v2.ListJobSpecsResponse
 	mu    sync.RWMutex
 }
 
@@ -106,17 +106,17 @@ func (uis *UIService) updateJobSpecs() error {
 				continue
 			}
 
-			var args []*v1.DesiredAnnotation
+			var args []*v2.DesiredAnnotation
 			for _, arg := range jobspec.Args {
-				args = append(args, &v1.DesiredAnnotation{
+				args = append(args, &v2.DesiredAnnotation{
 					Name:        arg.Name,
 					Required:    arg.Req,
 					Description: arg.Desc,
 				})
 			}
 
-			res := &v1.ListJobSpecsResponse{
-				Repo: &v1.Repository{
+			res := &v2.ListJobSpecsResponse{
+				Repo: &v2.Repository{
 					Host:     "github.com",
 					Owner:    repo.Owner,
 					Repo:     repo.Repo,
@@ -136,7 +136,7 @@ func (uis *UIService) updateJobSpecs() error {
 }
 
 // ListJobSpecs returns a list of jobs that can be started through the UI.
-func (uis *UIService) ListJobSpecs(req *v1.ListJobSpecsRequest, srv v1.WerftUI_ListJobSpecsServer) error {
+func (uis *UIService) ListJobSpecs(req *v2.ListJobSpecsRequest, srv v2.WerftUI_ListJobSpecsServer) error {
 	uis.mu.RLock()
 	defer uis.mu.RUnlock()
 
@@ -151,8 +151,8 @@ func (uis *UIService) ListJobSpecs(req *v1.ListJobSpecsRequest, srv v1.WerftUI_L
 }
 
 // IsReadOnly returns true if the UI is readonly.
-func (uis *UIService) IsReadOnly(context.Context, *v1.IsReadOnlyRequest) (*v1.IsReadOnlyResponse, error) {
-	return &v1.IsReadOnlyResponse{
+func (uis *UIService) IsReadOnly(context.Context, *v2.IsReadOnlyRequest) (*v2.IsReadOnlyResponse, error) {
+	return &v2.IsReadOnlyResponse{
 		Readonly: uis.Readonly,
 	}, nil
 }
