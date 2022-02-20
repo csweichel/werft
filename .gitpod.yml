@@ -25,4 +25,4 @@ ports:
 workspaceLocation: werft/werft.theia-workspace
 vscode:
   extensions:
-    - zxh404.vscode-proto3@0.3.0
+    - zxh404.vscode-proto3
