@@ -177,7 +177,7 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 	if repo.Revision != "" {
 		cloneTarget = repo.Revision
 	}
-	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git %s && git checkout %s", cloneCmd, repo.Owner, repo.Repo, cloneDir, cloneTarget)
+	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git %s && cd %s && git checkout %s && cd -", cloneCmd, repo.Owner, repo.Repo, cloneDir, cloneDir, cloneTarget)
 
 	if len(req.Paths) > 0 {
 		var cmds []string
