@@ -23,6 +23,9 @@ service WerftService {
     // StartJobRequest starts a new job based on its specification.
     rpc StartJob(StartJobRequest) returns (StartJobResponse) {};
 
+    // StartJob2 starts a new job based on its specification.
+    rpc StartJob2(StartJobRequest2) returns (StartJobResponse) {};
+
     // Searches for jobs known to this instance
     rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {};
 
@@ -70,6 +73,27 @@ message StartJobRequest {
     bytes sideload = 4; 
     google.protobuf.Timestamp wait_until = 5;
     string name_suffix = 6;
+}
+
+message StartJobRequest2 {
+    JobMetadata metadata = 1;
+    JobSpec spec = 2;
+}
+
+message JobSpec {
+    message FromRepo {
+        Repository repo = 1;
+        string path = 2;
+    }
+
+    oneof source {
+        bytes job_yaml = 2;
+        string job_path = 3;
+        FromRepo repo = 4;
+    }
+    bytes direct_sideload = 5;
+    repeated FromRepo repo_sideload = 6;
+    string name_suffix = 7;
 }
 
 message StartFromPreviousJobRequest {
@@ -157,6 +181,7 @@ message JobStatus {
     JobConditions conditions = 4;
     string details = 5;
     repeated JobResult results = 6;
+    JobSpec spec = 7;
 }
 
 message JobMetadata {

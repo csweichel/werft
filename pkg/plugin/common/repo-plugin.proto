@@ -45,6 +45,7 @@ message ResolveResponse {
 
 message ContentInitContainerRequest {
     v1.Repository repository = 1;
+    repeated string paths = 2;
 }
 
 message ContentInitContainerResponse {

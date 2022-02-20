@@ -9,7 +9,7 @@ service:
   prometheusPort: 9500
   pprofPort: 6060
   jobSpecRepos:
-  - github.com/32leaves/test-repo:werft
+  - github.com/csweichel/test-repo:werft
   webReadOnly: false
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"
 executor:
@@ -82,7 +82,7 @@ plugins:
     config:
       tasks:
       - spec: "@every 10m"
-        repo: github.com/32leaves/test-repo:werft
+        repo: github.com/csweichel/test-repo:werft
     command:
     - sh
     - -c

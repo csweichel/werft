@@ -7,8 +7,11 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/csweichel/werft/pkg/plugin/common"
 
@@ -161,11 +164,26 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 		}
 	}
 
+	cloneDir := "."
+	if len(req.Paths) > 0 {
+		cloneDir = fmt.Sprintf("clone-%d-%d", time.Now().Unix(), rand.Int())
+	}
+
 	cloneCmd := "git clone"
 	if user != "" || pass != "" {
 		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
 	}
-	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git .; git checkout %s", cloneCmd, repo.Owner, repo.Repo, repo.Revision)
+	cloneCmd = fmt.Sprintf("%s https://github.com/%s/%s.git %s && git checkout %s", cloneCmd, repo.Owner, repo.Repo, cloneDir, repo.Revision)
+
+	if len(req.Paths) > 0 {
+		var cmds []string
+		for _, p := range req.Paths {
+			cmds = append(cmds, fmt.Sprintf("rm -rf %s", p))
+			cmds = append(cmds, fmt.Sprintf("cp -Rf %s %s", filepath.Join(cloneDir, p), p))
+		}
+		cmds = append(cmds, fmt.Sprintf("rm -rf %s", cloneDir))
+		cloneCmd = strings.Join(cmds, " && ")
+	}
 
 	c := []corev1.Container{
 		{
