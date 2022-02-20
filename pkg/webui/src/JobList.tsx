@@ -249,10 +249,10 @@ class JobListImpl extends React.Component<JobListProps, JobListState> {
             <Header title="Jobs" actions={actions} />
             <main className={classes.main}>
                 <TablePagination
-                    rowsPerPageOptions={[10, 50, 100]}
                     component="div"
                     count={this.state.totalJobs}
                     page={this.state.page}
+                    rowsPerPageOptions={[10, 50, 100]}
                     rowsPerPage={this.state.rowsPerPage}
                     onPageChange={(_, page) => {
                         this.update({ page });
