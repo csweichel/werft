@@ -21,6 +21,7 @@ message ListJobSpecsResponse {
     string path = 3;
     string description = 4;
     repeated DesiredAnnotation arguments = 5;
+    map<string, string> plugins = 6;
 }
 
 // DesiredAnnotation describes an annotation a job should have

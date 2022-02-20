@@ -84,7 +84,12 @@ type JobSpec struct {
 	// run is only if Kubernetes accepts the produced podspec.
 	Args []ArgSpec `yaml:"args,omitempty"`
 
+	// Sidecars list side car containers of the job, i.e. containers
+	// for which we don't wait that they end to end the job.
 	Sidecars []string `yaml:"sidecars,omitempty"`
+
+	// Plugins list plugin-specific information
+	Plugins map[string]string `yaml:"plugins,omitempty"`
 }
 
 // ArgSpec specifies an argument/annotation for a job.

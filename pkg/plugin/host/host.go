@@ -44,6 +44,7 @@ type Plugins struct {
 
 	sockets      map[string]string
 	werftService v1.WerftServiceServer
+	uiService    v1.WerftUIServer
 	repoProvider *compoundRepositoryProvider
 }
 
@@ -69,7 +70,7 @@ type Error struct {
 }
 
 // Start starts all configured plugins
-func Start(cfg Config, srv v1.WerftServiceServer) (*Plugins, error) {
+func Start(cfg Config, srv v1.WerftServiceServer, uisrv v1.WerftUIServer) (*Plugins, error) {
 	errchan, stopchan := make(chan Error), make(chan struct{})
 
 	plugins := &Plugins{
@@ -77,6 +78,7 @@ func Start(cfg Config, srv v1.WerftServiceServer) (*Plugins, error) {
 		stopchan:     stopchan,
 		sockets:      make(map[string]string),
 		werftService: srv,
+		uiService:    uisrv,
 		repoProvider: &compoundRepositoryProvider{},
 	}
 
@@ -113,6 +115,7 @@ func (p *Plugins) socketForIntegrationPlugin() (string, error) {
 	}
 	s := grpc.NewServer()
 	v1.RegisterWerftServiceServer(s, p.werftService)
+	v1.RegisterWerftUIServer(s, p.uiService)
 	go func() {
 		err := s.Serve(lis)
 		if err != nil {

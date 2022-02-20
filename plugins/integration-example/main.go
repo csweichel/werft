@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/plugin/client"
 	plugin "github.com/csweichel/werft/pkg/plugin/client"
 	log "github.com/sirupsen/logrus"
 )
@@ -23,7 +24,7 @@ func main() {
 
 type integrationPlugin struct{}
 
-func (*integrationPlugin) Run(ctx context.Context, config interface{}, srv v1.WerftServiceClient) error {
+func (*integrationPlugin) Run(ctx context.Context, config interface{}, srv *client.Services) error {
 	cfg, ok := config.(*Config)
 	if !ok {
 		return fmt.Errorf("config has wrong type %s", reflect.TypeOf(config))

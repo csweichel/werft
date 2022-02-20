@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 
@@ -32,13 +33,91 @@ func main() {
 
 type cronPlugin struct{}
 
-func (*cronPlugin) Run(ctx context.Context, config interface{}, srv v1.WerftServiceClient) error {
+func (*cronPlugin) Run(ctx context.Context, config interface{}, srv *plugin.Services) error {
 	cfg, ok := config.(*Config)
 	if !ok {
 		return fmt.Errorf("config has wrong type %s", reflect.TypeOf(config))
 	}
 
 	c := cron.New()
+
+	remoteJobs := make(map[string]cron.EntryID)
+	_, err := c.AddFunc("* * * * *", func() {
+		defer recover()
+
+		err := func() error {
+			log.Info("refreshing job specs")
+
+			foundJobs := make(map[string]struct{})
+			specs, err := srv.ListJobSpecs(context.Background(), &v1.ListJobSpecsRequest{})
+			if err != nil {
+				return err
+			}
+			for {
+				spec, err := specs.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return err
+				}
+				if spec == nil {
+					break
+				}
+				id := strings.Join([]string{spec.Repo.Host, spec.Repo.Owner, spec.Repo.Repo, spec.Repo.Ref, spec.Name}, "/")
+				foundJobs[id] = struct{}{}
+				if _, exists := remoteJobs[id]; exists {
+					continue
+				}
+
+				log := log.WithField("repo", spec.Repo).WithField("id", id)
+				expr, ok := spec.Plugins["cron"]
+				if !ok {
+					log.Debug("has no cron expression - ignoring")
+					continue
+				}
+				cronSpec := strings.TrimPrefix(strings.TrimSuffix(expr, `"`), `"`)
+				log = log.WithField("cron", cronSpec)
+
+				request := &v1.StartGitHubJobRequest{
+					Metadata: &v1.JobMetadata{
+						Owner:      "cron",
+						Trigger:    v1.JobTrigger_TRIGGER_MANUAL,
+						Repository: spec.Repo,
+					},
+					JobPath: spec.Path,
+				}
+				entryID, err := c.AddFunc(cronSpec, func() {
+					_, err := srv.StartGitHubJob(ctx, request)
+					if err != nil {
+						log.WithError(err).Error("cannot start job")
+					}
+				})
+				if err != nil {
+					log.WithError(err).Error("cannot schedule cron job")
+					continue
+				}
+				remoteJobs[id] = entryID
+				log.Info("scheduled new job")
+			}
+			for k, v := range remoteJobs {
+				if _, ok := foundJobs[k]; ok {
+					continue
+				}
+
+				c.Remove(v)
+				log.WithField("id", k).Info("stopping job")
+			}
+			return nil
+		}()
+		if err != nil {
+			log.WithError(err).Error("error while updating cron jobs")
+		}
+	})
+	if err != nil {
+		return err
+	}
+
 	for idx, task := range cfg.Tasks {
 		repo, err := reporef.Parse(task.Repo)
 		if err != nil {

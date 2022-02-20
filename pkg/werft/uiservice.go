@@ -127,6 +127,7 @@ func (uis *UIService) updateJobSpecs() error {
 				Path:        fn,
 				Description: jobspec.Desc,
 				Arguments:   args,
+				Plugins:     jobspec.Plugins,
 			}
 			uis.cache = append(uis.cache, res)
 		}
