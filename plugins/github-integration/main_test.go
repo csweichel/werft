@@ -166,3 +166,85 @@ func TestHandleCommandRun(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessPushEvent(t *testing.T) {
+	type Fixture struct {
+		Event *github.PushEvent
+	}
+
+	fs, err := filepath.Glob("fixtures/processPushEvent_*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fn := range fs {
+		t.Run(fn, func(t *testing.T) {
+			fc, err := ioutil.ReadFile(fn)
+			if err != nil {
+				t.Fatalf("cannot read %s: %v", fn, err)
+			}
+			var fixture Fixture
+			err = json.Unmarshal(fc, &fixture)
+			if err != nil {
+				t.Fatalf("cannot unmarshal %s: %v", fn, err)
+			}
+
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			var startReq *v1.StartJobRequest2
+			client := mock.NewMockWerftServiceClient(mockCtrl)
+			client.EXPECT().StartJob2(gomock.Any(), gomock.Any(), gomock.Any()).
+				MinTimes(1).
+				DoAndReturn(func(ctx context.Context, creq *v1.StartJobRequest2) (*v1.StartJobResponse, error) {
+					startReq = creq
+					return &v1.StartJobResponse{
+						Status: &v1.JobStatus{
+							Name: "foo",
+							Metadata: &v1.JobMetadata{
+								Owner: "owner",
+								Repository: &v1.Repository{
+									Host:     "github.com",
+									Owner:    "repo-owner",
+									Repo:     "repo",
+									Ref:      "ref",
+									Revision: "rev",
+								},
+								Trigger:     v1.JobTrigger_TRIGGER_MANUAL,
+								JobSpecName: "foo",
+							},
+						},
+					}, nil
+				})
+
+			plg := &githubTriggerPlugin{
+				Werft:  client,
+				Config: &Config{},
+			}
+			if fixture.Event == nil {
+				t.Fatal("broken fixture: no event")
+			}
+			plg.processPushEvent(fixture.Event)
+
+			var expectation v1.StartJobRequest2
+			goldenFN := strings.TrimSuffix(fn, filepath.Ext(fn)) + ".golden"
+			if fc, err := os.ReadFile(goldenFN); err == nil {
+				err = jsonpb.Unmarshal(bytes.NewReader(fc), &expectation)
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				var m jsonpb.Marshaler
+				fc, err := m.MarshalToString(startReq)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = ioutil.WriteFile(goldenFN, []byte(fc), 0644)
+				t.Fatalf("no golden file present %s: wrote %s", fn, goldenFN)
+			}
+
+			if diff := cmp.Diff(expectation, *startReq); diff != "" {
+				t.Errorf("processPushEvent() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

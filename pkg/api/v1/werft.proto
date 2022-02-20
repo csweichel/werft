@@ -200,6 +200,7 @@ message Repository {
     string repo = 3;
     string ref = 4;
     string revision = 5;
+    string default_branch = 6;
 }
 
 message Annotation {

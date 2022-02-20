@@ -166,20 +166,26 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 	log.WithField("req", proto.MarshalTextString(req)).Info("StartJob request")
 
 	md := req.Metadata
-	err = srv.RepositoryProvider.Resolve(ctx, md.Repository)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "cannot resolve request: %q", err)
-	}
+	if md.Trigger == v1.JobTrigger_TRIGGER_DELETED {
+		// Note: attempting to resolve the reference after it's been deleted is
+		//       guaranteed to result in an error. Hence we're only doing this
+		//       if the trigger isn't DELETED.
+	} else {
+		err = srv.RepositoryProvider.Resolve(ctx, md.Repository)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "cannot resolve request: %q", err)
+		}
 
-	atns, err := srv.RepositoryProvider.RemoteAnnotations(ctx, md.Repository)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range atns {
-		md.Annotations = append(md.Annotations, &v1.Annotation{
-			Key:   k,
-			Value: v,
-		})
+		atns, err := srv.RepositoryProvider.RemoteAnnotations(ctx, md.Repository)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range atns {
+			md.Annotations = append(md.Annotations, &v1.Annotation{
+				Key:   k,
+				Value: v,
+			})
+		}
 	}
 
 	cp, err := srv.getContentProvider(ctx, md, req.Spec)
@@ -283,8 +289,19 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 
 // getContentProvider produces a content provider for the given job spec
 func (srv *Service) getContentProvider(ctx context.Context, md *v1.JobMetadata, spec *v1.JobSpec) (ContentProvider, error) {
+	repo := *md.Repository
+	if md.Trigger == v1.JobTrigger_TRIGGER_DELETED {
+		// the ref/revision are pointless now, because the branch/tag was just deleted.
+		// We'll check out the default branch instead.
+		repo.Revision = ""
+		repo.Ref = md.Repository.DefaultBranch
+		if !strings.HasPrefix(repo.Ref, "refs/heads/") {
+			repo.Ref = "refs/heads/" + repo.Ref
+		}
+	}
+
 	var cp CompositeContentProvider
-	rcp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
+	rcp, err := srv.RepositoryProvider.ContentProvider(ctx, &repo)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
 	}
