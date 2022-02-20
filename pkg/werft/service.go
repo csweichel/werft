@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	termtohtml "github.com/buildkite/terminal-to-html"
 	"github.com/csweichel/werft/pkg/api/repoconfig"
@@ -19,7 +18,6 @@ import (
 	"github.com/csweichel/werft/pkg/logcutter"
 	"github.com/csweichel/werft/pkg/store"
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
 	"github.com/technosophos/moniker"
 	"golang.org/x/xerrors"
@@ -126,7 +124,7 @@ func (srv *Service) StartLocalJob(inc v1.WerftService_StartLocalJobServer) error
 	flatOwner := strings.ReplaceAll(strings.ToLower(md.Owner), " ", "")
 	name := cleanupPodName(fmt.Sprintf("local-%s-%s", flatOwner, moniker.New().NameSep("-")))
 
-	jobStatus, err := srv.RunJob(inc.Context(), name, md, cp, jobYAML, false, time.Time{})
+	jobStatus, err := srv.RunJob(inc.Context(), name, md, v1.JobSpec{}, cp, jobYAML, false)
 
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
@@ -184,36 +182,9 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 		})
 	}
 
-	var cp CompositeContentProvider
-	rcp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
+	cp, err := srv.getContentProvider(ctx, md, req.Spec)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
-	}
-	cp = append(cp, rcp)
-
-	if sl := req.Spec.DirectSideload; len(sl) > 0 {
-		slc := &SideloadingContentProvider{
-			TarStream:  bytes.NewReader(sl),
-			Namespace:  srv.Executor.Config.Namespace,
-			Kubeconfig: srv.Executor.KubeConfig,
-			Clientset:  srv.Executor.Client,
-		}
-		cp = append(cp, slc)
-	}
-
-	if rl := req.Spec.RepoSideload; len(rl) > 0 {
-		for i, repo := range rl {
-			if repo.Path == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "repo sideload %d has no path", i)
-			}
-
-			rcp, err := srv.RepositoryProvider.ContentProvider(ctx, repo.Repo, repo.Path)
-			if err != nil {
-				return nil, status.Errorf(codes.FailedPrecondition, "cannot produce content provider: %q", err)
-			}
-
-			cp = append(cp, rcp)
-		}
+		return nil, err
 	}
 
 	var (
@@ -299,7 +270,7 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 
 	canReplay := true
 
-	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay, time.Time{})
+	jobStatus, err := srv.RunJob(ctx, name, *md, *req.Spec, cp, jobYAML, canReplay)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -308,6 +279,43 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
+}
+
+// getContentProvider produces a content provider for the given job spec
+func (srv *Service) getContentProvider(ctx context.Context, md *v1.JobMetadata, spec *v1.JobSpec) (ContentProvider, error) {
+	var cp CompositeContentProvider
+	rcp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
+	}
+	cp = append(cp, rcp)
+
+	if sl := spec.DirectSideload; len(sl) > 0 {
+		slc := &SideloadingContentProvider{
+			TarStream:  bytes.NewReader(sl),
+			Namespace:  srv.Executor.Config.Namespace,
+			Kubeconfig: srv.Executor.KubeConfig,
+			Clientset:  srv.Executor.Client,
+		}
+		cp = append(cp, slc)
+	}
+
+	if rl := spec.RepoSideload; len(rl) > 0 {
+		for i, repo := range rl {
+			if repo.Path == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "repo sideload %d has no path", i)
+			}
+
+			rcp, err := srv.RepositoryProvider.ContentProvider(ctx, repo.Repo, repo.Path)
+			if err != nil {
+				return nil, status.Errorf(codes.FailedPrecondition, "cannot produce content provider: %q", err)
+			}
+
+			cp = append(cp, rcp)
+		}
+	}
+
+	return cp, nil
 }
 
 // StartJob starts a new job based on its specification.
@@ -389,12 +397,18 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	jobYAML, err := srv.Jobs.GetJobSpec(req.PreviousJob)
+	jobSpec, jobYAML, err := srv.Jobs.GetJobSpec(req.PreviousJob)
 	if err == store.ErrNotFound {
 		return nil, status.Error(codes.NotFound, "job spec not found")
 	}
 	if err != nil {
+		log.WithError(err).WithField("req", req).Error("failed to start previous job")
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if jobSpec == nil {
+		// this can happen for jobs which ran prior to the introduction
+		// of job specs.
+		return nil, status.Error(codes.FailedPrecondition, "job is too old and cannot be re-run")
 	}
 
 	name := req.PreviousJob
@@ -410,7 +424,7 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 
 	md := oldJobStatus.Metadata
 	md.Finished = nil
-	cp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
+	cp, err := srv.getContentProvider(ctx, md, jobSpec)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -418,15 +432,7 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	// We are replaying this job already - hence this new job is replayable as well
 	canReplay := true
 
-	var waitUntil time.Time
-	if req.WaitUntil != nil {
-		waitUntil, err = ptypes.Timestamp(req.WaitUntil)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "waitUntil is invalid: %v", err)
-		}
-	}
-
-	jobStatus, err := srv.RunJob(ctx, name, *oldJobStatus.Metadata, cp, jobYAML, canReplay, waitUntil)
+	jobStatus, err := srv.RunJob(ctx, name, *oldJobStatus.Metadata, *jobSpec, cp, jobYAML, canReplay)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

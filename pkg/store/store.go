@@ -42,14 +42,14 @@ type Jobs interface {
 	Store(ctx context.Context, job v1.JobStatus) error
 
 	// StoreJobSpec stores job YAML data.
-	StoreJobSpec(name string, data []byte) error
+	StoreJobSpec(name string, spec v1.JobSpec, data []byte) error
 
 	// Retrieves a particular job bassd on its name.
 	// If the job is unknown we'll return ErrNotFound.
 	Get(ctx context.Context, name string) (*v1.JobStatus, error)
 
 	// Get retrieves previously stored job spec data
-	GetJobSpec(name string) (data []byte, err error)
+	GetJobSpec(name string) (spec *v1.JobSpec, data []byte, err error)
 
 	// Searches for jobs based on their annotations. If filter is empty no filter is applied.
 	// If limit is 0, no limit is applied.
