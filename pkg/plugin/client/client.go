@@ -18,11 +18,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Services struct {
+	v1.WerftServiceClient
+	v1.WerftUIClient
+}
+
 // IntegrationPlugin works on the public werft API
 type IntegrationPlugin interface {
 	// Run runs the plugin. Once this function returns the plugin stops running.
 	// Implementors must respect the context deadline as that's the signal for graceful shutdown.
-	Run(ctx context.Context, config interface{}, srv v1.WerftServiceClient) error
+	Run(ctx context.Context, config interface{}, srv *Services) error
 }
 
 // RepositoryPlugin adds support for a repository host
@@ -48,9 +53,11 @@ func WithIntegrationPlugin(p IntegrationPlugin) ServeOpt {
 				return xerrors.Errorf("did not connect: %v", err)
 			}
 			defer conn.Close()
-			client := v1.NewWerftServiceClient(conn)
 
-			return p.Run(ctx, config, client)
+			return p.Run(ctx, config, &Services{
+				WerftServiceClient: v1.NewWerftServiceClient(conn),
+				WerftUIClient:      v1.NewWerftUIClient(conn),
+			})
 		},
 	}
 }

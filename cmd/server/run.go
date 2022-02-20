@@ -161,7 +161,10 @@ var runCmd = &cobra.Command{
 			cfg.Werft.DebugProxy = val
 		}
 
-		plugins, err := plugin.Start(cfg.Plugins, service)
+		var uiservice = &struct {
+			v1.WerftUIServer
+		}{}
+		plugins, err := plugin.Start(cfg.Plugins, service, uiservice)
 		if err != nil {
 			log.WithError(err).Fatal("cannot start plugins")
 		}
@@ -181,10 +184,11 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		uiservice, err := werft.NewUIService(plugins.RepositoryProvider(), cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly, specUpdateInterval)
+		actualUIservice, err := werft.NewUIService(plugins.RepositoryProvider(), cfg.Service.JobSpecRepos, cfg.Service.WebReadOnly, specUpdateInterval)
 		if err != nil {
 			return err
 		}
+		uiservice.WerftUIServer = actualUIservice
 
 		err = service.Start()
 		if err != nil {
@@ -200,7 +204,7 @@ var runCmd = &cobra.Command{
 			grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 15 * time.Minute}),
 		}
 		go startGRPC(service, fmt.Sprintf(":%d", cfg.Service.GRPCPort), grpcOpts...)
-		go startWeb(service, uiservice, fmt.Sprintf(":%d", cfg.Service.WebPort), startWebOpts{
+		go startWeb(service, actualUIservice, fmt.Sprintf(":%d", cfg.Service.WebPort), startWebOpts{
 			DebugProxy:  cfg.Werft.DebugProxy,
 			ReadOpsOnly: cfg.Service.WebReadOnly,
 			GRPCOpts:    grpcOpts,
