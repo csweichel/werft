@@ -68,12 +68,12 @@ func (c *compoundRepositoryProvider) RemoteAnnotations(ctx context.Context, repo
 }
 
 // ContentProvider produces a content provider for a particular repo
-func (c *compoundRepositoryProvider) ContentProvider(ctx context.Context, repo *v1.Repository) (werft.ContentProvider, error) {
+func (c *compoundRepositoryProvider) ContentProvider(ctx context.Context, repo *v1.Repository, paths ...string) (werft.ContentProvider, error) {
 	prov, err := c.getProvider(repo.Host)
 	if err != nil {
 		return nil, err
 	}
-	return prov.ContentProvider(ctx, repo)
+	return prov.ContentProvider(ctx, repo, paths...)
 }
 
 // FileProvider provides direct access to repository content
@@ -123,10 +123,11 @@ func (p *pluginHostProvider) RemoteAnnotations(ctx context.Context, repo *v1.Rep
 }
 
 // ContentProvider produces a content provider for a particular repo
-func (p *pluginHostProvider) ContentProvider(ctx context.Context, repo *v1.Repository) (werft.ContentProvider, error) {
+func (p *pluginHostProvider) ContentProvider(ctx context.Context, repo *v1.Repository, paths ...string) (werft.ContentProvider, error) {
 	return &pluginContentProvider{
-		Repo: repo,
-		C:    p.C,
+		Repo:  repo,
+		C:     p.C,
+		Paths: paths,
 	}, nil
 }
 
@@ -139,8 +140,9 @@ func (p *pluginHostProvider) FileProvider(ctx context.Context, repo *v1.Reposito
 }
 
 type pluginContentProvider struct {
-	Repo *v1.Repository
-	C    common.RepositoryPluginClient
+	Repo  *v1.Repository
+	C     common.RepositoryPluginClient
+	Paths []string
 }
 
 func (c *pluginContentProvider) InitContainer() (res []corev1.Container, err error) {
@@ -149,6 +151,7 @@ func (c *pluginContentProvider) InitContainer() (res []corev1.Container, err err
 
 	resp, err := c.C.ContentInitContainer(ctx, &common.ContentInitContainerRequest{
 		Repository: c.Repo,
+		Paths:      c.Paths,
 	})
 	if err != nil {
 		return nil, err

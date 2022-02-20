@@ -148,18 +148,23 @@ func (srv *Service) StartGitHubJob(ctx context.Context, req *v1.StartGitHubJobRe
 		req.Metadata.Repository.Host = "github.com"
 	}
 
-	return srv.StartJob(ctx, &v1.StartJobRequest{
-		JobPath:    req.JobPath,
-		JobYaml:    req.JobYaml,
-		Metadata:   req.Metadata,
-		Sideload:   req.Sideload,
-		WaitUntil:  req.WaitUntil,
-		NameSuffix: req.NameSuffix,
+	spec := &v1.JobSpec{
+		DirectSideload: req.Sideload,
+		NameSuffix:     req.NameSuffix,
+	}
+	if req.JobYaml != nil {
+		spec.Source = &v1.JobSpec_JobYaml{JobYaml: req.JobYaml}
+	} else {
+		spec.Source = &v1.JobSpec_JobPath{JobPath: req.JobPath}
+	}
+
+	return srv.StartJob2(ctx, &v1.StartJobRequest2{
+		Metadata: req.Metadata,
+		Spec:     spec,
 	})
 }
 
-// StartJob starts a new job based on its specification.
-func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
+func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (resp *v1.StartJobResponse, err error) {
 	log.WithField("req", proto.MarshalTextString(req)).Info("StartJob request")
 
 	md := req.Metadata
@@ -179,59 +184,86 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 		})
 	}
 
-	var cp ContentProvider
-	cp, err = srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
+	var cp CompositeContentProvider
+	rcp, err := srv.RepositoryProvider.ContentProvider(ctx, md.Repository)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot produce content provider: %q", err)
 	}
+	cp = append(cp, rcp)
 
-	if len(req.Sideload) > 0 {
-		cp = &SideloadingContentProvider{
-			Delegate: cp,
-
-			TarStream:  bytes.NewReader(req.Sideload),
+	if sl := req.Spec.DirectSideload; len(sl) > 0 {
+		slc := &SideloadingContentProvider{
+			TarStream:  bytes.NewReader(sl),
 			Namespace:  srv.Executor.Config.Namespace,
 			Kubeconfig: srv.Executor.KubeConfig,
 			Clientset:  srv.Executor.Client,
 		}
+		cp = append(cp, slc)
 	}
 
-	var fp FileProvider
-	fp, err = srv.RepositoryProvider.FileProvider(ctx, md.Repository)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "cannot produce file provider: %q", err)
+	if rl := req.Spec.RepoSideload; len(rl) > 0 {
+		for i, repo := range rl {
+			if repo.Path == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "repo sideload %d has no path", i)
+			}
+
+			rcp, err := srv.RepositoryProvider.ContentProvider(ctx, repo.Repo, repo.Path)
+			if err != nil {
+				return nil, status.Errorf(codes.FailedPrecondition, "cannot produce content provider: %q", err)
+			}
+
+			cp = append(cp, rcp)
+		}
 	}
 
 	var (
-		jobYAML     = req.JobYaml
-		tplpath     = req.JobPath
+		jobYAML     []byte
+		jobPath     string
+		jobRepo     *v1.Repository
 		jobSpecName = "custom"
 	)
-	if jobYAML == nil {
-		if tplpath == "" {
+	switch src := req.Spec.Source.(type) {
+	case *v1.JobSpec_JobYaml:
+		jobYAML = src.JobYaml
+	case *v1.JobSpec_Repo:
+		jobPath = src.Repo.Path
+		jobRepo = src.Repo.Repo
+	case *v1.JobSpec_JobPath:
+		jobPath = src.JobPath
+		jobRepo = req.Metadata.Repository
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown job source type")
+	}
+	if len(jobYAML) == 0 {
+		var fp FileProvider
+		fp, err = srv.RepositoryProvider.FileProvider(ctx, jobRepo)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "cannot produce file provider: %q", err)
+		}
+
+		if jobPath == "" {
 			repoCfg, err := getRepoCfg(ctx, fp)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
-			tplpath = repoCfg.TemplatePath(req.Metadata)
-		}
-		if tplpath == "" {
-			return nil, status.Errorf(codes.NotFound, "no jobspec found in repo config")
+			jobPath = repoCfg.TemplatePath(req.Metadata)
 		}
 
-		in, err := fp.Download(ctx, tplpath)
+		in, err := fp.Download(ctx, jobPath)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", tplpath, err.Error())
+			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", jobPath, err.Error())
 		}
 		jobYAML, err = ioutil.ReadAll(in)
 		in.Close()
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", tplpath, err.Error())
+			return nil, status.Errorf(codes.Internal, "cannot download jobspec from %s: %s", jobPath, err.Error())
+		}
+
+		if jobPath != "" {
+			jobSpecName = strings.TrimSpace(strings.TrimSuffix(filepath.Base(jobPath), filepath.Ext(jobPath)))
 		}
 	}
-	if tplpath != "" {
-		jobSpecName = strings.TrimSpace(strings.TrimSuffix(filepath.Base(tplpath), filepath.Ext(tplpath)))
-	}
+
 	md.JobSpecName = jobSpecName
 
 	// build job name
@@ -247,12 +279,12 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 		refname = moniker.New().NameSep("-")
 	}
 	name := cleanupPodName(fmt.Sprintf("%s-%s-%s", md.Repository.Repo, jobSpecName, refname))
-	if req.NameSuffix != "" {
-		if len(req.NameSuffix) > 20 {
+	if ns := req.Spec.NameSuffix; ns != "" {
+		if len(ns) > 20 {
 			return nil, status.Error(codes.InvalidArgument, "name suffix must be less than 20 characters")
 		}
 
-		name += "-" + req.NameSuffix
+		name += "-" + ns
 	}
 
 	if refname != "" {
@@ -265,29 +297,39 @@ func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp
 		name = fmt.Sprintf("%s.%d", name, t)
 	}
 
-	canReplay := len(req.Sideload) == 0
+	canReplay := true
 
-	var waitUntil time.Time
-	if req.WaitUntil != nil {
-		waitUntil, err = ptypes.Timestamp(req.WaitUntil)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "waitUntil is invalid: %v", err)
-		}
-
-		if !canReplay {
-			return nil, status.Error(codes.InvalidArgument, "cannot delay the execution of non-replayable jobs (i.e. jobs with custom GitHub token or sideload)")
-		}
-	}
-
-	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay, waitUntil)
+	jobStatus, err := srv.RunJob(ctx, name, *md, cp, jobYAML, canReplay, time.Time{})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	log.WithField("status", jobStatus).Info(("started new GitHub job"))
+	log.WithField("status", jobStatus).Info(("started new job"))
 	return &v1.StartJobResponse{
 		Status: jobStatus,
 	}, nil
+}
+
+// StartJob starts a new job based on its specification.
+func (srv *Service) StartJob(ctx context.Context, req *v1.StartJobRequest) (resp *v1.StartJobResponse, err error) {
+	if req.WaitUntil != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "WaitUntil is no longer supported")
+	}
+
+	spec := &v1.JobSpec{
+		DirectSideload: req.Sideload,
+		NameSuffix:     req.NameSuffix,
+	}
+	if req.JobYaml != nil {
+		spec.Source = &v1.JobSpec_JobYaml{JobYaml: req.JobYaml}
+	} else {
+		spec.Source = &v1.JobSpec_JobPath{JobPath: req.JobPath}
+	}
+
+	return srv.StartJob2(ctx, &v1.StartJobRequest2{
+		Metadata: req.Metadata,
+		Spec:     spec,
+	})
 }
 
 func getRepoCfg(ctx context.Context, fp FileProvider) (*repoconfig.C, error) {

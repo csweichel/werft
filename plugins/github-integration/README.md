@@ -31,12 +31,17 @@ plugins:
       privateKeyPath: path-to-your/app-private-key.pem
       appID: 00000              # appID of your GitHub app
       installationID: 0000000   # installation ID of your GitHub app installation
+      jobProtection: "default-branch"
       pullRequestComments:
         enabled: true
         updateComment: true
         requiresOrg: []
         requiresWriteAccess: true
 ```
+
+### Job Protection
+By default this plugin will pull the job config, werft job and `.werft/` directory from the branch it's building.
+If `jobProtection` is set to `default-branch`, those files will be taken from the repository's default branch instead.
 
 ## PR Commands
 This integration plugin listens for comments on PRs to trigger operations in werft.

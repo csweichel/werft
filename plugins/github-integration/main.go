@@ -37,10 +37,11 @@ Available commands are:
 type Config struct {
 	BaseURL string `yaml:"baseURL"`
 
-	WebhookSecret  string `yaml:"webhookSecret"`
-	PrivateKeyPath string `yaml:"privateKeyPath"`
-	InstallationID int64  `yaml:"installationID,omitempty"`
-	AppID          int64  `yaml:"appID"`
+	WebhookSecret  string            `yaml:"webhookSecret"`
+	PrivateKeyPath string            `yaml:"privateKeyPath"`
+	InstallationID int64             `yaml:"installationID,omitempty"`
+	AppID          int64             `yaml:"appID"`
+	JobProtection  JobProtectedLevel `yaml:"jobProtection"`
 
 	PRComments struct {
 		Enabled bool `yaml:"enabled"`
@@ -53,6 +54,13 @@ type Config struct {
 		UpdateComment bool `yaml:"updateComment"`
 	} `yaml:"pullRequestComments"`
 }
+
+type JobProtectedLevel string
+
+const (
+	JobProtectionOff           JobProtectedLevel = ""
+	JobProtectionDefaultBranch JobProtectedLevel = "default-branch"
+)
 
 func main() {
 	plg := &githubTriggerPlugin{}
@@ -285,29 +293,69 @@ func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 		trigger = v1.JobTrigger_TRIGGER_DELETED
 	}
 
+	req := p.prepareStartJobRequest(event.Pusher, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, event.GetRef(), rev, trigger)
+	_, err := p.Werft.StartJob2(ctx, req)
+
+	if err != nil {
+		log.WithError(err).Warn("GitHub webhook error")
+	}
+}
+
+type githubRepo interface {
+	GetName() string
+	GetFullName() string
+	GetDefaultBranch() string
+}
+
+func (p *githubTriggerPlugin) prepareStartJobRequest(pusher, srcOwner, dstOwner *github.User, src, dst githubRepo, ref, rev string, trigger v1.JobTrigger) *v1.StartJobRequest2 {
 	metadata := v1.JobMetadata{
-		Owner: *event.Pusher.Name,
+		Owner: *pusher.Name,
 		Repository: &v1.Repository{
 			Host:     defaultGitHubHost,
-			Owner:    event.Repo.Owner.GetName(),
-			Repo:     event.Repo.GetName(),
-			Ref:      event.GetRef(),
+			Owner:    srcOwner.GetName(),
+			Repo:     src.GetName(),
+			Ref:      ref,
 			Revision: rev,
 		},
 		Trigger: trigger,
 		Annotations: []*v1.Annotation{
 			{
 				Key:   annotationStatusUpdate,
-				Value: event.Repo.Owner.GetName() + "/" + event.Repo.GetName(),
+				Value: dstOwner.GetName() + "/" + dst.GetName(),
 			},
 		},
 	}
 
-	_, err := p.Werft.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
+	var spec v1.JobSpec
+	if dstOwner.ID != srcOwner.ID {
+		spec.NameSuffix = "fork"
+	}
+
+	switch p.Config.JobProtection {
+	case JobProtectionDefaultBranch:
+		defaultBranch := &v1.Repository{
+			Host:  defaultGitHubHost,
+			Owner: dstOwner.GetName(),
+			Repo:  dst.GetName(),
+			Ref:   "refs/heads/" + dst.GetDefaultBranch(),
+		}
+		spec.Source = &v1.JobSpec_Repo{
+			Repo: &v1.JobSpec_FromRepo{
+				Repo: defaultBranch,
+			},
+		}
+		spec.RepoSideload = append(spec.RepoSideload, &v1.JobSpec_FromRepo{
+			Repo: defaultBranch,
+			Path: ".werft",
+		})
+	default:
+		// let werft decide where to get the job from
+		spec.Source = &v1.JobSpec_JobPath{}
+	}
+
+	return &v1.StartJobRequest2{
 		Metadata: &metadata,
-	})
-	if err != nil {
-		log.WithError(err).Warn("GitHub webhook error")
+		Spec:     &spec,
 	}
 }
 
@@ -445,17 +493,6 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 }
 
 func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *github.IssueCommentEvent, pr *github.PullRequest, args []string) (msg string, err error) {
-	segs := strings.Split(pr.GetHead().GetRepo().GetFullName(), "/")
-	var (
-		prSrcOwner = segs[0]
-		prSrcRepo  = segs[1]
-	)
-	segs = strings.Split(event.GetRepo().GetFullName(), "/")
-	var (
-		prDstOwner = segs[0]
-		prDstRepo  = segs[1]
-	)
-
 	argm := make(map[string]string)
 	for _, arg := range args {
 		var key, value string
@@ -466,7 +503,6 @@ func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *githu
 		}
 		argm[key] = value
 	}
-	argm[annotationStatusUpdate] = prDstOwner + "/" + prDstRepo
 
 	annotations := make([]*v1.Annotation, 0, len(argm))
 	for k, v := range argm {
@@ -481,32 +517,23 @@ func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *githu
 		// we assume this is a branch
 		ref = "refs/heads/" + ref
 	}
-	metadata := v1.JobMetadata{
-		Owner: event.GetSender().GetLogin(),
-		Repository: &v1.Repository{
-			Host:     defaultGitHubHost,
-			Owner:    prSrcOwner,
-			Repo:     prSrcRepo,
-			Ref:      ref,
-			Revision: pr.GetHead().GetSHA(),
-		},
-		Trigger:     v1.JobTrigger_TRIGGER_MANUAL,
-		Annotations: annotations,
-	}
-	var nameSuffix string
-	if prDstOwner != prSrcOwner {
-		nameSuffix = "fork"
-	}
-	resp, err := p.Werft.StartGitHubJob(ctx, &v1.StartGitHubJobRequest{
-		Metadata:   &metadata,
-		NameSuffix: nameSuffix,
-	})
+
+	src := pr.GetHead().GetRepo()
+	dst := event.GetRepo()
+	req := p.prepareStartJobRequest(event.Sender, src.Owner, dst.Owner, src, dst, ref, pr.GetHead().GetSHA(), v1.JobTrigger_TRIGGER_MANUAL)
+	resp, err := p.Werft.StartJob2(ctx, req)
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
 		return "", fmt.Errorf("cannot start job - please talk to whoever's in charge of your Werft installation")
 	}
 
-	return fmt.Sprintf("started the job as [%s](%s/job/%s)", resp.Status.Name, p.Config.BaseURL, resp.Status.Name), nil
+	msg = fmt.Sprintf("started the job as [%s](%s/job/%s)", resp.Status.Name, p.Config.BaseURL, resp.Status.Name)
+	switch p.Config.JobProtection {
+	case JobProtectionDefaultBranch:
+		msg += fmt.Sprintf("\n(with `.werft/` from `%s`)", dst.GetDefaultBranch())
+	}
+
+	return msg, nil
 }
 
 func parseCommand(l string) (cmd string, args []string, err error) {

@@ -35,7 +35,7 @@ type RepositoryProvider interface {
 	RemoteAnnotations(ctx context.Context, repo *v1.Repository) (annotations map[string]string, err error)
 
 	// ContentProvider produces a content provider for a particular repo
-	ContentProvider(ctx context.Context, repo *v1.Repository) (ContentProvider, error)
+	ContentProvider(ctx context.Context, repo *v1.Repository, path ...string) (ContentProvider, error)
 
 	// FileProvider provides direct access to repository content
 	FileProvider(ctx context.Context, repo *v1.Repository) (FileProvider, error)
@@ -208,8 +208,6 @@ func (t *tarWithReadyFile) Read(p []byte) (n int, err error) {
 
 // SideloadingContentProvider first runs the delegate and then sideloads files
 type SideloadingContentProvider struct {
-	Delegate ContentProvider
-
 	TarStream  io.Reader
 	Namespace  string
 	Kubeconfig *rest.Config
@@ -218,12 +216,7 @@ type SideloadingContentProvider struct {
 
 // InitContainer adds the sideload init container
 func (s *SideloadingContentProvider) InitContainer() ([]corev1.Container, error) {
-	res, err := s.Delegate.InitContainer()
-	if err != nil {
-		return nil, err
-	}
-
-	res = append(res, corev1.Container{
+	res := []corev1.Container{{
 		Name:  "sideload",
 		Image: "alpine/git:latest",
 		Command: []string{
@@ -231,17 +224,12 @@ func (s *SideloadingContentProvider) InitContainer() ([]corev1.Container, error)
 			"echo waiting for sideload; while [ ! -f /workspace/.ready ]; do [ -f /workspace/.failed ] && exit 1; sleep 1; done",
 		},
 		WorkingDir: "/workspace",
-	})
+	}}
 	return res, nil
 }
 
 // Serve serves the actual sideload
 func (s *SideloadingContentProvider) Serve(jobName string) error {
-	err := s.Delegate.Serve(jobName)
-	if err != nil {
-		return err
-	}
-
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -291,5 +279,36 @@ func (s *SideloadingContentProvider) sideload(jobName string) error {
 		return err
 	}
 
+	return nil
+}
+
+type CompositeContentProvider []ContentProvider
+
+var _ ContentProvider = CompositeContentProvider{}
+
+// InitContainer builds the container that will initialize the job content.
+// The VolumeMount for /workspace is added by the caller.
+// Name and ImagePullPolicy will be overwriten.
+func (c CompositeContentProvider) InitContainer() ([]corev1.Container, error) {
+	var res []corev1.Container
+	for _, contentProv := range c {
+		ic, err := contentProv.InitContainer()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, ic...)
+	}
+	return res, nil
+}
+
+// Serve provides additional services required during initialization.
+// This function is expected to return immediately.
+func (c CompositeContentProvider) Serve(jobName string) error {
+	for _, contentProv := range c {
+		err := contentProv.Serve(jobName)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
