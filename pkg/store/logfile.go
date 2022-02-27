@@ -3,9 +3,14 @@ package store
 import (
 	"fmt"
 	"io"
+	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // FileLogStore is a file backed log store
@@ -15,6 +20,8 @@ type FileLogStore struct {
 	mu    sync.Mutex
 	files map[string]*file
 }
+
+var _ Logs = &FileLogStore{}
 
 type file struct {
 	closed bool
@@ -31,6 +38,72 @@ func NewFileLogStore(base string) (*FileLogStore, error) {
 	}
 
 	return f, nil
+}
+
+// GarbageCollect removes all log files older than the given duration.
+func (fs *FileLogStore) GarbageCollect(olderThan time.Duration) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	// clean known files first - this way we can skip those which are currently
+	// open for writing.
+	openForWriting := make(map[string]struct{})
+	for id, f := range fs.files {
+		if !f.closed {
+			openForWriting[f.fn] = struct{}{}
+			continue
+		}
+		fn := filepath.Join(fs.Base, f.fn)
+		stat, err := os.Stat(fn)
+		if err != nil {
+			// cannot stat file - it might not even exist for some reason.
+			continue
+		}
+		t := fileAge(stat)
+
+		if time.Since(t) <= olderThan {
+			continue
+		}
+
+		// we ignore the error here because we don't want a single
+		// file to break the removal of others.
+		_ = os.Remove(fn)
+
+		delete(fs.files, id)
+	}
+
+	// let's look at all the files in the base path, excluding those
+	// of which we know they're open for writing.
+	fss, err := ioutil.ReadDir(fs.Base)
+	if err != nil {
+		return err
+	}
+	for _, f := range fss {
+		if !f.Mode().IsRegular() {
+			continue
+		}
+		if _, ok := openForWriting[f.Name()]; ok {
+			continue
+		}
+		if time.Since(fileAge(f)) <= olderThan {
+			continue
+		}
+
+		// we don't want a single file to block the GC of others
+		_ = os.Remove(filepath.Join(fs.Base, f.Name()))
+	}
+
+	return nil
+}
+
+// fileAge returns the age of a file
+func fileAge(stat fs.FileInfo) time.Time {
+	if lstat, ok := stat.Sys().(*unix.Stat_t); ok {
+		// filesystem timestamps are hard - if this is Linux, we can get
+		// the creation filestamp instad of the modification timestamp.
+		return time.Unix(lstat.Ctim.Unix())
+	}
+	return stat.ModTime()
 }
 
 // Open places a logfile in this store and opens it for writing.

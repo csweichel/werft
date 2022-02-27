@@ -1,6 +1,7 @@
 werft:
   baseURL: https://werft.dev
   workspaceNodePathPrefix: "/mnt/disks/ssd0/builds"
+  gcOlderThan: "10m"
   cleanupJobSpec:
     terminationGracePeriodSeconds: 10
 service:
