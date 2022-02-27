@@ -70,6 +70,7 @@ The helm chart's `values.yaml` is the reference for chart's configuration surfac
 | `config.baseURL` | URL of your Werft installatin | `https://demo.werft.dev` |
 | `config.timeouts.preperation` | Time a job can take to initialize | `10m` |
 | `config.timeouts.total` | Total time a job can take | `60m` |
+| `config.gcOlderThan` | Garbage Collect logs and job metadata for jobs older than the configured value | `null` |
 | `image.repository` | Image repository | `csweichel/werft` |
 | `image.tag` | Image tag | `latest` |
 | `image.pullPolicy` | Image pull policy | `Always` |

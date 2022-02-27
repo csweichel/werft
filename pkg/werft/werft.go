@@ -50,6 +50,10 @@ type Config struct {
 	// Can be empty, in which clean up jobs will use a default.
 	CleanupJobSpec *configPodSpec `yaml:"cleanupJobSpec,omitempty"`
 
+	// GCOlderThan enables the garbage collector which collects all jobs and
+	// logs older than the configured duration.
+	GCOlderThan *executor.Duration `yaml:"gcOlderThan,omitempty"`
+
 	// Enables the webui debug proxy pointing to this address
 	DebugProxy string
 }
@@ -148,6 +152,20 @@ func (srv *Service) doHousekeeping() {
 	tick := time.NewTicker(5 * time.Minute)
 	for {
 		log.Debug("performing werft service housekeeping")
+
+		if srv.Config.GCOlderThan != nil {
+			olderThan := srv.Config.GCOlderThan.Duration
+			log.WithField("olderThan", olderThan.String()).Info("running garbage collection")
+
+			err := srv.Jobs.GarbageCollect(olderThan)
+			if err != nil {
+				log.WithError(err).Error("job GC error")
+			}
+			err = srv.Logs.GarbageCollect(olderThan)
+			if err != nil {
+				log.WithError(err).Error("log GC error")
+			}
+		}
 
 		ctx := context.Background()
 		expectedJobs, _, err := srv.Jobs.Find(ctx, []*v1.FilterExpression{{Terms: []*v1.FilterTerm{{Field: "phase", Value: "done", Operation: v1.FilterOp_OP_EQUALS, Negate: true}}}}, []*v1.OrderExpression{}, 0, 0)

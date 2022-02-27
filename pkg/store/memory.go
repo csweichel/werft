@@ -6,9 +6,11 @@ import (
 	"io"
 	"io/ioutil"
 	"sync"
+	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/filterexpr"
+	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/xerrors"
 )
 
@@ -26,9 +28,10 @@ type inMemoryLogStore struct {
 }
 
 type logSession struct {
-	Data   *bytes.Buffer
-	Reader map[chan []byte]struct{}
-	Mu     sync.RWMutex
+	StartedAt time.Time
+	Data      *bytes.Buffer
+	Reader    map[chan []byte]struct{}
+	Mu        sync.RWMutex
 }
 
 func (l *logSession) Write(p []byte) (n int, err error) {
@@ -109,8 +112,9 @@ func (s *inMemoryLogStore) Open(id string) (io.WriteCloser, error) {
 	}
 
 	lg := &logSession{
-		Data:   bytes.NewBuffer(nil),
-		Reader: make(map[chan []byte]struct{}),
+		Data:      bytes.NewBuffer(nil),
+		Reader:    make(map[chan []byte]struct{}),
+		StartedAt: time.Now(),
 	}
 
 	s.logs[id] = lg
@@ -141,6 +145,22 @@ func (s *inMemoryLogStore) Read(id string) (io.ReadCloser, error) {
 		Log: l,
 		R:   ch,
 	}), nil
+}
+
+func (s *inMemoryLogStore) GarbageCollect(olderThan time.Duration) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for id, sess := range s.logs {
+		if time.Since(sess.StartedAt) <= olderThan {
+			continue
+		}
+		delete(s.logs, id)
+
+		sess.Close()
+	}
+
+	return nil
 }
 
 type jobspec struct {
@@ -215,11 +235,32 @@ func (s *inMemoryJobStore) StoreJobSpec(name string, spec v1.JobSpec, data []byt
 
 func (s *inMemoryJobStore) GetJobSpec(name string) (spec *v1.JobSpec, data []byte, err error) {
 	s.mu.RLock()
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
 	res, ok := s.specs[name]
 	if !ok {
 		return nil, nil, ErrNotFound
 	}
 	return &res.Spec, res.YAML, nil
+}
+
+func (s *inMemoryJobStore) GarbageCollect(olderThan time.Duration) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for id, job := range s.jobs {
+		t, err := ptypes.Timestamp(job.Metadata.Created)
+		if err != nil {
+			continue
+		}
+		if job.Phase != v1.JobPhase_PHASE_DONE {
+			continue
+		}
+		if time.Since(t) <= olderThan {
+			continue
+		}
+		delete(s.jobs, id)
+	}
+
+	return nil
 }

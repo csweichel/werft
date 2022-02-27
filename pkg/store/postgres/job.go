@@ -61,6 +61,16 @@ func (s *JobStore) RegisterPrometheusMetrics(reg prometheus.Registerer) {
 	)
 }
 
+// GarbageCollect removes all job entries older than the specified duration
+func (s *JobStore) GarbageCollect(olderThan time.Duration) error {
+	_, err := s.DB.Query(`
+		DELETE FROM job_status 
+		WHERE created <= $1
+		  AND phase = 'done'
+	`, time.Now().Add(-olderThan).Unix())
+	return err
+}
+
 // Store stores job information in the store.
 func (s *JobStore) Store(ctx context.Context, job v1.JobStatus) error {
 	defer func(start time.Time) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 )
@@ -32,6 +33,9 @@ type Logs interface {
 	// Callers are supposed to close the reader once done.
 	// Reading from logs currently being written is supported.
 	Read(id string) (io.ReadCloser, error)
+
+	// GarbageCollect removes all logs older than the given duration.
+	GarbageCollect(olderThan time.Duration) error
 }
 
 // Jobs provides access to past jobs
@@ -54,6 +58,9 @@ type Jobs interface {
 	// Searches for jobs based on their annotations. If filter is empty no filter is applied.
 	// If limit is 0, no limit is applied.
 	Find(ctx context.Context, filter []*v1.FilterExpression, order []*v1.OrderExpression, start, limit int) (slice []v1.JobStatus, total int, err error)
+
+	// GarbageCollect removes all logs older than the given duration.
+	GarbageCollect(olderThan time.Duration) error
 }
 
 // NumberGroup enables to atomic generation and storage of numbers.
