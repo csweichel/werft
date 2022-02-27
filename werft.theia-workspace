@@ -9,6 +9,7 @@
         {"path": "plugins/webhook"}
     ],
     "settings": {
-        "go.useLanguageServer": true
+        "go.useLanguageServer": true,
+        "editor.fontFamily": "'Courier New', monospace"
     }
 }
