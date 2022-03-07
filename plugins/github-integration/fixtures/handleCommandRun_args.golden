@@ -15,6 +15,13 @@
         {
           "key": "updateGitHubStatus",
           "value": "csweichel/test-repo"
+        },
+        {
+          "key": "foo",
+          "value": "bar"
+        },
+        {
+          "key": "arg1"
         }
       ]
     },
