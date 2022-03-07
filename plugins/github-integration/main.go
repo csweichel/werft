@@ -299,12 +299,17 @@ func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 		rev = ""
 	}
 
-	req := p.prepareStartJobRequest(event.Pusher, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, event.GetRef(), rev, trigger)
+	req := p.prepareStartJobRequest(event.Sender, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, event.GetRef(), rev, trigger)
 	_, err := p.Werft.StartJob2(ctx, req)
 
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
 	}
+}
+
+type githubUser interface {
+	ID() uint64
+	Login() string
 }
 
 type githubRepo interface {

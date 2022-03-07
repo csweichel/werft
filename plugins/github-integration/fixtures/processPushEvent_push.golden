@@ -1,1 +1,1 @@
-{"metadata":{"repository":{"host":"github.com","owner":"csweichel","repo":"test-repo","ref":"cw/tbd","defaultBranch":"master"},"trigger":"TRIGGER_PUSH","annotations":[{"key":"updateGitHubStatus","value":"csweichel/test-repo"}]},"spec":{"jobPath":""}}
+{"metadata":{"owner":"csweichel","repository":{"host":"github.com","owner":"csweichel","repo":"test-repo","ref":"cw/tbd","defaultBranch":"master"},"trigger":"TRIGGER_PUSH","annotations":[{"key":"updateGitHubStatus","value":"csweichel/test-repo"}]},"spec":{"jobPath":""}}
