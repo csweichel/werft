@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -91,6 +92,9 @@ func TestHandleCommandRun(t *testing.T) {
 			client.EXPECT().StartJob2(gomock.Any(), gomock.Any(), gomock.Any()).
 				MinTimes(1).
 				DoAndReturn(func(ctx context.Context, creq *v1.StartJobRequest2) (*v1.StartJobResponse, error) {
+					sort.Slice(creq.Metadata.Annotations, func(i, j int) bool {
+						return creq.Metadata.Annotations[i].Key < creq.Metadata.Annotations[j].Key
+					})
 					act.StartRequest = creq
 					return &v1.StartJobResponse{
 						Status: &v1.JobStatus{
