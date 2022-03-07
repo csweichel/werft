@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"reflect"
@@ -471,37 +469,34 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 		return
 	}
 
-	lines := strings.Split(event.GetComment().GetBody(), "\n")
-	for _, l := range lines {
-		cmd, args, err := parseCommand(l)
-		if err != nil {
-			feedback.Success = false
-			feedback.Message = fmt.Sprintf("cannot parse %s: %v", l, err)
-			continue
-		}
-		if cmd == "" {
-			continue
-		}
-
-		var resp string
-		switch cmd {
-		case "run":
-			resp, err = p.handleCommandRun(ctx, event, pr, args)
-		case "help":
-			resp = commandHelp
-		default:
-			err = fmt.Errorf("unknown command: %s\nUse `/werft help` to list the available commands", cmd)
-		}
-		if err != nil {
-			log.WithError(err).Warn("GitHub webhook error")
-			feedback.Success = false
-			feedback.Message = err.Error()
-			return
-		}
-
-		feedback.Success = true
-		feedback.Message = resp
+	cmd, args, err := parseCommand(event.GetComment().GetBody())
+	if err != nil {
+		feedback.Success = false
+		feedback.Message = err.Error()
+		return
 	}
+	if cmd == "" {
+		return
+	}
+
+	var resp string
+	switch cmd {
+	case "run":
+		resp, err = p.handleCommandRun(ctx, event, pr, args)
+	case "help":
+		resp = commandHelp
+	default:
+		err = fmt.Errorf("unknown command: %s\nUse `/werft help` to list the available commands", cmd)
+	}
+	if err != nil {
+		log.WithError(err).Warn("GitHub webhook error")
+		feedback.Success = false
+		feedback.Message = err.Error()
+		return
+	}
+
+	feedback.Success = true
+	feedback.Message = resp
 }
 
 func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *github.IssueCommentEvent, pr *github.PullRequest, args []string) (msg string, err error) {
@@ -516,26 +511,26 @@ func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *githu
 		argm[key] = value
 	}
 
-	annotations := make([]*v1.Annotation, 0, len(argm))
-	for k, v := range argm {
-		annotations = append(annotations, &v1.Annotation{
-			Key:   k,
-			Value: v,
-		})
-	}
-
 	ref := pr.GetHead().GetRef()
 	if !strings.HasPrefix(ref, "refs/") {
 		// we assume this is a branch
 		ref = "refs/heads/" + ref
 	}
 
-	fc, _ := json.Marshal(pr)
-	ioutil.WriteFile("/tmp/pr.json", fc, 0644)
-
 	src := pr.GetHead().GetRepo()
 	dst := event.GetRepo()
+
 	req := p.prepareStartJobRequest(event.Comment.User, src.Owner, dst.Owner, src, dst, ref, pr.GetHead().GetSHA(), v1.JobTrigger_TRIGGER_MANUAL)
+	for _, e := range req.Metadata.Annotations {
+		delete(argm, e.Key)
+	}
+	for k, v := range argm {
+		req.Metadata.Annotations = append(req.Metadata.Annotations, &v1.Annotation{
+			Key:   k,
+			Value: v,
+		})
+	}
+
 	resp, err := p.Werft.StartJob2(ctx, req)
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
@@ -551,18 +546,22 @@ func (p *githubTriggerPlugin) handleCommandRun(ctx context.Context, event *githu
 	return msg, nil
 }
 
-func parseCommand(l string) (cmd string, args []string, err error) {
-	l = strings.TrimSpace(l)
-	if !strings.HasPrefix(l, "/werft") {
-		return
-	}
-	l = strings.TrimPrefix(l, "/werft")
-	l = strings.TrimSpace(l)
+func parseCommand(msg string) (cmd string, args []string, err error) {
+	for _, l := range strings.Split(msg, "\n") {
+		l = strings.TrimSpace(l)
+		if !strings.HasPrefix(l, "/werft") {
+			continue
+		}
+		l = strings.TrimPrefix(l, "/werft")
+		l = strings.TrimSpace(l)
 
-	segs := strings.Fields(l)
-	if len(segs) < 1 {
-		return "", nil, fmt.Errorf("missing command")
+		segs := strings.Fields(l)
+		if len(segs) < 1 {
+			return "", nil, fmt.Errorf("cannot parse %s: missing command", l)
+		}
+
+		return segs[0], segs[1:], nil
 	}
 
-	return segs[0], segs[1:], nil
+	return "", nil, nil
 }

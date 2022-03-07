@@ -7,7 +7,8 @@
         "owner": "csweichel",
         "repo": "test-repo",
         "ref": "refs/heads/werft",
-        "revision": "37cb8b8f7fc3499bdf65d662793dd2d968ae3bac"
+        "revision": "37cb8b8f7fc3499bdf65d662793dd2d968ae3bac",
+        "defaultBranch": "master"
       },
       "trigger": "TRIGGER_MANUAL",
       "annotations": [
@@ -23,7 +24,8 @@
           "host": "github.com",
           "owner": "csweichel",
           "repo": "test-repo",
-          "ref": "refs/heads/master"
+          "ref": "refs/heads/master",
+          "defaultBranch": "master"
         }
       },
       "repoSideload": [
@@ -32,7 +34,8 @@
             "host": "github.com",
             "owner": "csweichel",
             "repo": "test-repo",
-            "ref": "refs/heads/master"
+            "ref": "refs/heads/master",
+            "defaultBranch": "master"
           },
           "path": ".werft"
         }

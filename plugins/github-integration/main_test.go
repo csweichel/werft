@@ -31,10 +31,11 @@ func TestParseCommand(t *testing.T) {
 	}{
 		{Name: "empty line", Input: ""},
 		{Name: "ignore line", Input: "something\nsomethingelse"},
-		{Name: "no command", Input: "/werft", Expectation: Expectation{Err: "missing command"}},
+		{Name: "no command", Input: "/werft", Expectation: Expectation{Err: "cannot parse : missing command"}},
 		{Name: "no arg", Input: "/werft foo", Expectation: Expectation{Cmd: "foo", Args: []string{}}},
 		{Name: "one arg", Input: "/werft foo bar", Expectation: Expectation{Cmd: "foo", Args: []string{"bar"}}},
 		{Name: "two args", Input: "/werft foo bar=baz something", Expectation: Expectation{Cmd: "foo", Args: []string{"bar=baz", "something"}}},
+		{Name: "with newline", Input: "/werft run foo=bar arg1\n\n:-1:   ", Expectation: Expectation{Cmd: "run", Args: []string{"foo=bar", "arg1"}}},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
@@ -48,7 +49,7 @@ func TestParseCommand(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.Expectation, act); diff != "" {
-				t.Errorf("MakeGatewayInfo() mismatch (-want +got):\n%s", diff)
+				t.Errorf("parseCommand() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -64,7 +65,6 @@ func TestHandleCommandRun(t *testing.T) {
 		JobProtection JobProtectionLevel
 		Event         *github.IssueCommentEvent
 		PR            *github.PullRequest
-		Args          []string
 	}
 
 	fs, err := filepath.Glob("fixtures/handleCommandRun_*.json")
@@ -117,7 +117,11 @@ func TestHandleCommandRun(t *testing.T) {
 					JobProtection: fixture.JobProtection,
 				},
 			}
-			act.Msg, err = plg.handleCommandRun(context.Background(), fixture.Event, fixture.PR, fixture.Args)
+			_, args, err := parseCommand(fixture.Event.GetComment().GetBody())
+			if err != nil {
+				t.Fatal(err)
+			}
+			act.Msg, err = plg.handleCommandRun(context.Background(), fixture.Event, fixture.PR, args)
 			if err != nil {
 				act.Error = err.Error()
 			}
