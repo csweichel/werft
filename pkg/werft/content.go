@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -234,6 +233,7 @@ func (s *SideloadingContentProvider) Serve(jobName string) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	log.WithField("jobName", jobName).Debug("serving sideload")
 	for {
 		err := s.sideload(jobName)
 		if err == nil {
@@ -298,7 +298,6 @@ func (c CompositeContentProvider) InitContainer() ([]corev1.Container, error) {
 			return nil, err
 		}
 		for _, ic := range ics {
-			ic.Name = fmt.Sprintf("%s-%03d", ic.Name, len(res))
 			res = append(res, ic)
 		}
 	}
