@@ -108,7 +108,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     async componentDidMount() {
         window.addEventListener("keydown", returnToJobList);
 
-        if (Notification.permission === "default") {
+        if (window.Notification != null && Notification.permission === "default") {
             Notification.requestPermission();
         }
 
@@ -193,6 +193,9 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
     }
 
     protected showNotification(status: JobStatus.AsObject) {
+        if (window.Notification == null) {
+            return;
+        }
         if (!this.state.status || this.state.status.phase === JobPhase.PHASE_DONE) {
             // don't show notifications again when the user opens the detail page for a finished job
             return;
