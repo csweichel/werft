@@ -190,9 +190,10 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 		cloneCmd = strings.Join(cmds, " && ")
 	}
 
+	nme := fmt.Sprintf("ghco-%d-%d", time.Now().UnixMilli(), rand.Int())
 	c := []corev1.Container{
 		{
-			Name:  "github-checkout",
+			Name:  nme,
 			Image: image,
 			Command: []string{
 				"sh", "-c",
