@@ -86,7 +86,7 @@ func MatchesFilter(js *v1.JobStatus, filter []*v1.FilterExpression) (matches boo
 	}
 	if js.Metadata != nil {
 		idx["owner"] = js.Metadata.Owner
-		idx["trigger"] = strings.ToLower(strings.TrimPrefix("TRIGGER_", js.Metadata.Trigger.String()))
+		idx["trigger"] = strings.ToLower(strings.TrimPrefix(js.Metadata.Trigger.String(), "TRIGGER_"))
 		if js.Metadata.Repository != nil {
 			idx["repo.owner"] = js.Metadata.Repository.Owner
 			idx["repo.repo"] = js.Metadata.Repository.Repo
