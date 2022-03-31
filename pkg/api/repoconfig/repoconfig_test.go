@@ -2,6 +2,7 @@ package repoconfig_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/csweichel/werft/pkg/api/repoconfig"
@@ -59,54 +60,114 @@ func TestUnmarshalC(t *testing.T) {
 
 func TestTemplatePath(t *testing.T) {
 	tests := []struct {
-		C repoconfig.C
-		M v1.JobMetadata
-		E string
+		Name        string
+		Config      repoconfig.C
+		Metadata    v1.JobMetadata
+		Expectation string
 	}{
-		{repoconfig.C{}, v1.JobMetadata{}, ""},
-		{repoconfig.C{}, v1.JobMetadata{Owner: "foo", Repository: &v1.Repository{Owner: "foo"}, Trigger: v1.JobTrigger_TRIGGER_MANUAL}, ""},
-		{repoconfig.C{DefaultJob: "foo"}, v1.JobMetadata{}, "foo"},
-		{repoconfig.C{DefaultJob: "foo", Rules: []*repoconfig.JobStartRule{&repoconfig.JobStartRule{Path: "bar"}}}, v1.JobMetadata{}, "bar"},
 		{
-			repoconfig.C{
-				DefaultJob: "foo",
-				Rules: []*repoconfig.JobStartRule{
-					&repoconfig.JobStartRule{
-						Path: "bar",
-						Expr: []*v1.FilterExpression{
-							&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS}}},
-						},
-					},
-				},
-			},
-			v1.JobMetadata{},
-			"foo",
+			Name: "all empty",
 		},
 		{
-			repoconfig.C{
+			Name: "empty config",
+			Metadata: v1.JobMetadata{
+				Owner:      "foo",
+				Repository: &v1.Repository{Owner: "foo"},
+				Trigger:    v1.JobTrigger_TRIGGER_MANUAL,
+			},
+		},
+		{
+			Name:        "default job",
+			Config:      repoconfig.C{DefaultJob: "foo"},
+			Expectation: "foo",
+		},
+		{
+			Name: "basic rule",
+			Config: repoconfig.C{
+				DefaultJob: "foo",
+				Rules:      []*repoconfig.JobStartRule{{Path: "bar"}},
+			},
+			Expectation: "bar",
+		},
+		{
+			Name: "no match",
+			Config: repoconfig.C{
 				DefaultJob: "foo",
 				Rules: []*repoconfig.JobStartRule{
-					&repoconfig.JobStartRule{
+					{
 						Path: "bar",
 						Expr: []*v1.FilterExpression{
-							&v1.FilterExpression{Terms: []*v1.FilterTerm{&v1.FilterTerm{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS}}},
+							{
+								Terms: []*v1.FilterTerm{
+									{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS},
+								},
+							},
 						},
 					},
 				},
 			},
-			v1.JobMetadata{
+			Expectation: "foo",
+		},
+		{
+			Name: "rule match repo.ref",
+			Config: repoconfig.C{
+				DefaultJob: "foo",
+				Rules: []*repoconfig.JobStartRule{
+					{
+						Path: "bar",
+						Expr: []*v1.FilterExpression{
+							{Terms: []*v1.FilterTerm{{Field: "repo.ref", Value: "test", Operation: v1.FilterOp_OP_EQUALS}}},
+						},
+					},
+				},
+			},
+			Metadata: v1.JobMetadata{
 				Repository: &v1.Repository{
 					Ref: "test",
 				},
 			},
-			"bar",
+			Expectation: "bar",
+		},
+		{
+			Name: "exclusive rule match",
+			Config: repoconfig.C{
+				Rules: []*repoconfig.JobStartRule{
+					mustParseRule("path: bar\nmatchesAll:\n  - or: [\"repo.ref ~= refs/heads/\"]\n  - or: [\"trigger !== deleted\"]"),
+				},
+			},
+			Metadata: v1.JobMetadata{
+				Repository: &v1.Repository{
+					Host:  "github.com",
+					Owner: "csweichel",
+					Repo:  "test-repo",
+					Ref:   "refs/heads/cw/tbd",
+				},
+				Owner:   "csweichel",
+				Trigger: v1.JobTrigger_TRIGGER_DELETED,
+			},
+			Expectation: "",
 		},
 	}
 
-	for idx, test := range tests {
-		act := test.C.TemplatePath(&test.M)
-		if act != test.E {
-			t.Errorf("test %d: expected %s, actual %s", idx, test.E, act)
-		}
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			if test.Name == "exclusive rule match" {
+				fmt.Println("foo")
+			}
+			act := test.Config.TemplatePath(&test.Metadata)
+			if act != test.Expectation {
+				t.Errorf("expected %s, actual %s", test.Expectation, act)
+			}
+		})
 	}
+}
+
+func mustParseRule(exp string) *repoconfig.JobStartRule {
+	var res repoconfig.JobStartRule
+	err := yaml.Unmarshal([]byte(exp), &res)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("parsed rule: %v\n", res)
+	return &res
 }
