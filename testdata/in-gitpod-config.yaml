@@ -90,3 +90,25 @@ plugins:
     - -c
     - cd plugins/cron && go run main.go $*
     - -s
+  - name: "public-api"
+    type: 
+    - integration
+    config:
+      port: 9999
+      dumpInput: true
+      policy: |
+        package werft
+
+        default allow = false
+
+        allow {
+          input.method == "StartJob2"
+        }
+        allow {
+          input.method == "ListJobs"
+        }
+    command:
+    - sh
+    - -c
+    - cd plugins/opa-api && go run main.go $*
+    - -s

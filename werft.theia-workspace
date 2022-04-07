@@ -6,6 +6,7 @@
         {"path": "plugins/github-repo"},
         {"path": "plugins/github-integration"},
         {"path": "plugins/integration-example"},
+        {"path": "plugins/opa-api"},
         {"path": "plugins/webhook"}
     ],
     "settings": {
