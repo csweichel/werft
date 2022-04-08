@@ -21,7 +21,7 @@ package cmd
 // THE SOFTWARE.
 
 import (
-	"context"
+	"os"
 	"strings"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -71,8 +71,17 @@ For example:
 		}
 
 		useLocalContext, _ := cmd.Flags().GetBool("local")
+		var localJobContext *v1.JobMetadata
 		if useLocalContext {
-			lf, err := getLocalContextJobFilter()
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			localJobContext, err = getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+			if err != nil {
+				return err
+			}
+			lf, err := getMetadataFilter(localJobContext)
 			if err != nil {
 				return xerrors.Errorf("--local requires the current working directory to be a Git repo: %w", err)
 			}
@@ -99,7 +108,11 @@ For example:
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
 
-		ctx := context.Background()
+		ctx, cancel, err := getRequestContext(localJobContext)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		resp, err := client.ListJobs(ctx, &req)
 		if err != nil {
 			return err

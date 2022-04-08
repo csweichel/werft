@@ -24,7 +24,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -128,7 +127,11 @@ var runGithubCmd = &cobra.Command{
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
 
-		ctx := context.Background()
+		ctx, cancel, err := getRequestContext(md)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		resp, err := client.StartGitHubJob(ctx, req)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
@@ -142,7 +145,7 @@ var runGithubCmd = &cobra.Command{
 		follow, _ := flags.GetBool("follow")
 		withPrefix, _ := flags.GetString("follow-with-prefix")
 		if follow || withPrefix != "" {
-			err = followJob(client, resp.Status.Name, withPrefix)
+			err = followJob(ctx, client, resp.Status.Name, withPrefix)
 			if err != nil {
 				return err
 			}

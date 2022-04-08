@@ -101,6 +101,9 @@ func (s *proxyingService) allowed(ctx context.Context, method string, msg proto.
 		return status.Error(codes.Internal, "invalid policy")
 	}
 	if s.Config.Dump {
+		if _, ok := input.Metadata["x-auth-token"]; ok {
+			input.Metadata["x-auth-token"] = []string{"some-value"}
+		}
 		dmp, _ := json.Marshal(input)
 		logrus.WithField("input", string(dmp)).WithField("value", result[0].Expressions[0].Value).Debug("evaluating request")
 	}

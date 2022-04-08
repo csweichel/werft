@@ -102,10 +102,10 @@ plugins:
         default allow = false
 
         allow {
-          input.method == "StartJob2"
+          input.method == "ListJobs"
         }
         allow {
-          input.method == "ListJobs"
+          input.metadata["x-auth-token"] != ""
         }
     command:
     - sh
