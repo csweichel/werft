@@ -3,10 +3,10 @@
         {"path": "."},
         {"path": "pkg/webui"},
         {"path": "plugins/cron"},
+        {"path": "plugins/github-auth"},
         {"path": "plugins/github-repo"},
         {"path": "plugins/github-integration"},
         {"path": "plugins/integration-example"},
-        {"path": "plugins/opa-api"},
         {"path": "plugins/webhook"}
     ],
     "settings": {

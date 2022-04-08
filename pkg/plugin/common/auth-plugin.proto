@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package authplugin;
+option go_package = "common";
+
+service AuthenticationPlugin {
+    rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) {};
+}
+
+message AuthenticateRequest {
+    string token = 1;
+}
+
+message AuthenticateResponse {
+    bool known = 1;
+    string username = 2;
+    map<string, string> metadata = 3;
+}

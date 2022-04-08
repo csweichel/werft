@@ -37,6 +37,13 @@ type RepositoryPlugin interface {
 	Run(ctx context.Context, config interface{}) (common.RepositoryPluginServer, error)
 }
 
+// AuthenticationPlugin adds support for API authentication
+type AuthenticationPlugin interface {
+	// Run runs the plugin. The plugin runs until the context is canceled and the server returned
+	// by this function is expected to remain functional until then.
+	Run(ctx context.Context, config interface{}) (common.AuthenticationPluginServer, error)
+}
+
 // ServeOpt configures a plugin serve
 type ServeOpt struct {
 	Type common.Type
@@ -78,6 +85,27 @@ func WithRepositoryPlugin(p RepositoryPlugin) ServeOpt {
 
 			s := grpc.NewServer()
 			common.RegisterRepositoryPluginServer(s, service)
+			return s.Serve(lis)
+		},
+	}
+}
+
+// WithRepositoryPlugin registers repo plugin capabilities
+func WithAuthenticationPlugin(p AuthenticationPlugin) ServeOpt {
+	return ServeOpt{
+		Type: common.TypeAuthentication,
+		Run: func(ctx context.Context, config interface{}, socket string) error {
+			lis, err := net.Listen("unix", socket)
+			if err != nil {
+				return err
+			}
+			service, err := p.Run(ctx, config)
+			if err != nil {
+				return err
+			}
+
+			s := grpc.NewServer()
+			common.RegisterAuthenticationPluginServer(s, service)
 			return s.Serve(lis)
 		},
 	}
