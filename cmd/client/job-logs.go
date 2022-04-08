@@ -27,7 +27,6 @@ import (
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 )
 
 // jobLogsCmd represents the list command
@@ -39,32 +38,24 @@ var jobLogsCmd = &cobra.Command{
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
-		ctx := context.Background()
 
-		var (
-			name string
-			err  error
-		)
-		if len(args) == 0 {
-			name, err = findJobByLocalContext(ctx, client)
-			if err != nil {
-				return err
-			}
-			if name == "" {
-				return xerrors.Errorf("no job found - please specify job name")
-			}
-
-			fmt.Printf("showing logs of \033[34m\033[1m%s\t\033\033[0m\n", name)
-		} else {
-			name = args[0]
+		name, localJobContext, err := getLocalJobName(client, args)
+		if err != nil {
+			return err
 		}
+		ctx, cancel, err := getRequestContext(localJobContext)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 
-		return followJob(client, name, "")
+		fmt.Printf("showing logs of \033[34m\033[1m%s\t\033\033[0m\n", name)
+
+		return followJob(ctx, client, name, "")
 	},
 }
 
-func followJob(client v1.WerftServiceClient, name, prefix string) error {
-	ctx := context.Background()
+func followJob(ctx context.Context, client v1.WerftServiceClient, name, prefix string) error {
 	logs, err := client.Listen(ctx, &v1.ListenRequest{
 		Name:    name,
 		Logs:    v1.ListenRequestLogs_LOGS_RAW,

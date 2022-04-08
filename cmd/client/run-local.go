@@ -21,7 +21,6 @@ package cmd
 // THE SOFTWARE.
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -87,7 +86,11 @@ var runLocalCmd = &cobra.Command{
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
 
-		ctx := context.Background()
+		ctx, cancel, err := getRequestContext(md)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		srv, err := client.StartLocalJob(ctx)
 		if err != nil {
 			return xerrors.Errorf("cannot start job: %w", err)
@@ -181,7 +184,7 @@ var runLocalCmd = &cobra.Command{
 		follow, _ := flags.GetBool("follow")
 		withPrefix, _ := flags.GetString("follow-with-prefix")
 		if follow || withPrefix != "" {
-			err = followJob(client, resp.Status.Name, withPrefix)
+			err = followJob(ctx, client, resp.Status.Name, withPrefix)
 			if err != nil {
 				return err
 			}

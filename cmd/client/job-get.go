@@ -21,11 +21,8 @@ package cmd
 // THE SOFTWARE.
 
 import (
-	"context"
-
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 )
 
 var jobGetTpl = `Name:	{{ .Name }}
@@ -60,23 +57,16 @@ var jobGetCmd = &cobra.Command{
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
-		ctx := context.Background()
 
-		var (
-			name string
-			err  error
-		)
-		if len(args) == 0 {
-			name, err = findJobByLocalContext(ctx, client)
-			if err != nil {
-				return err
-			}
-			if name == "" {
-				return xerrors.Errorf("no job found - please specify job name")
-			}
-		} else {
-			name = args[0]
+		name, localJobContext, err := getLocalJobName(client, args)
+		if err != nil {
+			return err
 		}
+		ctx, cancel, err := getRequestContext(localJobContext)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 
 		resp, err := client.GetJob(ctx, &v1.GetJobRequest{
 			Name: name,

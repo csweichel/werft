@@ -21,7 +21,6 @@ package cmd
 // THE SOFTWARE.
 
 import (
-	"context"
 	"fmt"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -45,25 +44,16 @@ var runPreviousJobCmd = &cobra.Command{
 		conn := dial()
 		defer conn.Close()
 		client := v1.NewWerftServiceClient(conn)
-		ctx := context.Background()
 
-		var (
-			name string
-			err  error
-		)
-		if len(args) == 0 {
-			name, err = findJobByLocalContext(ctx, client)
-			if err != nil {
-				return err
-			}
-			if name == "" {
-				return fmt.Errorf("no job found - please specify job name")
-			}
-
-			fmt.Printf("re-running \033[34m\033[1m%s\t\033\033[0m\n", name)
-		} else {
-			name = args[0]
+		name, localJobContext, err := getLocalJobName(client, args)
+		if err != nil {
+			return err
 		}
+		ctx, cancel, err := getRequestContext(localJobContext)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 
 		token, _ := cmd.Flags().GetString("token")
 		req := &v1.StartFromPreviousJobRequest{
@@ -91,7 +81,7 @@ var runPreviousJobCmd = &cobra.Command{
 		follow, _ := flags.GetBool("follow")
 		withPrefix, _ := flags.GetString("follow-with-prefix")
 		if follow || withPrefix != "" {
-			err = followJob(client, resp.Status.Name, withPrefix)
+			err = followJob(ctx, client, resp.Status.Name, withPrefix)
 			if err != nil {
 				return err
 			}

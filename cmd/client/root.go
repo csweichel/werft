@@ -29,24 +29,24 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/golang/protobuf/jsonpb"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
-)
-
-var (
-	verbose bool
-	host    string
 )
 
 var rootCmdOpts struct {
@@ -57,6 +57,7 @@ var rootCmdOpts struct {
 	K8sLabelSelector string
 	K8sPodPort       string
 	DialMode         string
+	CredentialHelper string
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -64,7 +65,7 @@ var rootCmd = &cobra.Command{
 	Use:   "werft",
 	Short: "werft is a very simple GitHub triggered and Kubernetes powered CI system",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if verbose {
+		if rootCmdOpts.Verbose {
 			log.SetLevel(log.DebugLevel)
 			log.Debug("verbose logging enabled")
 		}
@@ -120,6 +121,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.Host, "host", werftHost, "[host dial mode] werft host to talk to (defaults to WERFT_HOST env var)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.Kubeconfig, "kubeconfig", werftKubeconfig, "[kubernetes dial mode] kubeconfig file to use (defaults to KUEBCONFIG env var)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.K8sNamespace, "k8s-namespace", werftNamespace, "[kubernetes dial mode] Kubernetes namespace in which to look for the werft pods (defaults to WERFT_K8S_NAMESPACE env var, or configured kube context namespace)")
+	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.CredentialHelper, "credential-helper", os.Getenv("WERFT_CREDENTIAL_HELPER"), "[host dial mode] credential helper to use (defaults to WERFT_CREDENTIAL_HELPER env var)")
 	// The following are such specific flags that really only matters if one doesn't use the stock helm charts.
 	// They can still be set using an env var, but there's no need to clutter the CLI with them.
 	rootCmdOpts.K8sLabelSelector = werftLabelSelector
@@ -146,6 +148,69 @@ func dial() (res closableGrpcClientConnInterface) {
 		log.WithError(err).Fatal("cannot connect to werft server")
 	}
 	return
+}
+
+func getRequestContext(md *v1.JobMetadata) (ctx context.Context, cancel context.CancelFunc, err error) {
+	reqMD := make(metadata.MD)
+	if rootCmdOpts.CredentialHelper != "" {
+		var m jsonpb.Marshaler
+		mdJSON, err := m.MarshalToString(md)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		cmd := exec.Command(rootCmdOpts.CredentialHelper)
+		cmd.Stdin = bytes.NewReader([]byte(mdJSON))
+		out, err := cmd.CombinedOutput()
+		log.WithField("input", string(mdJSON)).WithError(err).WithField("output", string(out)).Debug("ran credential helper")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		token := strings.TrimSpace(string(out))
+		reqMD.Set("x-auth-token", token)
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+	ctx = metadata.NewOutgoingContext(ctx, reqMD)
+
+	return
+}
+
+func getLocalJobName(client v1.WerftServiceClient, args []string) (jobname string, md *v1.JobMetadata, err error) {
+	var (
+		name            string
+		localJobContext *v1.JobMetadata
+	)
+	if len(args) == 0 {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", nil, err
+		}
+		localJobContext, err = getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+		var cancel context.CancelFunc
+
+		ctx, cancel, err := getRequestContext(localJobContext)
+		if err != nil {
+			return "", nil, err
+		}
+		ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		name, err = findJobByMetadata(ctx, localJobContext, client)
+		cancel()
+		if err != nil {
+			return "", nil, err
+		}
+		if name == "" {
+			return "", nil, fmt.Errorf("no job found - please specify job name")
+		}
+
+		fmt.Printf("re-running \033[34m\033[1m%s\t\033\033[0m\n", name)
+	} else {
+		name = args[0]
+	}
+	return name, localJobContext, nil
 }
 
 func dialKubernetes() (closableGrpcClientConnInterface, error) {
