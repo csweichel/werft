@@ -41,6 +41,7 @@ import (
 
 	rice "github.com/GeertJohan/go.rice"
 	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/auth"
 	"github.com/csweichel/werft/pkg/executor"
 	"github.com/csweichel/werft/pkg/logcutter"
 	plugin "github.com/csweichel/werft/pkg/plugin/host"
@@ -195,19 +196,36 @@ var runCmd = &cobra.Command{
 			log.WithError(err).Fatal("cannot start service")
 		}
 
-		grpcOpts := []grpc.ServerOption{
-			// We don't know how good our cients are at closing connections. If they don't close them properly
-			// we'll be leaking goroutines left and right. Closing Idle connections should prevent that.
-			// If a client gets disconnected because nothing happened for 15 minutes (e.g. no log output, no new job),
-			// the client can simply reconnect if they're still interested. WebUI is pretty good at maintaining
-			// connections anyways.
-			grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 15 * time.Minute}),
+		var (
+			unaryInterceptor  []grpc.UnaryServerInterceptor
+			streamInterceptor []grpc.StreamServerInterceptor
+		)
+		if cfg.Service.APIPolicy.Bundle != "" {
+			icp, err := auth.NewOPAInterceptor(context.Background(), plugins.AuthProvider(), cfg.Service.APIPolicy.Bundle)
+			if err != nil {
+				return err
+			}
+			unaryInterceptor = append(unaryInterceptor, icp.Unary())
+			streamInterceptor = append(streamInterceptor, icp.Stream())
 		}
+
+		// We don't know how good our cients are at closing connections. If they don't close them properly
+		// we'll be leaking goroutines left and right. Closing Idle connections should prevent that.
+		// If a client gets disconnected because nothing happened for 15 minutes (e.g. no log output, no new job),
+		// the client can simply reconnect if they're still interested. WebUI is pretty good at maintaining
+		// connections anyways.
+		keepAlive := grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 15 * time.Minute})
+		grpcOpts := []grpc.ServerOption{
+			keepAlive,
+			grpc.ChainUnaryInterceptor(unaryInterceptor...),
+			grpc.ChainStreamInterceptor(streamInterceptor...),
+		}
+
 		go startGRPC(service, fmt.Sprintf(":%d", cfg.Service.GRPCPort), grpcOpts...)
 		go startWeb(service, actualUIservice, fmt.Sprintf(":%d", cfg.Service.WebPort), startWebOpts{
 			DebugProxy:  cfg.Werft.DebugProxy,
 			ReadOpsOnly: cfg.Service.WebReadOnly,
-			GRPCOpts:    grpcOpts,
+			GRPCOpts:    []grpc.ServerOption{keepAlive},
 			Plugins:     plugins,
 		})
 
@@ -483,6 +501,9 @@ type Config struct {
 		JobSpecRepos       []string `yaml:"jobSpecRepos"`
 		SpecUpdateInterval string   `yaml:"specUpdateInterval"`
 		WebReadOnly        bool     `yaml:"webReadOnly,omitempty"`
+		APIPolicy          struct {
+			Bundle string `yaml:"bundle"`
+		} `yaml:"apiPolicy,omitempty"`
 	}
 	Storage struct {
 		LogStore                   string `yaml:"logsPath"`

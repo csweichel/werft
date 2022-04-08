@@ -16,6 +16,7 @@ import (
 	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
+	"github.com/csweichel/werft/pkg/auth"
 	"github.com/csweichel/werft/pkg/plugin/common"
 	"github.com/csweichel/werft/pkg/werft"
 	log "github.com/sirupsen/logrus"
@@ -46,11 +47,16 @@ type Plugins struct {
 	werftService v1.WerftServiceServer
 	uiService    v1.WerftUIServer
 	repoProvider *compoundRepositoryProvider
+	authProvider pluginsAuthProvider
 }
 
 // RepositoryProvider provides access to all repo providers contributed via plugins
 func (p *Plugins) RepositoryProvider() werft.RepositoryProvider {
 	return p.repoProvider
+}
+
+func (p *Plugins) AuthProvider() auth.AuthenticationProvider {
+	return p.authProvider
 }
 
 // Stop stops all plugins
@@ -61,6 +67,26 @@ func (p *Plugins) Stop() {
 	for _, s := range p.sockets {
 		os.Remove(s)
 	}
+}
+
+type pluginsAuthProvider []common.AuthenticationPluginClient
+
+func (p pluginsAuthProvider) Authenticate(ctx context.Context, token string) (*auth.AuthResponse, error) {
+	for _, ap := range p {
+		resp, err := ap.Authenticate(ctx, &common.AuthenticateRequest{Token: token})
+		if err != nil {
+			return nil, err
+		}
+		if resp.Known {
+			return &auth.AuthResponse{
+				Known:    true,
+				Username: resp.Username,
+				Metadata: resp.Metadata,
+			}, nil
+		}
+	}
+
+	return &auth.AuthResponse{Known: false}, nil
 }
 
 // Error is passed down the plugins error chan
@@ -97,7 +123,9 @@ func (p *Plugins) socketFor(t common.Type) (string, error) {
 	case common.TypeIntegration:
 		return p.socketForIntegrationPlugin()
 	case common.TypeRepository:
-		return p.sockerForRepositoryPlugin()
+		return p.socketForRepositoryPlugin()
+	case common.TypeAuthentication:
+		return p.socketForAuthPlugin()
 	default:
 		return "", xerrors.Errorf("unknown plugin type %s", t)
 	}
@@ -136,8 +164,12 @@ func (p *Plugins) socketForIntegrationPlugin() (string, error) {
 	return socketFN, nil
 }
 
-func (p *Plugins) sockerForRepositoryPlugin() (string, error) {
+func (p *Plugins) socketForRepositoryPlugin() (string, error) {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-repo-%d.sock", time.Now().UnixNano())), nil
+}
+
+func (p *Plugins) socketForAuthPlugin() (string, error) {
+	return filepath.Join(os.TempDir(), fmt.Sprintf("werft-plugin-auth-%d.sock", time.Now().UnixNano())), nil
 }
 
 func (p *Plugins) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
@@ -250,7 +282,8 @@ func (p *Plugins) startPlugin(reg Registration) error {
 			}
 		}()
 
-		if t == common.TypeRepository {
+		switch t {
+		case common.TypeRepository:
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -259,10 +292,48 @@ func (p *Plugins) startPlugin(reg Registration) error {
 			if err != nil {
 				return err
 			}
+		case common.TypeAuthentication:
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			c, err := p.tryAndConnectToAuthProvider(ctx, pluginLog, socket)
+			if err != nil {
+				return err
+			}
+			p.authProvider = append(p.authProvider, c)
 		}
 	}
 
 	return nil
+}
+
+func (p *Plugins) tryAndConnectToAuthProvider(ctx context.Context, pluginLog *log.Entry, socket string) (common.AuthenticationPluginClient, error) {
+	var (
+		t        = time.NewTicker(2 * time.Second)
+		firstrun = make(chan struct{}, 1)
+		conn     *grpc.ClientConn
+		err      error
+	)
+	firstrun <- struct{}{}
+
+	defer t.Stop()
+	for {
+		select {
+		case <-firstrun:
+		case <-t.C:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-p.stopchan:
+			return nil, nil
+		}
+
+		conn, err = grpc.Dial("unix://"+socket, grpc.WithInsecure())
+		if err != nil {
+			pluginLog.Debug("cannot connect to socket (yet)")
+			continue
+		}
+		return common.NewAuthenticationPluginClient(conn), nil
+	}
 }
 
 func (p *Plugins) tryAndRegisterRepoProvider(ctx context.Context, pluginLog *log.Entry, socket string) error {

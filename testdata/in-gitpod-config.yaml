@@ -12,6 +12,9 @@ service:
   jobSpecRepos:
   - github.com/csweichel/test-repo:werft
   webReadOnly: false
+  apiPolicy:
+    bundle: testdata/policy/bundle.tar.gz
+    dump: true
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"
 executor:
   preperationTimeout: 10m
@@ -21,7 +24,7 @@ storage:
   jobsConnectionString: dbname=werft user=gitpod connect_timeout=5 sslmode=disable
   jobsMaxConnections: 10
 plugins:
-  - name: "repo-github"
+  - name: "github-repo"
     type:
     - repository
     config:
@@ -32,6 +35,14 @@ plugins:
     - sh
     - -c
     - cd plugins/github-repo; go build; cd -; plugins/github-repo/github-repo $*
+    - -s
+  - name: "github-auth"
+    type:
+    - auth
+    command:
+    - sh
+    - -c
+    - cd plugins/github-auth; go run main.go $*
     - -s
   - name: "github-integration"
     type:
@@ -89,26 +100,4 @@ plugins:
     - sh
     - -c
     - cd plugins/cron && go run main.go $*
-    - -s
-  - name: "public-api"
-    type: 
-    - integration
-    config:
-      port: 9999
-      dumpInput: true
-      policy: |
-        package werft
-
-        default allow = false
-
-        allow {
-          input.method == "ListJobs"
-        }
-        allow {
-          input.metadata["x-auth-token"] != ""
-        }
-    command:
-    - sh
-    - -c
-    - cd plugins/opa-api && go run main.go $*
     - -s
