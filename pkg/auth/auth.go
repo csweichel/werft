@@ -14,7 +14,9 @@ type AuthenticationProvider interface {
 type AuthResponse struct {
 	Known    bool              `json:"known"`
 	Username string            `json:"username"`
-	Metadata map[string]string `json:"metadata"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+	Emails   []string          `json:"emails,omitempty"`
+	Teams    []string          `json:"teams,omitempty"`
 }
 
 type Interceptor interface {

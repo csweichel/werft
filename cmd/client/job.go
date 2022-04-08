@@ -72,6 +72,9 @@ func prettyPrint(obj proto.Message, defaultTpl string) error {
 }
 
 func getMetadataFilter(md *v1.JobMetadata) ([]*v1.FilterExpression, error) {
+	if md == nil {
+		return nil, nil
+	}
 	return []*v1.FilterExpression{
 		{Terms: []*v1.FilterTerm{{Field: "repo.owner", Value: md.Repository.Owner}}},
 		{Terms: []*v1.FilterTerm{{Field: "repo.repo", Value: md.Repository.Repo}}},

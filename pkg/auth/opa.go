@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/sirupsen/logrus"
@@ -16,7 +17,7 @@ import (
 
 func NewOPAInterceptor(ctx context.Context, authProvider AuthenticationProvider, bundle string) (Interceptor, error) {
 	p, err := rego.New(
-		rego.Query("data.werft.allow"),
+		rego.Query("res = data.werft.allow"),
 		rego.LoadBundle(bundle),
 	).PrepareForEval(ctx)
 	if err != nil {
@@ -73,19 +74,52 @@ func (i *opaInterceptor) Stream() grpc.StreamServerInterceptor {
 		}
 
 		md, _ := metadata.FromIncomingContext(ctx)
-		input := policyInput{
-			Method:   info.FullMethod,
-			Metadata: md,
-			Message:  srv,
-			Auth:     auth,
-		}
-		err = i.eval(ctx, input)
-		if err != nil {
-			return err
-		}
 
-		return handler(srv, ss)
+		return handler(srv, &interceptingStream{
+			ServerStream: ss,
+			eval: func(msg interface{}) error {
+				input := policyInput{
+					Method:   info.FullMethod,
+					Metadata: md,
+					Message:  msg,
+					Auth:     auth,
+				}
+				err = i.eval(ctx, input)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		})
 	}
+}
+
+type interceptingStream struct {
+	grpc.ServerStream
+	eval func(msg interface{}) error
+	done bool
+	mu   sync.Mutex
+}
+
+func (s *interceptingStream) RecvMsg(m interface{}) error {
+	err := s.ServerStream.RecvMsg(m)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.done {
+		return nil
+	}
+	s.done = true
+
+	err = s.eval(m)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (i *opaInterceptor) eval(ctx context.Context, input policyInput) error {
@@ -103,9 +137,10 @@ func (i *opaInterceptor) eval(ctx context.Context, input policyInput) error {
 		input.Metadata["x-auth-token"] = []string{"some-value"}
 	}
 	dmp, _ := json.Marshal(input)
-	logrus.WithField("input", string(dmp)).WithField("value", result[0].Expressions[0].Value).Debug("evaluating request")
+	allowed, ok := result[0].Bindings["res"].(bool)
+	logrus.WithField("input", string(dmp)).WithField("allowed", allowed).Debug("evaluating request")
 
-	if !result.Allowed() {
+	if !allowed || !ok {
 		return status.Error(codes.Unauthenticated, "not allowed")
 	}
 	return nil

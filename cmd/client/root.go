@@ -153,10 +153,15 @@ func dial() (res closableGrpcClientConnInterface) {
 func getRequestContext(md *v1.JobMetadata) (ctx context.Context, cancel context.CancelFunc, err error) {
 	reqMD := make(metadata.MD)
 	if rootCmdOpts.CredentialHelper != "" {
-		var m jsonpb.Marshaler
-		mdJSON, err := m.MarshalToString(md)
-		if err != nil {
-			return nil, nil, err
+		var (
+			m      jsonpb.Marshaler
+			mdJSON string
+		)
+		if md != nil {
+			mdJSON, err = m.MarshalToString(md)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
 		cmd := exec.Command(rootCmdOpts.CredentialHelper)

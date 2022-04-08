@@ -15,4 +15,6 @@ message AuthenticateResponse {
     bool known = 1;
     string username = 2;
     map<string, string> metadata = 3;
+    repeated string emails = 4;
+    repeated string teams = 5;
 }
