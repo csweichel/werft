@@ -82,6 +82,8 @@ func (p pluginsAuthProvider) Authenticate(ctx context.Context, token string) (*a
 				Known:    true,
 				Username: resp.Username,
 				Metadata: resp.Metadata,
+				Emails:   resp.Emails,
+				Teams:    resp.Teams,
 			}, nil
 		}
 	}

@@ -39,6 +39,9 @@ plugins:
   - name: "github-auth"
     type:
     - auth
+    config:
+      enableEmails: true
+      enableTeams: false
     command:
     - sh
     - -c
