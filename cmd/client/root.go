@@ -40,7 +40,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -62,8 +64,9 @@ var rootCmdOpts struct {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "werft",
-	Short: "werft is a very simple GitHub triggered and Kubernetes powered CI system",
+	Use:          "werft",
+	Short:        "werft is a very simple GitHub triggered and Kubernetes powered CI system",
+	SilenceUsage: true,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if rootCmdOpts.Verbose {
 			log.SetLevel(log.DebugLevel)
@@ -75,8 +78,18 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+	err := rootCmd.Execute()
+	if err != nil {
+		// We'll do some common error handling here, aiming to make the errors more actionable.
+		if s, ok := status.FromError(err); ok {
+			switch s.Code() {
+			case codes.Unauthenticated:
+				fmt.Print("\033[1mtip:\033[0m Try and use a credential helper by setting the WERFT_CREDENTIAL_HELPER env var.\n\n")
+			case codes.Internal:
+				fmt.Print("\033[1mtip:\033[0m There seems to be a problem with your werft installation - please get in contact with whoever is operating this installation.\n\n")
+			}
+		}
+
 		os.Exit(1)
 	}
 }
