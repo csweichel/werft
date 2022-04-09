@@ -59,7 +59,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
-	"gopkg.in/yaml.v3"
+	yamlv2 "gopkg.in/yaml.v2"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -79,8 +79,7 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		var cfg Config
-		err = yaml.Unmarshal(fc, &cfg)
+		cfg, err := LoadConfig(fc)
 		if err != nil {
 			return err
 		}
@@ -500,6 +499,16 @@ func init() {
 	runCmd.Flags().String("debug-webui-proxy", "", "proxies the web UI to this address")
 	runCmd.Flags().Bool("verbose", false, "enable verbose debug output")
 }
+
+func LoadConfig(content []byte) (*Config, error) {
+	cfg := &Config{}
+	err := yamlv2.UnmarshalStrict(content, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
 
 // Config configures the werft server
 type Config struct {

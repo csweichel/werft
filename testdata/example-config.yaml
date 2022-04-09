@@ -13,8 +13,3 @@ executor:
 storage:
   logsPath: "/tmp/logs"
   jobsConnectionString: dbname=werft user=postgres connect_timeout=5 sslmode=disable
-github:
-  webhookSecret: foobar
-  privateKeyPath: testdata/example-app.pem
-  appID: 48144
-  installationID: 5647067
