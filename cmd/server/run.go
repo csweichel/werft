@@ -50,6 +50,7 @@ import (
 	"github.com/csweichel/werft/pkg/version"
 	"github.com/csweichel/werft/pkg/werft"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
+	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -200,8 +201,18 @@ var runCmd = &cobra.Command{
 			unaryInterceptor  []grpc.UnaryServerInterceptor
 			streamInterceptor []grpc.StreamServerInterceptor
 		)
-		if cfg.Service.APIPolicy.Bundle != "" {
-			icp, err := auth.NewOPAInterceptor(context.Background(), plugins.AuthProvider(), cfg.Service.APIPolicy.Bundle)
+		if cfg.Service.APIPolicy.Enabled {
+			var policy func(*rego.Rego)
+			switch {
+			case cfg.Service.APIPolicy.Bundle != "":
+				policy = rego.LoadBundle(cfg.Service.APIPolicy.Bundle)
+			case len(cfg.Service.APIPolicy.Paths) != 0:
+				policy = rego.Load(cfg.Service.APIPolicy.Paths, nil)
+			default:
+				log.Fatal("API policy is enabled byt neither bundle nor paths are set")
+			}
+
+			icp, err := auth.NewOPAInterceptor(context.Background(), plugins.AuthProvider(), policy)
 			if err != nil {
 				return err
 			}
@@ -502,7 +513,9 @@ type Config struct {
 		SpecUpdateInterval string   `yaml:"specUpdateInterval"`
 		WebReadOnly        bool     `yaml:"webReadOnly,omitempty"`
 		APIPolicy          struct {
-			Bundle string `yaml:"bundle"`
+			Enabled bool     `yaml:"enabled"`
+			Bundle  string   `yaml:"bundle"`
+			Paths   []string `yaml:"paths"`
 		} `yaml:"apiPolicy,omitempty"`
 	}
 	Storage struct {

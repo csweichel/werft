@@ -20,6 +20,7 @@ import (
 	"github.com/csweichel/werft/pkg/plugin/common"
 	"github.com/csweichel/werft/pkg/werft"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v3"
@@ -280,7 +281,7 @@ func (p *Plugins) startPlugin(reg Registration) error {
 			pluginLog.Info("stopping plugin")
 			mayFail = true
 			if cmd.Process != nil {
-				cmd.Process.Kill()
+				unix.Kill(-cmd.Process.Pid, unix.SIGKILL)
 			}
 		}()
 

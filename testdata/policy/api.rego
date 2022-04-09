@@ -9,7 +9,7 @@ allow {
     input.method == "/v1.WerftService/Listen"
 }
 
-# all other things are only allowed when the user is authenticated and a Gitpod employee
+# Allow running GitHub jobs with sideloading only for team members and not on main
 allow {
     is_team_member
 
@@ -17,6 +17,7 @@ allow {
     input.message.sideload != ""
     not startswith(input.message.metadata.repository.ref, "refs/heads/main")
 }
+# Allow running GitHub jobs with custom jobs only for team members and not on main
 allow {
     is_team_member
 
@@ -24,16 +25,24 @@ allow {
     input.message.job_yaml != ""
     not startswith(input.message.metadata.repository.ref, "refs/heads/main")
 }
+# Allow running GitHub jobs on all branches without sideloading/custom jobs
 allow {
     is_team_member
 
     input.method == "/v1.WerftService/StartGitHubJob"
-    input.message.job_yaml == ""
-    input.message.job_path == ""
-    input.message.sideload == ""
+    not input.message.job_yaml
+    not input.message.job_path
+    not input.message.sideload
 }
 
-is_team_member[auth] {
+# Allow team members to run previously started jobs
+allow {
+    is_team_member
+
+    input.method == "/v1.WerftService/StartFromPreviousJob"
+}
+
+is_team_member {
     input.auth.known
-    endswith(auth.emails[_], "@gitpod.io")
+    endswith(input.auth.emails[_], "@gitpod.io")
 }

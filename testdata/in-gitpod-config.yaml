@@ -13,8 +13,9 @@ service:
   - github.com/csweichel/test-repo:werft
   webReadOnly: false
   apiPolicy:
-    bundle: testdata/policy/bundle.tar.gz
-    dump: true
+    enabled: true
+    paths: 
+      - testdata/policy/api.rego
 kubeconfig: "/home/gitpod/.kube/k3s.yaml"
 executor:
   preperationTimeout: 10m
