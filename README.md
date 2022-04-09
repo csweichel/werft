@@ -1,4 +1,4 @@
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://repositories.github.com/csweichel/werft) 
+[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/csweichel/werft) 
 
 <center><img src="logo.png" width="200px"></center>
 
@@ -35,7 +35,7 @@ helm upgrade --install werft .
 
 ### Git-hoster integration
 Werft integrates with Git hosting platforms using its plugin system.
-Currently, werft ships with support for GitHub only ([plugins/github-repo](https://repositories.github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-repo) and [plugins/github-trigger](https://repositories.github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-trigger)).
+Currently, werft ships with support for GitHub only ([plugins/github-repo](https://github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-repo) and [plugins/github-trigger](https://github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-trigger)).
 
 To add support for other Git hoster, the `github-repo` plugin is a good starting point.
 
@@ -225,7 +225,7 @@ You can find an example policy in [`testdata/policy/api.rego`](testdata/policy/a
 Werft sports a powerful CLI which can be used to create, list, start and listen to jobs.
 
 ### Installation
-The Werft CLI is available on the [GitHub release page](https://repositories.github.com/csweichel/werft/releases), or using this one-liner:
+The Werft CLI is available on the [GitHub release page](https://github.com/csweichel/werft/releases), or using this one-liner:
 ```bash
 curl -L werft.dev/get-cli.sh | sh
 ```
@@ -289,7 +289,8 @@ Logo based on [Shipyard Vectors by Vecteezy](https://www.vecteezy.com/free-vecto
 ## Thank You
 Thank you to our contributors:
 
-- [csweichel](https://repositories.github.com/csweichel)
-- [corneliusludmann](https://repositories.github.com/corneliusludmann)
-- [jankeromnes](https://repositories.github.com/jankeromnes)
-- [JesterOrNot](https://repositories.github.com/JesterOrNot)
+- [csweichel](https://github.com/csweichel)
+- [corneliusludmann](https://github.com/corneliusludmann)
+- [jankeromnes](https://github.com/jankeromnes)
+- [JesterOrNot](https://github.com/JesterOrNot)
+- [IQQBot](https://github.com/IQQBot)
