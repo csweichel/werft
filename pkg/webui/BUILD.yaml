@@ -5,6 +5,7 @@ packages:
       - src/**/*
       - public/**/*
       - package.json
+      - yarn.lock
       - .eslintignore
       - .env
     config:
