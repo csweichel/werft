@@ -16,6 +16,7 @@ Instead, Werft jobs have run Node, Golang or bash scripts in production environm
   * [GitHub events](#gitHub-events)
 - [Log Cutting](#log-cutting)
   * [GitHub events](#gitHub-events)
+- [Authentication and Policies](#authentication-and-policies)
 - [Command Line Interface](#command-line-interface)
   * [Installation](#installation-1)
   * [Usage](#usage)
@@ -147,6 +148,79 @@ The default cutter in Werft expects the following syntax:
 
 > **Tip**: You can produce this kind of log output using the Werft CLI: `werft log`
 
+## Authentication and Policies
+Werft supports authentication and API-based policies on its gRPC interface. This allows for great flexibility and control over the actions users can perform.
+
+<a href="https://www.loom.com/share/8306d46d304c4912a33d21b8fafbea87">
+    <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/8306d46d304c4912a33d21b8fafbea87-with-play.gif">
+  </a>
+
+### Authentication
+Authentication is performed using [credential helper](#credential-helper) and auth plugins. The latter are plugins which can interpret tokens send as part of the gRPC metadata, e.g. by the CLI. See [`plugins/github-auth`](plugins/github-auth) for an example auth plugin, and [`testdata/in-gitpod-config.yaml`](testdata/in-gitpod-config.yaml) for an example setup.
+
+### Policies
+Werft integrates the [Open Policy Agent](https://www.openpolicyagent.org/) to afford flexible control over which actions are allowed via the API.
+Once enabled, all incoming gRPC calls are subject to the policy. Note: this does not affect the web UI or other plugins (e.g. the GitHub integration).
+
+To enable API policies, set
+```YAML
+service:
+  apiPolicy:
+    enabled: true
+    paths: 
+      - testdata/policy/api.rego
+```
+
+where paths is a list of files or directories which contain the policies.
+
+For each API request, werft will provide the following input to evaluate the policy:
+```json
+{
+    "method": "/v1.WerftService/StartGitHubJob",
+    "metadata": {
+        ":authority": [
+            "localhost:7777"
+        ],
+        "content-type": [
+            "application/grpc"
+        ],
+        "user-agent": [
+            "grpc-go/1.36.1"
+        ],
+        "x-auth-token": [
+            "some-value"
+        ]
+    },
+    "message": {
+        "metadata": {
+            "owner": "Christian Weichel",
+            "repository": {
+                "host": "github.com",
+                "owner": "csweichel",
+                "repo": "werft",
+                "ref": "refs/heads/csweichel/support-token-based-access-116",
+                "revision": "d2c02a67c6e13fc5c3b3f5afb3ae60a66add5caa"
+            },
+            "trigger": 1
+        }
+    },
+    "auth": {
+        "known": true,
+        "username": "csweichel",
+        "metadata": {
+            "name": "Christian Weichel",
+            "two-factor-authentication": "true"
+        },
+        "emails": [
+            "some@mail.com"
+        ]
+    }
+}
+```
+The auth section is present only when an [authentication plugin](#authentication) is configured, a token was sent, and the token/user is known to the auth plugins.
+
+You can find an example policy in [`testdata/policy/api.rego`](testdata/policy/api.rego).
+
 ## Command Line Interface
 Werft sports a powerful CLI which can be used to create, list, start and listen to jobs.
 
@@ -178,6 +252,15 @@ Flags:
 
 Use "werft [command] --help" for more information about a command.
 ```
+
+### Credential Helper
+The werft CLI can send authentication tokens to werft, which are intepreted by the auth plugins for use with OPA policies. 
+A credential helper is a program which prints a token on stdout and exits with code 0. Any other exit code will result in an error.
+The token is opaque to werft and interpreted by auth plugins (see [Authentication and Policies](#authentication-and-policies)).
+
+Werft's CLI will pass context as a single line JSON via stdin to the credential helper. See `testdata/credential-helper.sh` for an example.
+
+To enable this feature, set the `WERFT_CREDENTIAL_HELPER` env var to the command you would like to execute.
 
 ## Annotations
 Annotations are used by your werft job to make runtime decesions. Werft supports passing annotation in three ways:
