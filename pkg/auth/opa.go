@@ -15,10 +15,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewOPAInterceptor(ctx context.Context, authProvider AuthenticationProvider, bundle string) (Interceptor, error) {
+func NewOPAInterceptor(ctx context.Context, authProvider AuthenticationProvider, policy func(*rego.Rego)) (Interceptor, error) {
 	p, err := rego.New(
 		rego.Query("res = data.werft.allow"),
-		rego.LoadBundle(bundle),
+		policy,
 	).PrepareForEval(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot compile policy: %w", err)
