@@ -625,7 +625,7 @@ func (srv *Service) cleanupJobWorkspace(s *v1.JobStatus) {
 	podspec.Containers = append(podspec.Containers, corev1.Container{
 		Name:       "cleanup",
 		Image:      "alpine:latest",
-		Command:    []string{"sh", "-c", "rm -rf *"},
+		Command:    []string{"sh", "-c", "rm -rf .* * 2>&-"},
 		WorkingDir: "/workspace",
 		VolumeMounts: []corev1.VolumeMount{
 			{
