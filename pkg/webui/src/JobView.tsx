@@ -385,10 +385,10 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                         { host !== "github.com" && job.metadata!.repository!.revision }
                     </JobMetadataItemProps>
                     <JobMetadataItemProps label="Phase">{phaseToString(job.phase)}</JobMetadataItemProps>
-                    { job.metadata!.finished && <JobMetadataItemProps label="Finished">
+                    { job.metadata!.finished && <JobMetadataItemProps label="Duration">
                         <Tooltip title={((job.metadata!.finished.seconds-job.metadata!.created.seconds)/60)+" minutes"}>
                             <span>
-                                {moment.unix(job.metadata!.finished.seconds).from(moment.unix(job.metadata!.created.seconds))}
+                                {moment.duration(moment.unix(job.metadata!.finished.seconds).diff(moment.unix(job.metadata!.created.seconds))).humanize()}
                             </span>
                         </Tooltip>
                     </JobMetadataItemProps> }
