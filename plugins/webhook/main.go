@@ -59,7 +59,7 @@ func (*webhookPlugin) Run(ctx context.Context, config interface{}, srv *client.S
 			defer wg.Done()
 
 			sub, err := srv.Subscribe(ctx, &v1.SubscribeRequest{
-				Filter: []*v1.FilterExpression{&v1.FilterExpression{Terms: filter}},
+				Filter: []*v1.FilterExpression{{Terms: filter}},
 			})
 			if err != nil {
 				log.WithError(err).Errorf("cannot subscribe for notification %d", idx)

@@ -105,3 +105,13 @@ plugins:
     - -c
     - cd plugins/cron && go run main.go $*
     - -s
+  - name: "otel-exporter"
+    type:
+    - integration
+    config:
+      exporter: stdout
+    command:
+    - sh
+    - -c
+    - cd plugins/otel-exporter && go run main.go $*
+    - -s

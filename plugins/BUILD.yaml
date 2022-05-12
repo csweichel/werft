@@ -7,6 +7,7 @@ packages:
       - plugins/github-repo:app
       - plugins/github-integration:app
       - plugins/integration-example:app
+      - plugins/otel-exporter:app
       - plugins/webhook:app
     config:
       commands:
