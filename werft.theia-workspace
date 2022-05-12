@@ -7,6 +7,7 @@
         {"path": "plugins/github-repo"},
         {"path": "plugins/github-integration"},
         {"path": "plugins/integration-example"},
+        {"path": "plugins/otel-exporter"},
         {"path": "plugins/webhook"}
     ],
     "settings": {
