@@ -42,35 +42,20 @@ func NewFileLogStore(base string) (*FileLogStore, error) {
 
 // GarbageCollect removes all log files older than the given duration.
 func (fs *FileLogStore) GarbageCollect(olderThan time.Duration) error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
 	// clean known files first - this way we can skip those which are currently
 	// open for writing.
 	openForWriting := make(map[string]struct{})
-	for id, f := range fs.files {
-		if !f.closed {
-			openForWriting[f.fn] = struct{}{}
-			continue
-		}
-		fn := filepath.Join(fs.Base, f.fn)
-		stat, err := os.Stat(fn)
-		if err != nil {
-			// cannot stat file - it might not even exist for some reason.
-			continue
-		}
-		t := fileAge(stat)
+	func() {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
 
-		if time.Since(t) <= olderThan {
-			continue
+		for _, f := range fs.files {
+			if !f.closed {
+				openForWriting[f.fn] = struct{}{}
+
+			}
 		}
-
-		// we ignore the error here because we don't want a single
-		// file to break the removal of others.
-		_ = os.Remove(fn)
-
-		delete(fs.files, id)
-	}
+	}()
 
 	// let's look at all the files in the base path, excluding those
 	// of which we know they're open for writing.
