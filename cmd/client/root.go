@@ -23,6 +23,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -41,6 +42,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,6 +55,7 @@ import (
 
 var rootCmdOpts struct {
 	Verbose          bool
+	UseTLS           bool
 	Host             string
 	Kubeconfig       string
 	K8sNamespace     string
@@ -128,6 +131,7 @@ func init() {
 	if dialMode == "" {
 		dialMode = string(dialModeHost)
 	}
+	_, useTLS := os.LookupEnv("WERFT_USE_TLS")
 
 	rootCmd.PersistentFlags().BoolVar(&rootCmdOpts.Verbose, "verbose", false, "en/disable verbose logging")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.DialMode, "dial-mode", dialMode, "dial mode that determines how we connect to werft. Valid values are \"host\" or \"kubernetes\" (defaults to WERFT_DIAL_MODE env var).")
@@ -135,6 +139,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.Kubeconfig, "kubeconfig", werftKubeconfig, "[kubernetes dial mode] kubeconfig file to use (defaults to KUEBCONFIG env var)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.K8sNamespace, "k8s-namespace", werftNamespace, "[kubernetes dial mode] Kubernetes namespace in which to look for the werft pods (defaults to WERFT_K8S_NAMESPACE env var, or configured kube context namespace)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.CredentialHelper, "credential-helper", os.Getenv("WERFT_CREDENTIAL_HELPER"), "[host dial mode] credential helper to use (defaults to WERFT_CREDENTIAL_HELPER env var)")
+	rootCmd.PersistentFlags().BoolVar(&rootCmdOpts.UseTLS, "use-tls", useTLS, "[tls mode] sets whether to use TLS dial options with system certificates")
 	// The following are such specific flags that really only matters if one doesn't use the stock helm charts.
 	// They can still be set using an env var, but there's no need to clutter the CLI with them.
 	rootCmdOpts.K8sLabelSelector = werftLabelSelector
@@ -148,11 +153,22 @@ type closableGrpcClientConnInterface interface {
 
 func dial() (res closableGrpcClientConnInterface) {
 	var err error
+	var dialOption grpc.DialOption
+	if rootCmdOpts.UseTLS {
+		c, err := x509.SystemCertPool()
+		if err != nil {
+			log.WithError(err).Fatal("cannot load system certificates")
+		}
+		dialOption = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(c, ""))
+	} else {
+		dialOption = grpc.WithInsecure()
+	}
 	switch rootCmdOpts.DialMode {
 	case dialModeHost:
-		res, err = grpc.Dial(rootCmdOpts.Host, grpc.WithInsecure())
+
+		res, err = grpc.Dial(rootCmdOpts.Host, dialOption)
 	case dialModeKubernetes:
-		res, err = dialKubernetes()
+		res, err = dialKubernetes(dialOption)
 	default:
 		log.Fatalf("unknown dial mode: %s", rootCmdOpts.DialMode)
 	}
@@ -231,7 +247,7 @@ func getLocalJobName(client v1.WerftServiceClient, args []string) (jobname strin
 	return name, localJobContext, nil
 }
 
-func dialKubernetes() (closableGrpcClientConnInterface, error) {
+func dialKubernetes(dialOption grpc.DialOption) (closableGrpcClientConnInterface, error) {
 	kubecfg, namespace, err := getKubeconfig(rootCmdOpts.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load kubeconfig %s: %w", rootCmdOpts.Kubeconfig, err)
@@ -261,7 +277,7 @@ func dialKubernetes() (closableGrpcClientConnInterface, error) {
 	case <-readychan:
 	}
 
-	res, err := grpc.Dial(fmt.Sprintf("localhost:%d", localPort), grpc.WithInsecure())
+	res, err := grpc.Dial(fmt.Sprintf("localhost:%d", localPort), dialOption)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("cannot dial forwarded connection: %w", err)
