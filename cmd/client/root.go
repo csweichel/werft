@@ -102,6 +102,7 @@ type dialMode string
 const (
 	dialModeHost       = "host"
 	dialModeKubernetes = "kubernetes"
+	tlsDialMode        = "none"
 )
 
 func init() {
@@ -131,7 +132,10 @@ func init() {
 	if dialMode == "" {
 		dialMode = string(dialModeHost)
 	}
-	TLSMode := os.Getenv("WERFT_TLS_MODE")
+	tlsMode := os.Getenv("WERFT_TLS_MODE")
+	if tlsMode == "" {
+		tlsMode = tlsDialMode
+	}
 
 	rootCmd.PersistentFlags().BoolVar(&rootCmdOpts.Verbose, "verbose", false, "en/disable verbose logging")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.DialMode, "dial-mode", dialMode, "dial mode that determines how we connect to werft. Valid values are \"host\" or \"kubernetes\" (defaults to WERFT_DIAL_MODE env var).")
@@ -139,7 +143,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.Kubeconfig, "kubeconfig", werftKubeconfig, "[kubernetes dial mode] kubeconfig file to use (defaults to KUEBCONFIG env var)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.K8sNamespace, "k8s-namespace", werftNamespace, "[kubernetes dial mode] Kubernetes namespace in which to look for the werft pods (defaults to WERFT_K8S_NAMESPACE env var, or configured kube context namespace)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.CredentialHelper, "credential-helper", os.Getenv("WERFT_CREDENTIAL_HELPER"), "[host dial mode] credential helper to use (defaults to WERFT_CREDENTIAL_HELPER env var)")
-	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.TLSMode, "tls-mode", TLSMode, "[tls mode] determines TLS mode to use when talking to werft. Values values are \"\" (i.e. insecure), \"system\" (use system certificates) or \"/path/to/ca.pem\"")
+	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.TLSMode, "tls-mode", tlsMode, "[tls mode] determines TLS mode to use when talking to werft. Values values are \"none\" (i.e. insecure), \"system\" (use system certificates) or \"/path/to/ca.pem\" (Defaults to \"none\").")
 	// The following are such specific flags that really only matters if one doesn't use the stock helm charts.
 	// They can still be set using an env var, but there's no need to clutter the CLI with them.
 	rootCmdOpts.K8sLabelSelector = werftLabelSelector
@@ -153,7 +157,7 @@ type closableGrpcClientConnInterface interface {
 
 func configureTLSOption(tlsMode string) grpc.DialOption {
 	switch tlsMode {
-	case "":
+	case "none":
 		return grpc.WithInsecure()
 	case "system":
 		c, err := x509.SystemCertPool()
@@ -161,7 +165,6 @@ func configureTLSOption(tlsMode string) grpc.DialOption {
 			log.WithError(err).Fatal("cannot load system certificates")
 		}
 		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(c, ""))
-
 	default:
 		credentials, err := credentials.NewClientTLSFromFile(tlsMode, "")
 		if err != nil {
