@@ -55,7 +55,6 @@ import (
 
 var rootCmdOpts struct {
 	Verbose          bool
-	UseTLS           bool
 	Host             string
 	Kubeconfig       string
 	K8sNamespace     string
@@ -63,6 +62,7 @@ var rootCmdOpts struct {
 	K8sPodPort       string
 	DialMode         string
 	CredentialHelper string
+	TLSMode          string
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -131,7 +131,7 @@ func init() {
 	if dialMode == "" {
 		dialMode = string(dialModeHost)
 	}
-	_, useTLS := os.LookupEnv("WERFT_USE_TLS")
+	TLSMode := os.Getenv("WERFT_TLS_MODE")
 
 	rootCmd.PersistentFlags().BoolVar(&rootCmdOpts.Verbose, "verbose", false, "en/disable verbose logging")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.DialMode, "dial-mode", dialMode, "dial mode that determines how we connect to werft. Valid values are \"host\" or \"kubernetes\" (defaults to WERFT_DIAL_MODE env var).")
@@ -139,7 +139,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.Kubeconfig, "kubeconfig", werftKubeconfig, "[kubernetes dial mode] kubeconfig file to use (defaults to KUEBCONFIG env var)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.K8sNamespace, "k8s-namespace", werftNamespace, "[kubernetes dial mode] Kubernetes namespace in which to look for the werft pods (defaults to WERFT_K8S_NAMESPACE env var, or configured kube context namespace)")
 	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.CredentialHelper, "credential-helper", os.Getenv("WERFT_CREDENTIAL_HELPER"), "[host dial mode] credential helper to use (defaults to WERFT_CREDENTIAL_HELPER env var)")
-	rootCmd.PersistentFlags().BoolVar(&rootCmdOpts.UseTLS, "use-tls", useTLS, "[tls mode] sets whether to use TLS dial options with system certificates")
+	rootCmd.PersistentFlags().StringVar(&rootCmdOpts.TLSMode, "tls-mode", TLSMode, "[tls mode] determines TLS mode to use when talking to werft. Values values are \"\" (i.e. insecure), \"system\" (use system certificates) or \"/path/to/ca.pem\"")
 	// The following are such specific flags that really only matters if one doesn't use the stock helm charts.
 	// They can still be set using an env var, but there's no need to clutter the CLI with them.
 	rootCmdOpts.K8sLabelSelector = werftLabelSelector
@@ -151,28 +151,37 @@ type closableGrpcClientConnInterface interface {
 	io.Closer
 }
 
-func dial() (res closableGrpcClientConnInterface) {
-	var err error
-	var dialOption grpc.DialOption
-	if rootCmdOpts.UseTLS {
+func configureTLSOption(tlsMode string) grpc.DialOption {
+	switch tlsMode {
+	case "":
+		return grpc.WithInsecure()
+	case "system":
 		c, err := x509.SystemCertPool()
 		if err != nil {
 			log.WithError(err).Fatal("cannot load system certificates")
 		}
-		dialOption = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(c, ""))
-	} else {
-		dialOption = grpc.WithInsecure()
+		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(c, ""))
+
+	default:
+		credentials, err := credentials.NewClientTLSFromFile(tlsMode, "")
+		if err != nil {
+			log.WithError(err).Fatal("cannot load specfifed certificates")
+		}
+		return grpc.WithTransportCredentials(credentials)
 	}
+}
+
+func dial() (res closableGrpcClientConnInterface) {
+	var err error
+	tlsDialOption := configureTLSOption(rootCmdOpts.TLSMode)
 	switch rootCmdOpts.DialMode {
 	case dialModeHost:
-
-		res, err = grpc.Dial(rootCmdOpts.Host, dialOption)
+		res, err = grpc.Dial(rootCmdOpts.Host, tlsDialOption)
 	case dialModeKubernetes:
-		res, err = dialKubernetes(dialOption)
+		res, err = dialKubernetes(tlsDialOption)
 	default:
 		log.Fatalf("unknown dial mode: %s", rootCmdOpts.DialMode)
 	}
-
 	if err != nil {
 		log.WithError(err).Fatal("cannot connect to werft server")
 	}
