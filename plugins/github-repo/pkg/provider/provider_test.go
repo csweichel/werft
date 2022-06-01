@@ -63,7 +63,7 @@ func TestParseAnnotations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			res := parseAnnotations(test.Input)
+			res := ParseAnnotations(test.Input)
 			if diff := cmp.Diff(test.Expected, res); diff != "" {
 				t.Errorf("MakeGatewayInfo() mismatch (-want +got):\n%s", diff)
 			}

@@ -11,3 +11,13 @@ packages:
       - CGO_ENABLED=0
     config:
       buildFlags: ["-o", "werft-plugin-github-repo"]
+  - name: lib
+    type: go
+    deps:
+      - //:plugin-client-lib
+    srcs:
+      - "pkg/provider/*.go"
+      - "go.mod"
+      - "go.sum"
+    env:
+      - CGO_ENABLED=0

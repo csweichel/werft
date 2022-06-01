@@ -12,6 +12,7 @@ import (
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/plugin/client"
 	plugin "github.com/csweichel/werft/pkg/plugin/client"
+	repo "github.com/csweichel/werft/plugins/github-repo/pkg/provider"
 	"github.com/google/go-github/v35/github"
 	log "github.com/sirupsen/logrus"
 )
@@ -75,6 +76,8 @@ type githubTriggerPlugin struct {
 	Config *Config
 	Werft  v1.WerftServiceClient
 	Github *github.Client
+
+	testMode bool
 }
 
 func (p *githubTriggerPlugin) Run(ctx context.Context, config interface{}, srv *client.Services) error {
@@ -279,12 +282,115 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 		p.processInstallationEvent(event)
 	case *github.IssueCommentEvent:
 		p.processIssueCommentEvent(r.Context(), event)
+	case *github.PullRequestEvent:
+		p.processPullRequestEvent(r.Context(), event)
 	case *github.DeleteEvent:
 		// handled by the push event already
 	default:
 		log.WithField("event", event).Debug("unhandled GitHub event")
 		http.Error(w, "unhandled event", http.StatusInternalServerError)
 	}
+}
+
+func (p *githubTriggerPlugin) processPullRequestEvent(ctx context.Context, event *github.PullRequestEvent) {
+	pr := event.PullRequest
+	ref := pr.GetHead().GetRef()
+	if !strings.HasPrefix(ref, "refs/") {
+		// we assume this is a branch
+		ref = "refs/heads/" + ref
+	}
+	rev := pr.GetHead().GetSHA()
+
+	lastJobs, err := p.Werft.ListJobs(ctx, &v1.ListJobsRequest{
+		Filter: []*v1.FilterExpression{
+			{
+				Terms: []*v1.FilterTerm{
+					{Field: "repo.ref", Value: ref, Operation: v1.FilterOp_OP_EQUALS},
+				},
+			},
+		},
+		Order: []*v1.OrderExpression{{Field: "created", Ascending: false}},
+		Limit: 10,
+	})
+	if err != nil {
+		log.WithError(err).Warn("cannot list last jobs when handling PR body update")
+		return
+	}
+
+	annotations := repo.ParseAnnotations(pr.GetBody())
+
+	var noReRun bool
+	for _, j := range lastJobs.Result {
+		if j.Metadata.Repository.Revision != rev {
+			continue
+		}
+
+		ja := make(map[string]string, len(j.Metadata.Annotations))
+		for _, a := range j.Metadata.Annotations {
+			ja[a.Key] = a.Value
+		}
+
+		if !mapEQ(annotations, ja) {
+			noReRun = true
+			break
+		}
+	}
+	if noReRun {
+		return
+	}
+
+	var (
+		msg        string
+		segs       = strings.Split(event.GetRepo().GetFullName(), "/")
+		prDstOwner = segs[0]
+		prDstRepo  = segs[1]
+	)
+	if p.userIsAllowedToStartJob(ctx, prDstOwner, prDstRepo, event.GetSender().GetLogin()) {
+		req := p.prepareStartJobRequest(event.Sender, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, ref, rev, v1.JobTrigger_TRIGGER_MANUAL)
+		for k, v := range annotations {
+			req.Metadata.Annotations = append(req.Metadata.Annotations, &v1.Annotation{
+				Key:   k,
+				Value: v,
+			})
+		}
+		resp, err := p.Werft.StartJob2(ctx, req)
+		if err == nil {
+			msg = fmt.Sprintf("started the job as [%s](%s/job/%s) because the annotations in the pull request description changed", resp.Status.Name, p.Config.BaseURL, resp.Status.Name)
+			switch p.Config.JobProtection {
+			case JobProtectionDefaultBranch:
+				msg += fmt.Sprintf("\n(with `.werft/` from `%s`)", event.Repo.GetDefaultBranch())
+			}
+		} else {
+			log.WithError(err).Warn("GitHub webhook error")
+			msg = "cannot start job - please talk to whoever's in charge of your Werft installation"
+		}
+	} else {
+		msg = "annotations in the pull request changed, but user is not allowed to start a job"
+	}
+
+	if p.testMode {
+		return
+	}
+	_, _, err = p.Github.Issues.CreateComment(ctx, prDstOwner, prDstRepo, pr.GetNumber(), &github.IssueComment{
+		Body: &msg,
+	})
+	if err != nil {
+		log.WithError(err).Error("cannot create comment after handling PR body update")
+	}
+}
+
+func mapEQ(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k, v := range a {
+		bv, ok := b[k]
+		if !ok || v != bv {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
@@ -387,6 +493,24 @@ func (p *githubTriggerPlugin) processInstallationEvent(event *github.Installatio
 	}).Info("someone just installed a GitHub app for this webhook")
 }
 
+func (p *githubTriggerPlugin) userIsAllowedToStartJob(ctx context.Context, owner, repo, user string) bool {
+	if p.testMode {
+		return true
+	}
+
+	permissions, _, err := p.Github.Repositories.GetPermissionLevel(ctx, owner, repo, user)
+	if err != nil {
+		log.WithError(err).WithField("repo", fmt.Sprintf("%s/%s", owner, repo)).WithField("user", user).Warn("cannot get permission level")
+		return false
+	}
+	switch permissions.GetPermission() {
+	case "admin", "write":
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, event *github.IssueCommentEvent) {
 	if !p.Config.PRComments.Enabled {
 		return
@@ -458,14 +582,7 @@ func (p *githubTriggerPlugin) processIssueCommentEvent(ctx context.Context, even
 			}
 		}
 	}
-	permissions, _, err := p.Github.Repositories.GetPermissionLevel(ctx, prDstOwner, prDstRepo, sender)
-	if err != nil {
-		log.WithError(err).WithField("repo", fmt.Sprintf("%s/%s", prDstOwner, prDstRepo)).WithField("user", sender).Warn("cannot get permission level")
-	}
-	switch permissions.GetPermission() {
-	case "admin", "write":
-		// leave allowed as it stands
-	default:
+	if !p.userIsAllowedToStartJob(ctx, prDstOwner, prDstRepo, sender) {
 		allowed = false
 	}
 	if !allowed {
