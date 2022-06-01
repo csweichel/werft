@@ -475,14 +475,10 @@ func (*unlimitedRateLimiter) TryAccept() bool {
 }
 
 // Accept returns once a token becomes available.
-func (*unlimitedRateLimiter) Accept() {
-	return
-}
+func (*unlimitedRateLimiter) Accept() {}
 
 // Stop stops the rate limiter, subsequent calls to CanAccept will return false
-func (*unlimitedRateLimiter) Stop() {
-	return
-}
+func (*unlimitedRateLimiter) Stop() {}
 
 // QPS returns QPS of this rate limiter
 func (*unlimitedRateLimiter) QPS() float32 {

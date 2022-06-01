@@ -60,7 +60,7 @@ type Config struct {
 type JobProtectionLevel string
 
 const (
-	JobProtectionOff           JobProtectionLevel = ""
+	// JobProtectionOff           JobProtectionLevel = ""
 	JobProtectionDefaultBranch JobProtectionLevel = "default-branch"
 )
 
@@ -411,11 +411,6 @@ func (p *githubTriggerPlugin) processPushEvent(event *github.PushEvent) {
 	if err != nil {
 		log.WithError(err).Warn("GitHub webhook error")
 	}
-}
-
-type githubUser interface {
-	ID() uint64
-	Login() string
 }
 
 type githubRepo interface {
