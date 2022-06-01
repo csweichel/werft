@@ -103,7 +103,7 @@ func (s *GithubRepoServer) GetRemoteAnnotations(ctx context.Context, req *common
 			log.WithField("ref", repo.Ref).WithField("rev", repo.Revision).WithField("pr", pr.GetHTMLURL()).Warn("found multiple open PR's - using oldest one")
 		}
 
-		atns := parseAnnotations(pr.GetBody())
+		atns := ParseAnnotations(pr.GetBody())
 		for k, v := range atns {
 			res[k] = v
 		}
@@ -115,7 +115,7 @@ func (s *GithubRepoServer) GetRemoteAnnotations(ctx context.Context, req *common
 
 // pareseAnnotations parses one annotation per line in the form of "/werft <key>(=<value>)?".
 // Any line not matching this format is silently ignored.
-func parseAnnotations(message string) (res map[string]string) {
+func ParseAnnotations(message string) (res map[string]string) {
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(message)))
 	for scanner.Scan() {
 		line := scanner.Text()

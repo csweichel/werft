@@ -1,0 +1,1 @@
+{"metadata":{"owner":"csweichel","repository":{"host":"github.com","owner":"csweichel","repo":"test-repo","ref":"refs/heads/cannot-init","revision":"eed6dfe4dad7e3519acf52679b9880c5d2a2afbf","defaultBranch":"master"},"trigger":"TRIGGER_MANUAL","annotations":[{"key":"updateGitHubStatus","value":"csweichel/test-repo"},{"key":"with-preview"}]},"spec":{"jobPath":""}}

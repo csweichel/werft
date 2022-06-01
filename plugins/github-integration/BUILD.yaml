@@ -3,6 +3,7 @@ packages:
     type: go
     deps:
       - //:plugin-client-lib
+      - plugins/github-repo:lib
     srcs:
       - "**/*.go"
       - "go.mod"
