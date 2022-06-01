@@ -18,7 +18,7 @@ RUN curl -o /usr/bin/k3s -L https://github.com/rancher/k3s/releases/download/v1.
     chmod +x /usr/bin/k3s
 
 ENV LEEWAY_WORKSPACE_ROOT=/workspace/werft
-RUN curl -L https://github.com/TypeFox/leeway/releases/download/v0.1.0/leeway_0.1.0_Linux_x86_64.tar.gz | tar xz && \
+RUN curl -L https://github.com/TypeFox/leeway/releases/download/v0.2.17/leeway_0.2.17_Linux_x86_64.tar.gz | tar xz && \
     mv leeway /usr/bin/leeway && \
     rm README.md
 
