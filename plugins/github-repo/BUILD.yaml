@@ -19,5 +19,7 @@ packages:
       - "pkg/provider/*.go"
       - "go.mod"
       - "go.sum"
+    config:
+      packaging: library
     env:
       - CGO_ENABLED=0

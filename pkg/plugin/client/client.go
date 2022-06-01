@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"reflect"
 	"syscall"
-	"time"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
 	"github.com/csweichel/werft/pkg/plugin/common"
@@ -55,7 +54,7 @@ func WithIntegrationPlugin(p IntegrationPlugin) ServeOpt {
 	return ServeOpt{
 		Type: common.TypeIntegration,
 		Run: func(ctx context.Context, config interface{}, socket string) error {
-			conn, err := grpc.Dial(socket, grpc.WithInsecure(), grpc.WithDialer(unixConnect))
+			conn, err := grpc.Dial(socket, grpc.WithInsecure(), grpc.WithContextDialer(unixConnect))
 			if err != nil {
 				return xerrors.Errorf("did not connect: %v", err)
 			}
@@ -210,6 +209,6 @@ func Serve(configType interface{}, opts ...ServeOpt) {
 	cancel()
 }
 
-func unixConnect(addr string, t time.Duration) (net.Conn, error) {
+func unixConnect(ctx context.Context, addr string) (net.Conn, error) {
 	return net.Dial("unix", addr)
 }

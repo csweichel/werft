@@ -171,7 +171,7 @@ func (s *GithubRepoServer) ContentInitContainer(ctx context.Context, req *common
 
 	cloneCmd := "git clone"
 	if user != "" || pass != "" {
-		cloneCmd = fmt.Sprintf("git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\"")
+		cloneCmd = "git clone -c \"credential.helper=/bin/sh -c 'echo username=$GHUSER_SECRET; echo password=$GHPASS_SECRET'\""
 	}
 	cloneTarget := repo.Ref
 	if repo.Revision != "" {

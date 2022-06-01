@@ -460,45 +460,6 @@ func (srv *Service) StartFromPreviousJob(ctx context.Context, req *v1.StartFromP
 	}, nil
 }
 
-// newTarStreamAdapter creates a reader from an incoming workspace tar stream
-func newTarStreamAdapter(inc v1.WerftService_StartLocalJobServer, initial []byte) io.Reader {
-	return &tarStreamAdapter{
-		inc:       inc,
-		remainder: initial,
-	}
-}
-
-// tarStreamAdapter turns a client-side data stream into an io.Reader
-type tarStreamAdapter struct {
-	inc       v1.WerftService_StartLocalJobServer
-	remainder []byte
-}
-
-// Read reads from incoming stream
-func (tsa *tarStreamAdapter) Read(p []byte) (n int, err error) {
-	if len(tsa.remainder) == 0 {
-		var msg *v1.StartLocalJobRequest
-		msg, err = tsa.inc.Recv()
-		if err != nil {
-			return 0, err
-		}
-		data := msg.GetWorkspaceTar()
-		if data == nil {
-			log.Debug("tar upload done")
-			return 0, io.EOF
-		}
-
-		n = copy(p, data)
-		tsa.remainder = data[n:]
-
-		return
-	}
-	n = copy(p, tsa.remainder)
-	tsa.remainder = tsa.remainder[n:]
-
-	return n, nil
-}
-
 // ListJobs lists jobs
 func (srv *Service) ListJobs(ctx context.Context, req *v1.ListJobsRequest) (resp *v1.ListJobsResponse, err error) {
 	result, total, err := srv.Jobs.Find(ctx, req.Filter, req.Order, int(req.Start), int(req.Limit))

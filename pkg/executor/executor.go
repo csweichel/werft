@@ -321,7 +321,7 @@ func (js *Executor) Start(podspec corev1.PodSpec, metadata werftv1.JobMetadata, 
 		}
 
 		go func() {
-			d := opts.WaitUntil.Sub(time.Now())
+			d := time.Until(opts.WaitUntil)
 			select {
 			case <-time.After(d):
 				run()
@@ -497,6 +497,10 @@ func (js *Executor) doHousekeeping() {
 			err = js.addAnnotation(pod.Name, map[string]string{
 				js.labels.AnnotationFailed: msg,
 			})
+			if err != nil {
+				log.WithError(err).WithField("name", pod.Name).Warn("cannot add failed annotation to job")
+				continue
+			}
 		}
 
 		<-tick.C

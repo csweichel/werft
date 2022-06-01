@@ -97,8 +97,6 @@ func Execute() {
 	}
 }
 
-type dialMode string
-
 const (
 	dialModeHost       = "host"
 	dialModeKubernetes = "kubernetes"
@@ -234,9 +232,12 @@ func getLocalJobName(client v1.WerftServiceClient, args []string) (jobname strin
 			return "", nil, err
 		}
 		localJobContext, err = getLocalJobContext(wd, v1.JobTrigger_TRIGGER_MANUAL)
+		if err != nil {
+			return "", nil, fmt.Errorf("cannot find local job context: %w", err)
+		}
 		var cancel context.CancelFunc
 
-		ctx, cancel, err := getRequestContext(localJobContext)
+		ctx, _, err := getRequestContext(localJobContext)
 		if err != nil {
 			return "", nil, err
 		}
@@ -279,6 +280,9 @@ func dialKubernetes(dialOption grpc.DialOption) (closableGrpcClientConnInterface
 	}
 
 	localPort, err := findFreeLocalPort()
+	if err != nil {
+		return nil, fmt.Errorf("cannot find free port: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	readychan, errchan := forwardPort(ctx, kubecfg, namespace, pod, fmt.Sprintf("%d:%s", localPort, rootCmdOpts.K8sPodPort))

@@ -1,9 +1,6 @@
 package werft
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"io"
 	"time"
@@ -167,45 +164,6 @@ func (lcp *LocalContentProvider) copyToPod(name string) error {
 	return nil
 }
 
-// tarWithReadyFile adds a gzipped tar entry containting an empty file named .ready to the stream
-type tarWithReadyFile struct {
-	O         io.Reader
-	remainder []byte
-	eof       bool
-}
-
-func (t *tarWithReadyFile) Read(p []byte) (n int, err error) {
-	if len(t.remainder) > 0 {
-		n = copy(p, t.remainder)
-		t.remainder = t.remainder[n:]
-		return
-	}
-	if len(t.remainder) == 0 && t.eof {
-		log.Debug("tarWithReadyFile EOF")
-		return n, io.EOF
-	}
-
-	n, err = t.O.Read(p)
-	log.WithField("n", n).WithError(err).Debug("incoming tar data")
-	if err == io.EOF {
-		t.eof = true
-		err = nil
-
-		buf := bytes.NewBuffer(nil)
-		gzipW := gzip.NewWriter(buf)
-		tarW := tar.NewWriter(gzipW)
-		tarW.WriteHeader(&tar.Header{
-			Name:     ".ready",
-			Size:     0,
-			Typeflag: tar.TypeBlock,
-		})
-		tarW.Close()
-		gzipW.Close()
-		t.remainder = buf.Bytes()
-	}
-	return
-}
-
 // SideloadingContentProvider first runs the delegate and then sideloads files
 type SideloadingContentProvider struct {
 	TarStream  io.Reader
@@ -297,9 +255,7 @@ func (c CompositeContentProvider) InitContainer() ([]corev1.Container, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, ic := range ics {
-			res = append(res, ic)
-		}
+		res = append(res, ics...)
 	}
 	return res, nil
 }
