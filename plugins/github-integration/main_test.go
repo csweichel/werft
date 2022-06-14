@@ -257,7 +257,7 @@ func TestProcessPushEvent(t *testing.T) {
 	}
 }
 
-func TestProcessPullRequestEvent(t *testing.T) {
+func TestProcessPullRequestEditedEvent(t *testing.T) {
 	type Fixture struct {
 		Event        *github.PullRequestEvent
 		ListResponse []*v1.JobStatus
@@ -319,7 +319,7 @@ func TestProcessPullRequestEvent(t *testing.T) {
 			if fixture.Event == nil {
 				t.Fatal("broken fixture: no event")
 			}
-			plg.processPullRequestEvent(context.Background(), fixture.Event)
+			plg.processPullRequestEditedEvent(context.Background(), fixture.Event)
 
 			var expectation *v1.StartJobRequest2
 			goldenFN := strings.TrimSuffix(fn, filepath.Ext(fn)) + ".golden"
@@ -349,7 +349,7 @@ func TestProcessPullRequestEvent(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(expectation, startReq); diff != "" {
-				t.Errorf("processPullRequestEvent() mismatch (-want +got):\n%s", diff)
+				t.Errorf("processPullRequestEditedEvent() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
