@@ -485,10 +485,7 @@
             "Metadata": {
                 "Repository": {
                     "Revision": "eed6dfe4dad7e3519acf52679b9880c5d2a2afbf"
-                },
-                "Annotations": [
-                    {"Key": "with-preview", "Value": ""}   
-                ]
+                }
             }
         }
     ]

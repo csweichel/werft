@@ -283,7 +283,7 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 	case *github.IssueCommentEvent:
 		p.processIssueCommentEvent(r.Context(), event)
 	case *github.PullRequestEvent:
-		p.processPullRequestEvent(r.Context(), event)
+		p.processPullRequestEditedEvent(r.Context(), event)
 	case *github.DeleteEvent:
 		// handled by the push event already
 	default:
@@ -292,8 +292,15 @@ func (p *githubTriggerPlugin) HandleGithubWebhook(w http.ResponseWriter, r *http
 	}
 }
 
-func (p *githubTriggerPlugin) processPullRequestEvent(ctx context.Context, event *github.PullRequestEvent) {
+func (p *githubTriggerPlugin) processPullRequestEditedEvent(ctx context.Context, event *github.PullRequestEvent) {
 	pr := event.PullRequest
+	// Potentially (depending on the webhook configuration) we'll get multiple PR events - when pushing (every push generates a "synchronize" pull_request event if there's a PR open),
+	// adding/removing a label,reviewer, assigning/unassigning, etc. The only time annotations are relevant are when a PRs description is edited (opening a PR is handled by a different flow)
+	// So this is the only one we process at this time, the rest we discard.
+	if event.GetAction() != "edited" {
+		return
+	}
+
 	ref := pr.GetHead().GetRef()
 	if !strings.HasPrefix(ref, "refs/") {
 		// we assume this is a branch
@@ -317,26 +324,27 @@ func (p *githubTriggerPlugin) processPullRequestEvent(ctx context.Context, event
 		return
 	}
 
-	annotations := repo.ParseAnnotations(pr.GetBody())
+	prAnnotations := repo.ParseAnnotations(pr.GetBody())
 
-	var noReRun bool
-	for _, j := range lastJobs.Result {
-		if j.Metadata.Repository.Revision != rev {
+	// We only care about the last job that ran for the same commit as that of the PR Event
+	for _, lastJob := range lastJobs.Result {
+		if lastJob.Metadata.Repository.Revision != rev {
 			continue
 		}
 
-		ja := make(map[string]string, len(j.Metadata.Annotations))
-		for _, a := range j.Metadata.Annotations {
-			ja[a.Key] = a.Value
+		jobAnnotations := make(map[string]string, len(lastJob.Metadata.Annotations))
+		for _, a := range lastJob.Metadata.Annotations {
+			jobAnnotations[a.Key] = a.Value
 		}
 
-		if !mapEQ(annotations, ja) {
-			noReRun = true
-			break
+		// If the annotations didn't change between the last job and the event we're currently processing we have nothing to do
+		if mapEQ(prAnnotations, jobAnnotations) {
+			return
 		}
-	}
-	if noReRun {
-		return
+
+		// If we got here, it means that the annotations changed, so we should continue and launch a job with the new annotations
+		// Also we don't care for the rest of the "previous" jobs, so we discard by breaking out of the loop
+		break
 	}
 
 	var (
@@ -347,7 +355,7 @@ func (p *githubTriggerPlugin) processPullRequestEvent(ctx context.Context, event
 	)
 	if p.userIsAllowedToStartJob(ctx, prDstOwner, prDstRepo, event.GetSender().GetLogin()) {
 		req := p.prepareStartJobRequest(event.Sender, event.Repo.Owner, event.Repo.Owner, event.Repo, event.Repo, ref, rev, v1.JobTrigger_TRIGGER_MANUAL)
-		for k, v := range annotations {
+		for k, v := range prAnnotations {
 			req.Metadata.Annotations = append(req.Metadata.Annotations, &v1.Annotation{
 				Key:   k,
 				Value: v,
