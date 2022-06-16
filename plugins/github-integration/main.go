@@ -301,6 +301,20 @@ func (p *githubTriggerPlugin) processPullRequestEditedEvent(ctx context.Context,
 		return
 	}
 
+	// We don't care to process unless the body actually changed
+	if event.GetChanges() == nil || event.GetChanges().Body == nil {
+		return
+	}
+
+	oldAnnotations := repo.ParseAnnotations(*event.GetChanges().Body.From)
+	prAnnotations := repo.ParseAnnotations(pr.GetBody())
+	// the annotations didn't change between the PR edits - there's nothing to do
+	if mapEQ(oldAnnotations, prAnnotations) {
+		return
+	}
+
+	hasStatusUpdateAnnotation := len(prAnnotations) > 0 && prAnnotations[annotationStatusUpdate] != ""
+
 	ref := pr.GetHead().GetRef()
 	if !strings.HasPrefix(ref, "refs/") {
 		// we assume this is a branch
@@ -324,9 +338,7 @@ func (p *githubTriggerPlugin) processPullRequestEditedEvent(ctx context.Context,
 		return
 	}
 
-	prAnnotations := repo.ParseAnnotations(pr.GetBody())
-
-	// We only care about the last job that ran for the same commit as that of the PR Event
+	// We only care about the last job that run for the same commit as that of the PR Event
 	for _, lastJob := range lastJobs.Result {
 		if lastJob.Metadata.Repository.Revision != rev {
 			continue
@@ -334,6 +346,13 @@ func (p *githubTriggerPlugin) processPullRequestEditedEvent(ctx context.Context,
 
 		jobAnnotations := make(map[string]string, len(lastJob.Metadata.Annotations))
 		for _, a := range lastJob.Metadata.Annotations {
+			// Potentially all previous jobs would have been started with the updateGithubStatus annotation, as that annotation is added on a push event
+			// The PR Edit event we process here will NOT have that annotation at this stage, unless it's been explicitly added in the body of the PR
+			// Which would lead to a job being triggered every time we process an event - by always having a mismatch
+			// Therefore we exclude it in our comparison if it doesn't exist in the PR Annotations AND in the last job
+			if !hasStatusUpdateAnnotation && a.Key == annotationStatusUpdate {
+				continue
+			}
 			jobAnnotations[a.Key] = a.Value
 		}
 

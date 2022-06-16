@@ -354,7 +354,7 @@
         },
         "changes": {
             "body": {
-                "from": "- [ ] /werft with-preview"
+                "from": "- [x] /werft with-preview"
             }
         },
         "repository": {

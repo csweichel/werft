@@ -16,6 +16,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/go-github/v35/github"
 )
 
@@ -284,7 +285,7 @@ func TestProcessPullRequestEditedEvent(t *testing.T) {
 
 			var startReq *v1.StartJobRequest2
 			client := mock.NewMockWerftServiceClient(mockCtrl)
-			client.EXPECT().ListJobs(gomock.Any(), gomock.Any(), gomock.Any()).
+			client.EXPECT().ListJobs(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().
 				DoAndReturn(func(ctx context.Context, in *v1.ListJobsRequest) (*v1.ListJobsResponse, error) {
 					return &v1.ListJobsResponse{Result: fixture.ListResponse}, nil
 				})
@@ -348,7 +349,8 @@ func TestProcessPullRequestEditedEvent(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if diff := cmp.Diff(expectation, startReq); diff != "" {
+			less := func(a, b *v1.Annotation) bool { return a.Key < b.Key }
+			if diff := cmp.Diff(expectation, startReq, cmpopts.SortSlices(less)); diff != "" {
 				t.Errorf("processPullRequestEditedEvent() mismatch (-want +got):\n%s", diff)
 			}
 		})

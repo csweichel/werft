@@ -113,7 +113,7 @@ func (s *GithubRepoServer) GetRemoteAnnotations(ctx context.Context, req *common
 	}, nil
 }
 
-// pareseAnnotations parses one annotation per line in the form of "/werft <key>(=<value>)?".
+// ParseAnnotations parses one annotation per line in the form of "/werft <key>(=<value>)?".
 // Any line not matching this format is silently ignored.
 func ParseAnnotations(message string) (res map[string]string) {
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(message)))
