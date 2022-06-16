@@ -354,7 +354,7 @@
         },
         "changes": {
             "body": {
-                "from": "- [x] /werft with-preview"
+                "from": "- [ ] /werft with-preview"
             }
         },
         "repository": {
@@ -479,5 +479,14 @@
             "id": 5647067,
             "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNTY0NzA2Nw=="
         }
-    }
+    },
+    "ListResponse": [
+        {
+            "Metadata": {
+                "Repository": {
+                    "Revision": "eed6dfe4dad7e3519acf52679b9880c5d2a2afbf"
+                }
+            }
+        }
+    ]
 }
