@@ -33,6 +33,7 @@ export const styles = (theme: Theme) =>
         },
         sectionDesc: {
             flex: 1,
+            overflowWrap: 'anywhere'
         },
         sectionLink: {
             alignSelf: 'end',
