@@ -399,7 +399,7 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
                 thirdrow = <Toolbar>
                     <Grid container spacing={1} alignItems="center" className={this.props.classes.infobar}>
                         <Grid item xs={12}><Divider light={true} /></Grid>
-                        { job.metadata.annotationsList.map((a, k) => <JobMetadataItemProps key={k} label={a.key}>{a.value}</JobMetadataItemProps>) }
+                        { job.metadata.annotationsList.sort((a, b) => a.key > b.key ? 1 : -1).map((a, k) => <JobMetadataItemProps key={k} label={a.key}>{a.value}</JobMetadataItemProps>) }
                     </Grid>
                 </Toolbar>;
             }
