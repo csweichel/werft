@@ -219,8 +219,8 @@ class StartJobImpl extends React.Component<StartJobProps, StartJobState> {
     }
 
     protected handleSearchKeyPress(evt: KeyboardEvent) {
-        if (evt.charCode !== 13) {
-            return
+        if (evt.key !== "Enter") {
+            return;
         }
 
         window.location.href = "/jobs/" + (evt.target as HTMLInputElement).value;
