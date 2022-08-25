@@ -498,8 +498,8 @@ class JobViewImpl extends React.Component<JobViewProps, JobViewState> {
 }
 
 function returnToJobList(this: Window, evt: KeyboardEvent): any {
-    if (evt.keyCode !== 27) {
-        return
+    if (evt.key !== "Escape") {
+        return;
     }
 
     evt.preventDefault();
