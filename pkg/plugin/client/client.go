@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"strings"
 	"syscall"
 
 	v1 "github.com/csweichel/werft/pkg/api/v1"
@@ -14,6 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -191,9 +194,19 @@ func Serve(configType interface{}, opts ...ServeOpt) {
 		log.Fatalf("cannot serve as %s plugin", tpe)
 	}
 	go func() {
-		err := sv.Run(ctx, config, socketfn)
-		if err != nil && err != context.Canceled {
-			errchan <- err
+		for {
+			err := sv.Run(ctx, config, socketfn)
+			if err != nil && status.Code(err) == codes.Internal && strings.Contains(err.Error(), "cannot parse invalid wire-format data") {
+				// odd bug in werft #168
+				log.WithError(err).Error("plugin received invalid wire-format data - don't know how this happens. Will restart the plugin.")
+				continue
+			} else if err != nil && err != context.Canceled {
+				errchan <- err
+				return
+			} else {
+				// no error - shut down
+				return
+			}
 		}
 	}()
 
