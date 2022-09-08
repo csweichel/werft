@@ -250,6 +250,7 @@ func (srv *Service) StartJob2(ctx context.Context, req *v1.StartJobRequest2) (re
 	refname = strings.ReplaceAll(refname, "/", "-")
 	refname = strings.ReplaceAll(refname, "_", "-")
 	refname = strings.ReplaceAll(refname, "@", "-")
+	refname = strings.ReplaceAll(refname, "#", "-")
 	refname = strings.ToLower(refname)
 	if refname == "" {
 		// we did not compute a sensible refname - use moniker
