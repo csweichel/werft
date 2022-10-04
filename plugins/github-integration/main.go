@@ -296,20 +296,19 @@ func (p *githubTriggerPlugin) processPullRequestEditedEvent(ctx context.Context,
 	pr := event.PullRequest
 	// Potentially (depending on the webhook configuration) we'll get multiple PR events - when pushing (every push generates a "synchronize" pull_request event if there's a PR open),
 	// adding/removing a label,reviewer, assigning/unassigning, etc. The only time annotations are relevant are when a PRs description is edited (opening a PR is handled by a different flow)
+	prAnnotations := repo.ParseAnnotations(pr.GetBody())
 	switch event.GetAction() {
 	case "edited":
 		if event.GetChanges() == nil || event.GetChanges().Body == nil {
 			return
 		}
+		oldAnnotations := repo.ParseAnnotations(*event.GetChanges().Body.From)
+		// the annotations didn't change between the PR edits - there's nothing to do
+		if mapEQ(oldAnnotations, prAnnotations) {
+			return
+		}
 	case "opened":
 	default:
-		return
-	}
-
-	oldAnnotations := repo.ParseAnnotations(*event.GetChanges().Body.From)
-	prAnnotations := repo.ParseAnnotations(pr.GetBody())
-	// the annotations didn't change between the PR edits - there's nothing to do
-	if mapEQ(oldAnnotations, prAnnotations) {
 		return
 	}
 
