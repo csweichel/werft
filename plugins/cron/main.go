@@ -87,6 +87,7 @@ func (*cronPlugin) Run(ctx context.Context, config interface{}, srv *plugin.Serv
 					},
 					JobPath: spec.Path,
 				}
+				request.Metadata.Repository.Revision = ""
 				entryID, err := c.AddFunc(cronSpec, func() {
 					_, err := srv.StartGitHubJob(ctx, request)
 					if err != nil {
@@ -148,6 +149,7 @@ func (*cronPlugin) Run(ctx context.Context, config interface{}, srv *plugin.Serv
 			},
 			JobPath: task.JobPath,
 		}
+		request.Metadata.Repository.Revision = ""
 		_, err = c.AddFunc(task.Spec, func() {
 			_, err := srv.StartGitHubJob(ctx, request)
 			if err != nil {
