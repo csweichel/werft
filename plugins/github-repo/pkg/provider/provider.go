@@ -121,6 +121,7 @@ func ParseAnnotations(message string) (res map[string]string) {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "- [x]")
+		line = strings.TrimPrefix(line, "- [X]")
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "/werft ") {
 			continue
