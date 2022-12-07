@@ -36,6 +36,11 @@ func TestParseAnnotations(t *testing.T) {
 			Expected: map[string]string{"foobar": ""},
 		},
 		{
+			Name:     "werft annotation with checkbox and capital X",
+			Input:    "- [X] /werft foobar",
+			Expected: map[string]string{"foobar": ""},
+		},
+		{
 			Name:     "werft annotation with checkbox",
 			Input:    "- [x]    /werft foobar=value",
 			Expected: map[string]string{"foobar": "value"},
