@@ -35,7 +35,7 @@ helm upgrade --install werft .
 
 ### Git-hoster integration
 Werft integrates with Git hosting platforms using its plugin system.
-Currently, werft ships with support for GitHub only ([plugins/github-repo](https://github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-repo) and [plugins/github-trigger](https://github.com/csweichel/werft/tree/cw/repo-plugins/plugins/github-trigger)).
+Currently, werft ships with support for GitHub only ([plugins/github-repo](./plugins/github-repo) and [plugins/github-integration](./plugins/github-integration)).
 
 To add support for other Git hoster, the `github-repo` plugin is a good starting point.
 
