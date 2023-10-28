@@ -89,6 +89,13 @@ func (s *GithubRepoServer) GetRemoteAnnotations(ctx context.Context, req *common
 	}
 
 	res := make(map[string]string)
+	if repo.Ref != fmt.Sprintf("refs/heads/%s", repo.DefaultBranch) && commit.Commit != nil {
+		atns := parseAnnotations(commit.Commit.GetMessage())
+		for k, v := range atns {
+			res[k] = v
+		}
+	}
+
 	prs, _, err := s.Client.PullRequests.ListPullRequestsWithCommit(ctx, repo.Owner, repo.Repo, commit.GetSHA(), &github.PullRequestListOptions{
 		State: "open",
 		Sort:  "created",
